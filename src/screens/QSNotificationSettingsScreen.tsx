@@ -70,8 +70,8 @@ const QSNotificationSettingsScreen = () => {
                         '#10B981' // Green
                     )}
                     {renderToggle(
-                        'Low Balance',
-                        'Alert when account balance drops below threshold',
+                        'Low Balance & High Dues',
+                        'Alert when balance is low or credit card dues are high',
                         'lowBalanceAlerts',
                         'bank-outline',
                         '#EF4444' // Red

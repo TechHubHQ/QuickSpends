@@ -1,14 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Appearance, ColorSchemeName, StatusBar } from 'react-native';
-import { generateTheme, lightTheme, PREMIUM_THEMES, Theme } from './theme';
+import { generateTheme, lightTheme, PREMIUM_THEMES, Theme, ThemeOverrides } from './theme';
 
 type ThemeContextType = {
   theme: Theme;
   themeId: string;
   setThemeId: (id: string) => void;
   colorScheme: ColorSchemeName;
-  toggleTheme: () => void; // Keeps simple light/dark toggle if needed, or we just switch themes
+  toggleTheme: () => void;
+  customOverrides: ThemeOverrides;
+  updateCustomOverrides: (overrides: ThemeOverrides) => void;
 };
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -17,11 +19,14 @@ const ThemeContext = createContext<ThemeContextType>({
   setThemeId: () => { },
   colorScheme: 'light',
   toggleTheme: () => { },
+  customOverrides: {},
+  updateCustomOverrides: () => { },
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [themeId, setThemeIdState] = useState<string>(PREMIUM_THEMES[0].id);
   const [colorScheme, setColorScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
+  const [customOverrides, setCustomOverrides] = useState<ThemeOverrides>({});
 
   useEffect(() => {
     loadTheme();
@@ -30,12 +35,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const loadTheme = async () => {
     try {
       const storedThemeId = await AsyncStorage.getItem('user_theme_id');
+      const storedOverrides = await AsyncStorage.getItem('user_theme_overrides');
+
       if (storedThemeId) {
         setThemeIdState(storedThemeId);
       } else {
-        // Default based on system mode
         const systemScheme = Appearance.getColorScheme();
         setThemeIdState(systemScheme === 'dark' ? 'classic-dark' : 'classic-light');
+      }
+
+      if (storedOverrides) {
+        setCustomOverrides(JSON.parse(storedOverrides));
       }
     } catch (error) {
       console.error('Failed to load theme', error);
@@ -47,25 +57,31 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await AsyncStorage.setItem('user_theme_id', id);
   };
 
-  const toggleTheme = async () => {
-    // Simple toggle logic: if current is light, switch to classic-dark, else classic-light
-    // Or if currently a premium dark theme, switch to a premium light equivalent if exists?
-    // For simplicity, we'll swap between Classic Light and Classic Dark if using defaults,
-    // otherwise we might just toggle the type.
+  const updateCustomOverrides = async (overrides: ThemeOverrides) => {
+    const newOverrides = { ...customOverrides, ...overrides };
+    setCustomOverrides(newOverrides);
+    await AsyncStorage.setItem('user_theme_overrides', JSON.stringify(newOverrides));
+  };
 
+  const toggleTheme = async () => {
     const currentPreset = PREMIUM_THEMES.find(p => p.id === themeId) || PREMIUM_THEMES[0];
     const newType = currentPreset.type === 'light' ? 'dark' : 'light';
-
-    // Find a matching theme of the opposite type?
-    // Start with strictly switching to the defaults for robustness
     const newId = newType === 'dark' ? 'classic-dark' : 'classic-light';
     setThemeId(newId);
   };
 
-  const theme = generateTheme(themeId);
+  const theme = generateTheme(themeId, customOverrides);
 
   return (
-    <ThemeContext.Provider value={{ theme, themeId, setThemeId, colorScheme, toggleTheme }}>
+    <ThemeContext.Provider value={{
+      theme,
+      themeId,
+      setThemeId,
+      colorScheme,
+      toggleTheme,
+      customOverrides,
+      updateCustomOverrides
+    }}>
       <StatusBar
         barStyle={theme.isDark ? 'light-content' : 'dark-content'}
         backgroundColor={theme.colors.background}
@@ -82,4 +98,5 @@ export function useTheme(): ThemeContextType {
   }
   return context;
 }
+
 

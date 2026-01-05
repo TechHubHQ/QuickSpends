@@ -147,6 +147,8 @@ export interface ThemePreset {
   primary: string;
   primaryLight: string;
   primaryDark: string;
+  secondary?: string;
+  secondaryLight?: string;
   background?: string; // Optional override
   backgroundSecondary?: string; // Optional override
   surface?: string;
@@ -183,6 +185,26 @@ export const PREMIUM_THEMES: ThemePreset[] = [
     primaryDark: '#E11D48',
     background: '#FFF1F2', // Rose 50
     backgroundSecondary: '#FFE4E6' // Rose 100
+  },
+  {
+    id: 'emerald-light',
+    name: 'Emerald City',
+    type: 'light',
+    primary: '#10B981',
+    primaryLight: '#34D399',
+    primaryDark: '#059669',
+    background: '#ECFDF5',
+    backgroundSecondary: '#D1FAE5'
+  },
+  {
+    id: 'amber-light',
+    name: 'Golden Hour',
+    type: 'light',
+    primary: '#F59E0B',
+    primaryLight: '#FBBF24',
+    primaryDark: '#D97706',
+    background: '#FFFBEB',
+    backgroundSecondary: '#FEF3C7'
   },
 
   // --- DARK THEMES ---
@@ -247,45 +269,83 @@ export const PREMIUM_THEMES: ThemePreset[] = [
     card: '#431407',
     modal: '#431407',
   },
+  {
+    id: 'nordic-dark',
+    name: 'Nordic Night',
+    type: 'dark',
+    primary: '#88C0D0',
+    primaryLight: '#8FBCBB',
+    primaryDark: '#5E81AC',
+    background: '#2E3440',
+    backgroundSecondary: '#3B4252',
+    surface: '#3B4252',
+    card: '#3B4252',
+    modal: '#3B4252'
+  }
 ];
 
 // Keep for compatibility if needed, but we essentially rely on PREMIUM_THEMES now
 export const THEME_PRESETS = PREMIUM_THEMES;
 
-export const generateTheme = (themeId: string): Theme => {
+export interface ThemeOverrides {
+  primary?: string;
+  secondary?: string;
+  background?: string;
+  card?: string;
+  text?: string;
+}
+
+export const generateTheme = (themeId: string, overrides: ThemeOverrides = {}): Theme => {
   const preset = PREMIUM_THEMES.find(p => p.id === themeId) || PREMIUM_THEMES[0];
   const isDark = preset.type === 'dark';
   const baseColors = isDark ? darkTheme.colors : lightTheme.colors;
+
+  // Resolve primary colors
+  const primary = overrides.primary || preset.primary;
+  // If primary is overridden, we might want to derive light/dark, but for now we'll just use the preset's or a fallback
+  const primaryLight = overrides.primary ? `${overrides.primary}CC` : preset.primaryLight;
+  const primaryDark = overrides.primary ? `${overrides.primary}EE` : preset.primaryDark;
+
+  const resolvedColors = {
+    ...baseColors,
+
+    // Override Base Colors if present in preset
+    background: overrides.background || preset.background || baseColors.background,
+    backgroundSecondary: preset.backgroundSecondary || baseColors.backgroundSecondary,
+    surface: preset.surface || baseColors.surface,
+    card: overrides.card || preset.card || baseColors.card,
+    modal: preset.modal || baseColors.modal,
+
+    // Primary Overrides
+    primary: primary,
+    primaryLight: primaryLight,
+    primaryDark: primaryDark,
+
+    // Secondary Overrides
+    secondary: overrides.secondary || preset.secondary || baseColors.secondary,
+    secondaryLight: preset.secondaryLight || baseColors.secondaryLight,
+
+    // Text Overrides
+    text: overrides.text || baseColors.text,
+  };
 
   return {
     ...commonTokens,
     isDark,
     colors: {
-      ...baseColors,
-
-      // Override Base Colors if present in preset
-      background: preset.background || baseColors.background,
-      backgroundSecondary: preset.backgroundSecondary || baseColors.backgroundSecondary,
-      surface: preset.surface || baseColors.surface,
-      card: preset.card || baseColors.card,
-      modal: preset.modal || baseColors.modal,
-
-      // Primary Overrides
-      primary: preset.primary,
-      primaryLight: preset.primaryLight,
-      primaryDark: preset.primaryDark,
-
+      ...resolvedColors,
       gradients: {
         ...baseColors.gradients,
-        primary: [preset.primary, preset.primaryLight],
+        primary: [resolvedColors.primary, resolvedColors.primaryLight],
         card: isDark
-          ? [preset.card || baseColors.card, preset.backgroundSecondary || baseColors.backgroundSecondary]
-          : [preset.card || baseColors.card, preset.background || baseColors.background],
-        surface: [preset.background || baseColors.background, preset.surface || baseColors.surface],
+          ? [resolvedColors.card, resolvedColors.backgroundSecondary]
+          : [resolvedColors.card, resolvedColors.background],
+        surface: [resolvedColors.background, resolvedColors.surface],
       }
     },
   };
 };
+
 
 export const lightTheme: Theme = {
   isDark: false,

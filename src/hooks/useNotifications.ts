@@ -328,13 +328,13 @@ export const useNotifications = () => {
                         message = `Your balance in ${acc.name} is low ($${acc.balance}).`;
                     }
                 } else if (acc.type === 'card' && acc.card_type === 'credit') {
-                    // Credit Card: Balance is usually amount owed (Liability). 
-                    // So "Available" = Limit - Balance.
+                    // Credit Card: account.balance stores the AVAILABLE limit.
+                    // High Outstanding = Low Available Balance.
                     if (acc.credit_limit) {
-                        const available = acc.credit_limit - acc.balance;
-                        if (available < (acc.credit_limit * 0.1)) { // < 10% available
+                        const outstanding = acc.credit_limit - acc.balance;
+                        if (acc.balance < (acc.credit_limit * 0.1)) { // < 10% available (i.e. > 90% used)
                             shouldAlert = true;
-                            message = `Low available credit on ${acc.name} ($${available} left).`;
+                            message = `High outstanding dues on ${acc.name}. You've used ${((outstanding / acc.credit_limit) * 100).toFixed(0)}% of your limit.`;
                         }
                     }
                 }

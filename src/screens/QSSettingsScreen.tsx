@@ -22,7 +22,7 @@ const AVATAR_OPTIONS = Array.from({ length: TOTAL_AVATARS }, (_, i) => String(i)
 
 
 const QSSettingsScreen = () => {
-    const { theme, toggleTheme, themeId, setThemeId } = useTheme();
+    const { theme, toggleTheme, themeId, setThemeId, updateCustomOverrides } = useTheme();
     const styles = createStyles(theme);
     const { user, signOut, updateProfile } = useAuth();
     const router = useRouter();
@@ -125,6 +125,58 @@ const QSSettingsScreen = () => {
                             {PREMIUM_THEMES.map(renderThemeOption)}
                         </ScrollView>
                     </View>
+
+                    {/* Customization Section */}
+                    <View style={styles.customizationContainer}>
+                        <Text style={styles.subLabel}>Customize Colors</Text>
+                        <View style={styles.customColorList}>
+                            <TouchableOpacity
+                                style={styles.customColorOption}
+                                onPress={() => updateCustomOverrides({ primary: '#6366F1' })} // Reset example or pick
+                            >
+                                <View style={[styles.colorBubble, { backgroundColor: '#6366F1' }]} />
+                                <Text style={styles.colorBubbleLabel}>Indigo</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.customColorOption}
+                                onPress={() => updateCustomOverrides({ primary: '#10B981' })}
+                            >
+                                <View style={[styles.colorBubble, { backgroundColor: '#10B981' }]} />
+                                <Text style={styles.colorBubbleLabel}>Emerald</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.customColorOption}
+                                onPress={() => updateCustomOverrides({ primary: '#F59E0B' })}
+                            >
+                                <View style={[styles.colorBubble, { backgroundColor: '#F59E0B' }]} />
+                                <Text style={styles.colorBubbleLabel}>Amber</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.customColorOption}
+                                onPress={() => updateCustomOverrides({ primary: '#F43F5E' })}
+                            >
+                                <View style={[styles.colorBubble, { backgroundColor: '#F43F5E' }]} />
+                                <Text style={styles.colorBubbleLabel}>Rose</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.customColorOption}
+                                onPress={() => updateCustomOverrides({ primary: '#06B6D4' })}
+                            >
+                                <View style={[styles.colorBubble, { backgroundColor: '#06B6D4' }]} />
+                                <Text style={styles.colorBubbleLabel}>Cyan</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.customColorOption}
+                                onPress={() => updateCustomOverrides({ primary: undefined })} // Reset
+                            >
+                                <View style={[styles.colorBubble, { backgroundColor: theme.colors.border, borderWidth: 1, borderStyle: 'dashed' }]} >
+                                    <MaterialCommunityIcons name="close" size={16} color={theme.colors.textSecondary} />
+                                </View>
+                                <Text style={styles.colorBubbleLabel}>Reset</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
                 </View>
 
                 {/* App Settings Section */}
@@ -461,6 +513,35 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     saveText: {
         ...theme.typography.button,
         color: '#FFF',
+    },
+    customizationContainer: {
+        marginTop: theme.spacing.m,
+        padding: theme.spacing.m,
+        backgroundColor: theme.colors.card,
+        borderRadius: theme.borderRadius.m,
+        ...theme.shadows.small,
+    },
+    customColorList: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: theme.spacing.m,
+        paddingVertical: theme.spacing.s,
+    },
+    customColorOption: {
+        alignItems: 'center',
+        gap: theme.spacing.xs,
+    },
+    colorBubble: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...theme.shadows.small,
+    },
+    colorBubbleLabel: {
+        ...theme.typography.caption,
+        color: theme.colors.textSecondary,
     },
 });
 
