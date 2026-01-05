@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { generateUUID, getDatabase } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 export interface Group {
     id: string;
@@ -18,52 +18,67 @@ export const useGroups = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            // Fetch groups where user is a member or creator
-            const groups = await db.getAllAsync<any>(
-                `SELECT g.* FROM groups g
-                 JOIN group_members gm ON g.id = gm.group_id
-                 WHERE gm.user_id = ? AND gm.status IN ('joined', 'admin')
-                 ORDER BY g.created_at DESC`,
-                [userId]
-            );
+            // Fetch groups where user is a member
+            const { data: groups, error: groupsError } = await supabase
+                .from('group_members')
+                .select(`
+                    group:groups (*)
+                `)
+                .eq('user_id', userId)
+                .in('status', ['joined', 'admin']);
 
+            if (groupsError) throw groupsError;
+
+            const groupIds = (groups || []).map(g => (g.group as any).id);
 
             // Enhance groups with members and balance
-            const enhancedGroups = await Promise.all(groups.map(async (group: any) => {
-                const members = await db.getAllAsync<any>(
-                    `SELECT u.id, u.username, u.avatar FROM users u
-                     JOIN group_members gm ON u.id = gm.user_id
-                     WHERE gm.group_id = ?
-                     LIMIT 4`,
-                    [group.id]
-                );
+            const enhancedGroups = await Promise.all((groups || []).map(async (g: any) => {
+                const group = g.group;
 
-                // Calculate balance for this group
-                // 1. Amount Paid by me
-                const myPaidRow = await db.getFirstAsync<{ total: number }>(
-                    'SELECT SUM(amount) as total FROM transactions WHERE group_id = ? AND user_id = ?',
-                    [group.id, userId]
-                );
-                const myPaid = myPaidRow?.total || 0;
+                // 1. Get sample members
+                const { data: members } = await supabase
+                    .from('group_members')
+                    .select(`
+                        id:user_id,
+                        profile:profiles (username, avatar)
+                    `)
+                    .eq('group_id', group.id)
+                    .limit(4);
 
-                // 2. My Share (from splits)
-                const myShareRow = await db.getFirstAsync<{ total: number }>(
-                    `SELECT SUM(s.amount) as total 
-                     FROM splits s
-                     JOIN transactions t ON s.transaction_id = t.id
-                     WHERE t.group_id = ? AND s.user_id = ?`,
-                    [group.id, userId]
-                );
-                const myShare = myShareRow?.total || 0;
+                const simplifiedMembers = (members || []).map((m: any) => ({
+                    id: m.id,
+                    username: m.profile?.username,
+                    avatar: m.profile?.avatar
+                }));
+
+                // 2. Calculate balance for this group
+                // Amount Paid by me (through transactions)
+                const { data: paidData } = await supabase
+                    .from('transactions')
+                    .select('amount')
+                    .eq('group_id', group.id)
+                    .eq('user_id', userId);
+
+                const myPaid = (paidData || []).reduce((sum, t) => sum + t.amount, 0);
+
+                // My Share (from splits)
+                const { data: shareData } = await supabase
+                    .from('splits')
+                    .select(`
+                        amount,
+                        transaction:transactions!inner (group_id)
+                    `)
+                    .eq('user_id', userId)
+                    .eq('transactions.group_id', group.id);
+
+                const myShare = (shareData || []).reduce((sum, s) => sum + s.amount, 0);
                 const myBalance = myPaid - myShare;
 
-                return { ...group, members, owedAmount: myBalance };
+                return { ...group, members: simplifiedMembers, owedAmount: myBalance };
             }));
 
             return enhancedGroups;
         } catch (err: any) {
-
             setError(err.message);
             return [];
         } finally {
@@ -80,35 +95,34 @@ export const useGroups = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            // Generate IDs
-            const groupId = generateUUID();
-            const memberId = generateUUID();
+            // 1. Insert group
+            const { data: group, error: groupError } = await supabase
+                .from('groups')
+                .insert({
+                    name,
+                    description: description || null,
+                    created_by: user.id,
+                    trip_id: tripId || null
+                })
+                .select()
+                .single();
 
-            await db.withTransactionAsync(async () => {
-                // Insert group
-                await db.runAsync(
-                    'INSERT INTO groups (id, name, description, created_by, created_at, trip_id) VALUES (?, ?, ?, ?, ?, ?)',
-                    [groupId, name, description || null, user.id, new Date().toISOString(), tripId || null]
-                );
+            if (groupError) throw groupError;
 
-                // Add creator as member
-                await db.runAsync(
-                    'INSERT INTO group_members (id, group_id, user_id, role, status, joined_at) VALUES (?, ?, ?, ?, ?, ?)',
-                    [
-                        memberId,
-                        groupId,
-                        user.id,
-                        'admin',
-                        'joined',
-                        new Date().toISOString()
-                    ]
-                );
-            });
+            // 2. Add creator as member
+            const { error: memberError } = await supabase
+                .from('group_members')
+                .insert({
+                    group_id: group.id,
+                    user_id: user.id,
+                    role: 'admin',
+                    status: 'joined'
+                });
 
-            return groupId;
+            if (memberError) throw memberError;
+
+            return group.id;
         } catch (err: any) {
-
             setError(err.message);
             return null;
         } finally {
@@ -120,86 +134,121 @@ export const useGroups = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-
             // 1. Get Group Info
-            const group = await db.getFirstAsync<any>(
-                'SELECT * FROM groups WHERE id = ?',
-                [groupId]
-            );
+            const { data: group, error: groupError } = await supabase
+                .from('groups')
+                .select('*')
+                .eq('id', groupId)
+                .single();
 
-            if (!group) throw new Error('Group not found');
+            if (groupError || !group) throw new Error('Group not found');
 
-            // 2. Get Members
-            const members = await db.getAllAsync<any>(
-                `SELECT u.id, u.username, u.avatar, gm.role, gm.status, gm.joined_at 
-                 FROM users u
-                 JOIN group_members gm ON u.id = gm.user_id
-                 WHERE gm.group_id = ?`,
-                [groupId]
-            );
+            // 2. Get Members with Profiles
+            const { data: members, error: membersError } = await supabase
+                .from('group_members')
+                .select(`
+                    id:user_id,
+                    role,
+                    status,
+                    joined_at,
+                    profile:profiles (username, avatar)
+                `)
+                .eq('group_id', groupId);
 
-            // 3. Get Recent Transactions (Linked to group)
-            // Check if transaction has splits using a subquery or strict LEFT JOIN group
-            const transactions = await db.getAllAsync<any>(
-                `SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color, u.username as payer_name, u.avatar as payer_avatar,
-                 tr.name as trip_name,
-                 (SELECT COUNT(*) FROM splits s WHERE s.transaction_id = t.id) > 0 as is_split
-                 FROM transactions t
-                 LEFT JOIN categories c ON t.category_id = c.id
-                 JOIN users u ON t.user_id = u.id
-                 LEFT JOIN trips tr ON t.trip_id = tr.id
-                 WHERE t.group_id = ?
-                 ORDER BY t.date DESC
-                 LIMIT 20`,
-                [groupId]
-            );
+            if (membersError) throw membersError;
+
+            const simplifiedMembers = (members || []).map((m: any) => ({
+                id: m.id,
+                username: m.profile?.username,
+                avatar: m.profile?.avatar,
+                role: m.role,
+                status: m.status,
+                joined_at: m.joined_at
+            }));
+
+            // 3. Get Recent Transactions
+            const { data: transactions, error: transError } = await supabase
+                .from('transactions')
+                .select(`
+                    *,
+                    category:categories (name, icon, color),
+                    payer:profiles!transactions_user_id_fkey (username, avatar),
+                    trip:trips (name)
+                `)
+                .eq('group_id', groupId)
+                .order('date', { ascending: false })
+                .limit(20);
+
+            if (transError) throw transError;
+
+            // Enhance transactions with is_split (needs a separate check or we could use another join if we had a view)
+            const enhancedTransactions = await Promise.all((transactions || []).map(async (t: any) => {
+                const { count } = await supabase
+                    .from('splits')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('transaction_id', t.id);
+
+                return {
+                    ...t,
+                    category_name: t.category?.name,
+                    category_icon: t.category?.icon,
+                    category_color: t.category?.color,
+                    payer_name: t.payer?.username,
+                    payer_avatar: t.payer?.avatar,
+                    trip_name: t.trip?.name,
+                    is_split: (count || 0) > 0
+                };
+            }));
 
             // 4. Calculate Balances
-            // Get all paid amounts by user (ONLY for split transactions)
-            const paidByUser = await db.getAllAsync<{ user_id: string, total: number }>(
-                `SELECT t.user_id, SUM(t.amount) as total 
-                 FROM transactions t 
-                 WHERE t.group_id = ? 
-                 AND EXISTS (SELECT 1 FROM splits s WHERE s.transaction_id = t.id)
-                 GROUP BY t.user_id`,
-                [groupId]
-            );
-            const paidMap = new Map(paidByUser.map(p => [p.user_id, p.total]));
+            // Get all paid amounts for split transactions
+            const { data: paidData } = await supabase
+                .from('transactions')
+                .select('user_id, amount')
+                .eq('group_id', groupId);
 
-            // Get all split shares by user
-            const shareByUser = await db.getAllAsync<{ user_id: string, total: number }>(
-                `SELECT s.user_id, SUM(s.amount) as total 
-                 FROM splits s
-                 JOIN transactions t ON s.transaction_id = t.id
-                 WHERE t.group_id = ?
-                 GROUP BY s.user_id`,
-                [groupId]
-            );
-            const shareMap = new Map(shareByUser.map(s => [s.user_id, s.total]));
+            // Note: In reality we should only include transactions that HAVE splits. 
+            // For simplicity, we'll filter this in JS or assuming most group transactions are splits.
+            // Let's do it properly.
+            const paidTransactions = (enhancedTransactions || []).filter(t => t.is_split);
+            const paidMap = new Map<string, number>();
+            paidTransactions.forEach(t => {
+                paidMap.set(t.user_id, (paidMap.get(t.user_id) || 0) + t.amount);
+            });
 
-            // 5. Calculate Bilateral Balances (Me vs Others)
-            const bilateralBalances = await db.getAllAsync<{ other_id: string, balance: number }>(
-                `SELECT 
-                    CASE WHEN t.user_id = ? THEN s.user_id ELSE t.user_id END as other_id,
-                    SUM(CASE WHEN t.user_id = ? THEN s.amount ELSE -s.amount END) as balance
-                 FROM transactions t
-                 JOIN splits s ON t.id = s.transaction_id
-                 WHERE t.group_id = ? 
-                 AND (
-                     (t.user_id = ? AND s.user_id != ?) 
-                     OR 
-                     (t.user_id != ? AND s.user_id = ?)
-                 )
-                 GROUP BY other_id`,
-                [currentUserId, currentUserId, groupId, currentUserId, currentUserId, currentUserId, currentUserId]
-            );
-            const bilateralMap = new Map(bilateralBalances.map(b => [b.other_id, b.balance]));
+            // Get all splits for the group
+            const { data: splitsData } = await supabase
+                .from('splits')
+                .select(`
+                    user_id,
+                    amount,
+                    transaction:transactions!inner (group_id)
+                `)
+                .eq('transactions.group_id', groupId);
+
+            const shareMap = new Map<string, number>();
+            (splitsData || []).forEach((s: any) => {
+                shareMap.set(s.user_id, (shareMap.get(s.user_id) || 0) + s.amount);
+            });
+
+            // 5. Bilateral Balances (simplified logic for now)
+            const bilateralMap = new Map<string, number>();
+            // This needs a much more complex query or lots of JS for bilateral (Owe me vs I owe them)
+            // For now, let's just calculate it from the splits we already have
+            for (const txn of paidTransactions) {
+                const { data: txnSplits } = await supabase.from('splits').select('*').eq('transaction_id', txn.id);
+                (txnSplits || []).forEach(s => {
+                    if (txn.user_id === currentUserId && s.user_id !== currentUserId) {
+                        bilateralMap.set(s.user_id, (bilateralMap.get(s.user_id) || 0) + s.amount);
+                    } else if (txn.user_id !== currentUserId && s.user_id === currentUserId) {
+                        bilateralMap.set(txn.user_id, (bilateralMap.get(txn.user_id) || 0) - s.amount);
+                    }
+                });
+            }
 
             const totalSpend = Array.from(paidMap.values()).reduce((a, b) => a + b, 0);
 
-            // Enhance members with stats
-            const membersWithStats = members.map((m: any) => {
+            const membersWithStats = simplifiedMembers.map((m: any) => {
                 const paid = paidMap.get(m.id) || 0;
                 const share = shareMap.get(m.id) || 0;
                 const balance = paid - share;
@@ -208,30 +257,25 @@ export const useGroups = () => {
                     ...m,
                     paid,
                     share,
-                    balance, // +ve means owed, -ve means owes (General Group Balance)
-                    bilateral_balance, // +ve means they owe me, -ve means I owe them (Specific)
+                    balance,
+                    bilateral_balance,
                     status: Math.abs(balance) < 1 ? 'settled' : (balance > 0 ? 'owed' : 'owes')
                 };
             });
 
-            // My Stats
             const myMember = membersWithStats.find((m: any) => m.id === currentUserId);
-            const myPaid = myMember?.paid || 0;
-            const myShare = myMember?.share || 0;
-            const myBalance = myMember?.balance || 0;
 
             return {
                 ...group,
                 members: membersWithStats,
-                transactions,
+                transactions: enhancedTransactions,
                 stats: {
                     totalSpend,
-                    myBalance,
-                    myPaid,
-                    myShare
+                    myBalance: myMember?.balance || 0,
+                    myPaid: myMember?.paid || 0,
+                    myShare: myMember?.share || 0
                 }
             };
-
         } catch (err: any) {
             console.error("fetchGroupDetails error:", err);
             setError(err.message);
@@ -247,27 +291,22 @@ export const useGroups = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
+            const transactionIds = Array.from(new Set(splits.map(s => s.transactionId)));
 
-            await db.withTransactionAsync(async () => {
-                // For each transaction involved, clear existing splits?
-                // Or clear all splits for these transaction IDs?
-                const transactionIds = Array.from(new Set(splits.map(s => s.transactionId)));
+            for (const txnId of transactionIds) {
+                await supabase.from('splits').delete().eq('transaction_id', txnId);
+            }
 
-                for (const txnId of transactionIds) {
-                    await db.runAsync('DELETE FROM splits WHERE transaction_id = ?', [txnId]);
-                }
+            const { error } = await supabase
+                .from('splits')
+                .insert(splits.map(s => ({
+                    transaction_id: s.transactionId,
+                    user_id: s.userId,
+                    amount: s.amount,
+                    status: 'pending'
+                })));
 
-                // Insert new splits
-                for (const split of splits) {
-                    const splitId = generateUUID();
-                    await db.runAsync(
-                        'INSERT INTO splits (id, transaction_id, user_id, amount, status) VALUES (?, ?, ?, ?, ?)',
-                        [splitId, split.transactionId, split.userId, split.amount, 'pending']
-                    );
-                }
-            });
-
+            if (error) throw error;
         } catch (err: any) {
             console.error("saveSplits error:", err);
             setError(err.message);
@@ -283,47 +322,57 @@ export const useGroups = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const avatarUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAD7mWjrHawdcvg72D_ee4L0F4QjJxoQfOzVfXjJ65F9-GC4F5LyIrnMaId9frI4qeCg0TvlKBdDSNmWtiIXcvzMtxtiwiNEIJSnOYjpaC8kpvJn35xAqmWHbLQkuntEU0NLJiMseBtsZzfgZJxAgPOXlJp65B5pZcpbE-2irapS00uAdbPfoTTob9nEFve_mYCgfdMkaIK0KqYRMODRUtvH4jAlt6Ry8sMSn7WWgSzKNKqJI2HNH5uydSuMzSb2cA_Wt261a4Kz7o';
+            for (const member of members) {
+                let userId = member.id;
 
-            await db.withTransactionAsync(async () => {
-                for (const member of members) {
-                    let userId = member.id;
+                if (!userId) {
+                    // Check if profile exists by phone
+                    const { data: existingProfile } = await supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('phone', member.phone)
+                        .maybeSingle();
 
-                    // If no ID provided (manual entry), check if user exists by phone
-                    if (!userId) {
-                        const existingUser = await db.getFirstAsync<{ id: string }>(
-                            'SELECT id FROM users WHERE phone = ?',
-                            [member.phone]
-                        );
+                    if (existingProfile) {
+                        userId = existingProfile.id;
+                    } else {
+                        // NOTE: In Supabase, we can't easily create a profile without an auth user.
+                        // However, for group members, we might just want to store their name/phone 
+                        // in a separate "invited_members" table or just group_members with no profile.
+                        // For now, let's assume we only add existing users or we need a real signup.
+                        // For the sake of migration, let's try to find them by username if phone fails.
+                        const { data: byUsername } = await supabase
+                            .from('profiles')
+                            .select('id')
+                            .eq('username', member.name)
+                            .maybeSingle();
 
-                        if (existingUser) {
-                            userId = existingUser.id;
-                        } else {
-                            // Create new user
-                            userId = generateUUID();
-                            await db.runAsync(
-                                'INSERT INTO users (id, username, phone, password_hash, avatar) VALUES (?, ?, ?, ?, ?)',
-                                [userId, member.name, member.phone, 'hash', avatarUrl]
-                            );
+                        if (byUsername) {
+                            userId = byUsername.id;
                         }
                     }
+                }
 
-                    // Check if already a member of this group
-                    const isMember = await db.getFirstAsync(
-                        'SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?',
-                        [groupId, userId]
-                    );
+                if (userId) {
+                    const { data: isMember } = await supabase
+                        .from('group_members')
+                        .select('id')
+                        .eq('group_id', groupId)
+                        .eq('user_id', userId)
+                        .maybeSingle();
 
                     if (!isMember) {
-                        await db.runAsync(
-                            'INSERT INTO group_members (id, group_id, user_id, role, status, joined_at) VALUES (?, ?, ?, ?, ?, ?)',
-                            [generateUUID(), groupId, userId!, 'member', 'invited', new Date().toISOString()]
-                        );
+                        await supabase
+                            .from('group_members')
+                            .insert({
+                                group_id: groupId,
+                                user_id: userId,
+                                role: 'member',
+                                status: 'invited'
+                            });
                     }
                 }
-            });
-
+            }
         } catch (err: any) {
             console.error("addMembersToGroup error:", err);
             setError(err.message);
@@ -336,11 +385,11 @@ export const useGroups = () => {
         if (!user) return;
         setLoading(true);
         try {
-            const db = await getDatabase();
-            await db.runAsync(
-                'UPDATE group_members SET status = ? WHERE group_id = ? AND user_id = ?',
-                ['joined', groupId, user.id]
-            );
+            await supabase
+                .from('group_members')
+                .update({ status: 'joined' })
+                .eq('group_id', groupId)
+                .eq('user_id', user.id);
         } catch (err: any) {
             console.error("acceptGroupInvite error:", err);
             setError(err.message);
@@ -353,11 +402,11 @@ export const useGroups = () => {
         if (!user) return;
         setLoading(true);
         try {
-            const db = await getDatabase();
-            await db.runAsync(
-                'UPDATE group_members SET status = ? WHERE group_id = ? AND user_id = ?',
-                ['rejected', groupId, user.id]
-            );
+            await supabase
+                .from('group_members')
+                .update({ status: 'rejected' })
+                .eq('group_id', groupId)
+                .eq('user_id', user.id);
         } catch (err: any) {
             console.error("rejectGroupInvite error:", err);
             setError(err.message);
@@ -371,64 +420,50 @@ export const useGroups = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
+            // 1. Check if user is admin
+            const { data: member, error: memberError } = await supabase
+                .from('group_members')
+                .select('role')
+                .eq('group_id', groupId)
+                .eq('user_id', user.id)
+                .single();
 
-            // Check if user is admin/creator
-            const member = await db.getFirstAsync<{ role: string }>(
-                'SELECT role FROM group_members WHERE group_id = ? AND user_id = ?',
-                [groupId, user.id]
-            );
-
-            if (member?.role !== 'admin') {
+            if (memberError || member?.role !== 'admin') {
                 throw new Error("Only admins can delete groups");
             }
 
-            await db.withTransactionAsync(async () => {
-                // Delete splits associated with group's transactions
-                await db.runAsync(
-                    `DELETE FROM splits WHERE transaction_id IN (
-                        SELECT id FROM transactions WHERE group_id = ?
-                    )`,
-                    [groupId]
-                );
+            // 2. Fetch transactions to revert balances
+            const { data: transactions, error: transError } = await supabase
+                .from('transactions')
+                .select('id, amount, type, account_id')
+                .eq('group_id', groupId);
 
-                // Fetch transactions to revert balances
-                const transactions = await db.getAllAsync<{
-                    id: string,
-                    amount: number,
-                    type: 'income' | 'expense' | 'transfer',
-                    account_id: string
-                }>(
-                    `SELECT id, amount, type, account_id FROM transactions WHERE group_id = ?`,
-                    [groupId]
-                );
+            if (transError) throw transError;
 
-                for (const txn of transactions) {
-                    if (txn.type === 'expense') {
-                        await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [txn.amount, txn.account_id]);
-                    } else if (txn.type === 'income') {
-                        await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [txn.amount, txn.account_id]);
-                    }
+            // 3. Revert balances
+            for (const txn of (transactions || [])) {
+                const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txn.account_id).single();
+                if (acc) {
+                    const change = txn.type === 'expense' ? txn.amount : -txn.amount;
+                    await supabase.from('accounts').update({ balance: acc.balance + change }).eq('id', txn.account_id);
                 }
+            }
 
-                // Delete transactions
-                await db.runAsync(
-                    'DELETE FROM transactions WHERE group_id = ?',
-                    [groupId]
-                );
+            // 4. Delete splits for these transactions
+            const transactionIds = (transactions || []).map(t => t.id);
+            if (transactionIds.length > 0) {
+                await supabase.from('splits').delete().in('transaction_id', transactionIds);
+            }
 
-                // Delete members
-                await db.runAsync(
-                    'DELETE FROM group_members WHERE group_id = ?',
-                    [groupId]
-                );
+            // 5. Delete transactions
+            await supabase.from('transactions').delete().eq('group_id', groupId);
 
-                // Delete group
-                await db.runAsync(
-                    'DELETE FROM groups WHERE id = ?',
-                    [groupId]
-                );
-            });
+            // 6. Delete members
+            await supabase.from('group_members').delete().eq('group_id', groupId);
+
+            // 7. Delete group
+            const { error: groupDeleteError } = await supabase.from('groups').delete().eq('id', groupId);
+            if (groupDeleteError) throw groupDeleteError;
 
         } catch (err: any) {
             console.error("deleteGroup error:", err);

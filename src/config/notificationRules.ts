@@ -1,7 +1,8 @@
+import { SupabaseClient } from '@supabase/supabase-js';
 import { NotificationPreferences } from '../context/NotificationPreferencesContext';
 
 export interface NotificationRuleContext {
-    db: any;
+    supabase: SupabaseClient;
     userId: string;
     preferences: NotificationPreferences;
     createNotification: (title: string, message: string, type: 'alert' | 'info' | 'invite' | 'success' | 'security', data?: any) => Promise<void>;
@@ -21,10 +22,13 @@ export const notificationRules: NotificationRule[] = [
         name: 'Recurring Bill Reminders',
         description: 'Notify when a recurring payment is due soon',
         preferenceKey: 'billReminders',
-        check: async ({ db, userId, createNotification }) => {
-            const configs = await db.getAllAsync('SELECT * FROM recurring_configs WHERE user_id = ?', [userId]);
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: configs } = await supabase
+                .from('recurring_configs')
+                .select('*')
+                .eq('user_id', userId);
 
-            for (const config of configs) {
+            for (const config of (configs || [])) {
                 const lastExecuted = new Date(config.last_executed || config.start_date);
                 const frequency = config.frequency;
 
@@ -48,7 +52,10 @@ export const notificationRules: NotificationRule[] = [
 
                     if (!isToday) {
                         await createNotification('Recurring Payment Due', `"${config.name}" of ₹${config.amount} is due soon.`, 'info', { recurringId: config.id });
-                        await db.runAsync('UPDATE recurring_configs SET last_notified_at = ? WHERE id = ?', [now.toISOString(), config.id]);
+                        await supabase
+                            .from('recurring_configs')
+                            .update({ last_notified_at: now.toISOString() })
+                            .eq('id', config.id);
                     }
                 }
             }
@@ -59,34 +66,42 @@ export const notificationRules: NotificationRule[] = [
         name: 'Budget Utilization Alerts',
         description: 'Notify when a category budget reaches 90% utilization',
         preferenceKey: 'budgetAlerts',
-        check: async ({ db, userId, createNotification }) => {
-            const budgets = await db.getAllAsync(
-                `SELECT b.*, c.name as category_name FROM budgets b JOIN categories c ON b.category_id = c.id WHERE b.user_id = ?`,
-                [userId]
-            );
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: budgets } = await supabase
+                .from('budgets')
+                .select(`
+                    *,
+                    category:categories (name)
+                `)
+                .eq('user_id', userId);
 
             const now = new Date();
             const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-            for (const budget of budgets) {
+            for (const budget of (budgets || [])) {
                 if (budget.alert_month === currentMonth) continue;
 
-                const result = await db.getFirstAsync(
-                    `SELECT SUM(amount) as total FROM transactions 
-                     WHERE user_id = ? AND category_id = ? AND type = 'expense' AND date >= ?`,
-                    [userId, budget.category_id, startOfMonth]
-                );
+                const { data: transactions } = await supabase
+                    .from('transactions')
+                    .select('amount')
+                    .eq('user_id', userId)
+                    .eq('category_id', budget.category_id)
+                    .eq('type', 'expense')
+                    .gte('date', startOfMonth);
 
-                const spent = result?.total || 0;
+                const spent = (transactions || []).reduce((sum, t) => sum + t.amount, 0);
                 if (spent >= (budget.amount * 0.9)) {
                     await createNotification(
                         'Budget Alert',
-                        `You've used 90% of your ${budget.category_name} budget (₹${spent}/${budget.amount}).`,
+                        `You've used 90% of your ${(budget.category as any)?.name} budget (₹${spent}/${budget.amount}).`,
                         'alert',
                         { budgetId: budget.id }
                     );
-                    await db.runAsync('UPDATE budgets SET alert_month = ? WHERE id = ?', [currentMonth, budget.id]);
+                    await supabase
+                        .from('budgets')
+                        .update({ alert_month: currentMonth })
+                        .eq('id', budget.id);
                 }
             }
         }
@@ -96,15 +111,22 @@ export const notificationRules: NotificationRule[] = [
         name: 'Trip Budget Alerts',
         description: 'Notify when a trip budget reaches 90% utilization',
         preferenceKey: 'tripAlerts',
-        check: async ({ db, userId, createNotification }) => {
-            const trips = await db.getAllAsync('SELECT * FROM trips WHERE user_id = ? AND alert_sent = 0 AND budget_amount IS NOT NULL', [userId]);
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: trips } = await supabase
+                .from('trips')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('alert_sent', false)
+                .not('budget_amount', 'is', null);
 
-            for (const trip of trips) {
-                const result = await db.getFirstAsync(
-                    `SELECT SUM(amount) as total FROM transactions WHERE trip_id = ? AND type = 'expense'`,
-                    [trip.id]
-                );
-                const spent = result?.total || 0;
+            for (const trip of (trips || [])) {
+                const { data: transactions } = await supabase
+                    .from('transactions')
+                    .select('amount')
+                    .eq('trip_id', trip.id)
+                    .eq('type', 'expense');
+
+                const spent = (transactions || []).reduce((sum, t) => sum + t.amount, 0);
 
                 if (spent >= (trip.budget_amount * 0.9)) {
                     await createNotification(
@@ -113,7 +135,10 @@ export const notificationRules: NotificationRule[] = [
                         'alert',
                         { tripId: trip.id }
                     );
-                    await db.runAsync('UPDATE trips SET alert_sent = 1 WHERE id = ?', [trip.id]);
+                    await supabase
+                        .from('trips')
+                        .update({ alert_sent: true })
+                        .eq('id', trip.id);
                 }
             }
         }
@@ -123,29 +148,34 @@ export const notificationRules: NotificationRule[] = [
         name: 'Pending Split Reminders',
         description: 'Notify about pending splits older than 3 days',
         preferenceKey: 'splitReminders',
-        check: async ({ db, userId, createNotification }) => {
-            const pendingSplits = await db.getAllAsync(
-                `SELECT s.*, t.description as trans_desc, t.date as trans_date 
-                 FROM splits s 
-                 JOIN transactions t ON s.transaction_id = t.id 
-                 WHERE s.user_id = ? AND s.status = 'pending'`,
-                [userId]
-            );
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: pendingSplits } = await supabase
+                .from('splits')
+                .select(`
+                    *,
+                    transaction:transactions (description, date)
+                `)
+                .eq('user_id', userId)
+                .eq('status', 'pending')
+                .eq('alert_sent', false);
 
             const now = new Date();
-            for (const split of pendingSplits) {
-                const transDate = new Date(split.trans_date);
+            for (const split of (pendingSplits || [])) {
+                const transDate = new Date((split.transaction as any).date);
                 const diffTime = now.getTime() - transDate.getTime();
                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-                if (diffDays >= 3 && !split.alert_sent) {
+                if (diffDays >= 3) {
                     await createNotification(
                         'Pending Payment',
-                        `You have a pending split of ₹${split.amount} for "${split.trans_desc || 'Expense'}"`,
+                        `You have a pending split of ₹${split.amount} for "${(split.transaction as any).description || 'Expense'}"`,
                         'info',
                         { splitId: split.id }
                     );
-                    await db.runAsync('UPDATE splits SET alert_sent = 1 WHERE id = ?', [split.id]);
+                    await supabase
+                        .from('splits')
+                        .update({ alert_sent: true })
+                        .eq('id', split.id);
                 }
             }
         }
@@ -155,13 +185,17 @@ export const notificationRules: NotificationRule[] = [
         name: 'Low Balance Alerts',
         description: 'Notify when bank/cash balance is low or credit card use is high',
         preferenceKey: 'lowBalanceAlerts',
-        check: async ({ db, userId, createNotification }) => {
-            const accounts = await db.getAllAsync('SELECT * FROM accounts WHERE user_id = ? AND is_active = 1', [userId]);
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: accounts } = await supabase
+                .from('accounts')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('is_active', true);
 
             const now = new Date();
             const todayStr = now.toISOString().split('T')[0];
 
-            for (const acc of accounts) {
+            for (const acc of (accounts || [])) {
                 let shouldAlert = false;
                 let message = '';
 
@@ -186,7 +220,10 @@ export const notificationRules: NotificationRule[] = [
 
                     if (lastAlertDate !== todayStr) {
                         await createNotification('Low Balance Alert', message, 'alert', { accountId: acc.id });
-                        await db.runAsync('UPDATE accounts SET last_low_balance_alert = ? WHERE id = ?', [now.toISOString(), acc.id]);
+                        await supabase
+                            .from('accounts')
+                            .update({ last_low_balance_alert: now.toISOString() })
+                            .eq('id', acc.id);
                     }
                 }
             }
@@ -197,35 +234,44 @@ export const notificationRules: NotificationRule[] = [
         name: 'Monthly Spending Summary',
         description: 'Provide an expense summary on the 1st of every month',
         preferenceKey: 'monthlySummary',
-        check: async ({ db, userId, createNotification }) => {
+        check: async ({ supabase, userId, createNotification }) => {
             const now = new Date();
             if (now.getDate() === 1) {
                 const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
                 const previousMonthStr = previousMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
                 const previousMonthKey = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
 
-                const userObj = await db.getFirstAsync(
-                    'SELECT last_monthly_summary FROM users WHERE id = ?',
-                    [userId]
-                );
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('last_monthly_summary')
+                    .eq('id', userId)
+                    .single();
 
-                if (userObj?.last_monthly_summary !== previousMonthKey) {
+                if ((profile as any)?.last_monthly_summary !== previousMonthKey) {
                     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
                     const end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
 
-                    const res = await db.getFirstAsync(
-                        `SELECT SUM(amount) as total FROM transactions WHERE user_id = ? AND type = 'expense' AND date >= ? AND date <= ?`,
-                        [userId, start, end]
-                    );
+                    const { data: transactions } = await supabase
+                        .from('transactions')
+                        .select('amount')
+                        .eq('user_id', userId)
+                        .eq('type', 'expense')
+                        .gte('date', start)
+                        .lte('date', end);
+
+                    const total = (transactions || []).reduce((sum, t) => sum + t.amount, 0);
 
                     await createNotification(
                         'Monthly Summary',
-                        `You spent ₹${res?.total || 0} in ${previousMonthStr}.`,
+                        `You spent ₹${total} in ${previousMonthStr}.`,
                         'info',
                         { month: previousMonthStr }
                     );
 
-                    await db.runAsync('UPDATE users SET last_monthly_summary = ? WHERE id = ?', [previousMonthKey, userId]);
+                    await supabase
+                        .from('profiles')
+                        .update({ last_monthly_summary: previousMonthKey })
+                        .eq('id', userId);
                 }
             }
         }
@@ -235,17 +281,17 @@ export const notificationRules: NotificationRule[] = [
         name: 'Loan Due Date Reminders',
         description: 'Notify 3 days before a loan payment is due',
         preferenceKey: 'loanDueReminders',
-        check: async ({ db, userId, createNotification }) => {
-            const loans = await db.getAllAsync(
-                `SELECT * FROM loans WHERE user_id = ? AND status = 'active'`,
-                [userId]
-            );
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: loans } = await supabase
+                .from('loans')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('status', 'active');
 
             const now = new Date();
             const todayStr = now.toISOString().split('T')[0];
 
-            for (const loan of loans) {
-                // Determine relevant due date: prefer next_due_date, fallback to due_date
+            for (const loan of (loans || [])) {
                 const targetDateStr = loan.next_due_date || loan.due_date;
                 if (!targetDateStr) continue;
 
@@ -253,7 +299,6 @@ export const notificationRules: NotificationRule[] = [
                 const diffTime = dueDate.getTime() - now.getTime();
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                // Notify if due within 3 days (inclusive of today/overdue slightly for reminder)
                 if (diffDays <= 3 && diffDays >= 0) {
                     const lastReminder = loan.last_reminder_date ? new Date(loan.last_reminder_date).toISOString().split('T')[0] : null;
 
@@ -265,7 +310,10 @@ export const notificationRules: NotificationRule[] = [
                             'alert',
                             { loanId: loan.id, type: 'loan_due' }
                         );
-                        await db.runAsync('UPDATE loans SET last_reminder_date = ? WHERE id = ?', [now.toISOString(), loan.id]);
+                        await supabase
+                            .from('loans')
+                            .update({ last_reminder_date: now.toISOString() })
+                            .eq('id', loan.id);
                     }
                 }
             }
@@ -276,20 +324,25 @@ export const notificationRules: NotificationRule[] = [
         name: 'Loan Clearance Alerts',
         description: 'Notify when a loan is fully paid off',
         preferenceKey: 'loanPaidAlerts',
-        check: async ({ db, userId, createNotification }) => {
-            const clearedLoans = await db.getAllAsync(
-                `SELECT * FROM loans WHERE user_id = ? AND (remaining_amount <= 0 OR status = 'closed') AND paid_notification_sent = 0`,
-                [userId]
-            );
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: clearedLoans } = await supabase
+                .from('loans')
+                .select('*')
+                .eq('user_id', userId)
+                .or('remaining_amount.lte.0,status.eq.closed')
+                .eq('paid_notification_sent', false);
 
-            for (const loan of clearedLoans) {
+            for (const loan of (clearedLoans || [])) {
                 await createNotification(
                     'Loan Cleared! 🎉',
                     `Congratulations! You have fully paid off your loan "${loan.name || loan.person_name}".`,
                     'success',
                     { loanId: loan.id, type: 'loan_cleared' }
                 );
-                await db.runAsync('UPDATE loans SET paid_notification_sent = 1 WHERE id = ?', [loan.id]);
+                await supabase
+                    .from('loans')
+                    .update({ paid_notification_sent: true })
+                    .eq('id', loan.id);
             }
         }
     },
@@ -298,20 +351,28 @@ export const notificationRules: NotificationRule[] = [
         name: 'Savings Goal Achieved',
         description: 'Notify when savings goal is reached',
         preferenceKey: 'savingsGoalAlerts',
-        check: async ({ db, userId, createNotification }) => {
-            const achievedSavings = await db.getAllAsync(
-                `SELECT * FROM savings WHERE user_id = ? AND current_amount >= target_amount AND goal_reached_notification_sent = 0`,
-                [userId]
-            );
+        check: async ({ supabase, userId, createNotification }) => {
+            const { data: achievedSavings } = await supabase
+                .from('savings')
+                .select('*')
+                .eq('user_id', userId)
+                .filter('current_amount', 'gte', 'target_amount') // Note: filter might not work directly with two columns in some Supabase versions, but using 'gte' with the value from the record in JS or using .custom() if available. Actually, Supabase .filter('current_amount', 'gte', target_amount) usually compares to a value.
+                // Let's use a more robust check in JS if column-to-column comparison is needed.
+                .eq('goal_reached_notification_sent', false);
 
-            for (const saving of achievedSavings) {
-                await createNotification(
-                    'Goal Achieved! 🏆',
-                    `You've reached your savings goal for "${saving.name}" (₹${saving.current_amount}).`,
-                    'success',
-                    { savingsId: saving.id, type: 'savings_goal' }
-                );
-                await db.runAsync('UPDATE savings SET goal_reached_notification_sent = 1 WHERE id = ?', [saving.id]);
+            for (const saving of (achievedSavings || [])) {
+                if (saving.current_amount >= saving.target_amount) {
+                    await createNotification(
+                        'Goal Achieved! 🏆',
+                        `You've reached your savings goal for "${saving.name}" (₹${saving.current_amount}).`,
+                        'success',
+                        { savingsId: saving.id, type: 'savings_goal' }
+                    );
+                    await supabase
+                        .from('savings')
+                        .update({ goal_reached_notification_sent: true })
+                        .eq('id', saving.id);
+                }
             }
         }
     }

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { generateUUID, getDatabase } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 export interface Loan {
     id: string;
@@ -39,12 +39,14 @@ export const useLoans = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const loans = await db.getAllAsync<Loan>(
-                `SELECT * FROM loans WHERE user_id = ? ORDER BY created_at DESC`,
-                [userId]
-            );
-            return loans;
+            const { data, error } = await supabase
+                .from('loans')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return data as Loan[];
         } catch (err: any) {
             setError(err.message);
             return [];
@@ -57,52 +59,34 @@ export const useLoans = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const id = generateUUID();
-            await db.runAsync(
-                `INSERT INTO loans (id, user_id, name, person_name, type, total_amount, remaining_amount, interest_rate, due_date, loan_type, payment_type, emi_amount, tenure_months, next_due_date, interest_type, status) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    id,
-                    loan.user_id,
-                    loan.name || null,
-                    loan.person_name,
-                    loan.type,
-                    loan.total_amount,
-                    loan.total_amount,
-                    loan.interest_rate || 0,
-                    loan.due_date || null,
-                    loan.loan_type || null,
-                    loan.payment_type || null,
-                    loan.emi_amount || null,
-                    loan.tenure_months || null,
-                    loan.next_due_date || null,
-                    loan.interest_type || 'yearly',
-                    'active'
-                ]
-            );
+            const { data: newLoan, error: loanError } = await supabase
+                .from('loans')
+                .insert({
+                    ...loan,
+                    remaining_amount: loan.total_amount,
+                    status: 'active'
+                })
+                .select()
+                .single();
+
+            if (loanError) throw loanError;
 
             if (schedule && schedule.length > 0) {
-                const schedulePlaceholders = schedule.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
-                const scheduleValues: any[] = [];
+                const scheduleToInsert = schedule.map((s, index) => ({
+                    loan_id: newLoan.id,
+                    due_date: s.due_date,
+                    amount: s.amount,
+                    status: 'pending',
+                    installment_number: index + 1
+                }));
 
-                schedule.forEach((s, index) => {
-                    scheduleValues.push(
-                        generateUUID(),
-                        id,
-                        s.due_date,
-                        s.amount,
-                        'pending',
-                        index + 1
-                    );
-                });
+                const { error: scheduleError } = await supabase
+                    .from('repayment_schedules')
+                    .insert(scheduleToInsert);
 
-                await db.runAsync(
-                    `INSERT INTO repayment_schedules (id, loan_id, due_date, amount, status, installment_number) VALUES ${schedulePlaceholders}`,
-                    scheduleValues
-                );
+                if (scheduleError) throw scheduleError;
             }
-            return id;
+            return newLoan.id;
         } catch (err: any) {
             setError(err.message);
             return null;
@@ -115,17 +99,12 @@ export const useLoans = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const keys = Object.keys(updates);
-            if (keys.length === 0) return true;
+            const { error } = await supabase
+                .from('loans')
+                .update(updates)
+                .eq('id', id);
 
-            const setClause = keys.map(k => `${k} = ?`).join(', ');
-            const values = Object.values(updates);
-
-            await db.runAsync(
-                `UPDATE loans SET ${setClause} WHERE id = ?`,
-                [...values, id]
-            );
+            if (error) throw error;
             return true;
         } catch (err: any) {
             setError(err.message);
@@ -139,49 +118,46 @@ export const useLoans = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            await db.withTransactionAsync(async () => {
-                // Fetch linked transactions with category info
-                const transactions = await db.getAllAsync<{
-                    id: string,
-                    amount: number,
-                    type: 'income' | 'expense' | 'transfer',
-                    account_id: string,
-                    category_name: string | null,
-                    parent_category_name: string | null
-                }>(
-                    `SELECT t.id, t.amount, t.type, t.account_id, c.name as category_name, p.name as parent_category_name 
-                     FROM transactions t 
-                     LEFT JOIN categories c ON t.category_id = c.id
-                     LEFT JOIN categories p ON c.parent_id = p.id
-                     WHERE t.loan_id = ?`,
-                    [id]
-                );
+            // 1. Fetch linked transactions
+            const { data: transactions, error: transError } = await supabase
+                .from('transactions')
+                .select(`
+                    id, amount, type, account_id,
+                    category:categories!transactions_category_id_fkey (name, parent:categories!categories_parent_id_fkey (name))
+                `)
+                .eq('loan_id', id);
 
-                for (const txn of transactions) {
-                    const isLoanRelated = txn.category_name === 'Loans & Debt' || txn.parent_category_name === 'Loans & Debt';
+            if (transError) throw transError;
 
-                    if (isLoanRelated) {
-                        // Revert Account Balance related to this transaction
-                        if (txn.type === 'expense') {
-                            // Was: -Balance -> Revert: +Balance
-                            await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [txn.amount, txn.account_id]);
-                        } else if (txn.type === 'income') {
-                            // Was: +Balance -> Revert: -Balance
-                            await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [txn.amount, txn.account_id]);
-                        }
+            // 2. Revert logic (sequential for simplicity here)
+            for (const txn of (transactions || [])) {
+                const category = txn.category as any;
+                const categoryName = category?.name;
+                const parentName = category?.parent?.name;
+                const isLoanRelated = categoryName === 'Loans & Debt' || parentName === 'Loans & Debt';
 
-                        // Permanently delete loan-specific transactions (Disbursements, Repayments)
-                        await db.runAsync('DELETE FROM transactions WHERE id = ?', [txn.id]);
-                    } else {
-                        // For converted transactions (e.g. Credit Card expenses), just unlink them
-                        // so they remain as normal expenses
-                        await db.runAsync('UPDATE transactions SET loan_id = NULL WHERE id = ?', [txn.id]);
+                if (isLoanRelated) {
+                    // Revert Account Balance
+                    const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txn.account_id).single();
+                    if (acc) {
+                        const change = txn.type === 'expense' ? txn.amount : -txn.amount;
+                        await supabase.from('accounts').update({ balance: acc.balance + change }).eq('id', txn.account_id);
                     }
+                    // Delete transaction
+                    await supabase.from('transactions').delete().eq('id', txn.id);
+                } else {
+                    // Just unlink
+                    await supabase.from('transactions').update({ loan_id: null }).eq('id', txn.id);
                 }
+            }
 
-                await db.runAsync('DELETE FROM loans WHERE id = ?', [id]);
-            });
+            // 3. Delete schedules
+            await supabase.from('repayment_schedules').delete().eq('loan_id', id);
+
+            // 4. Delete loan
+            const { error: loanDeleteError } = await supabase.from('loans').delete().eq('id', id);
+            if (loanDeleteError) throw loanDeleteError;
+
             return true;
         } catch (err: any) {
             setError(err.message);
@@ -195,12 +171,14 @@ export const useLoans = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const loan = await db.getFirstAsync<Loan>(
-                `SELECT * FROM loans WHERE id = ?`,
-                [id]
-            );
-            return loan;
+            const { data, error } = await supabase
+                .from('loans')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+            return data as Loan;
         } catch (err: any) {
             setError(err.message);
             return null;
@@ -213,12 +191,14 @@ export const useLoans = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const schedule = await db.getAllAsync<RepaymentSchedule>(
-                `SELECT * FROM repayment_schedules WHERE loan_id = ? ORDER BY installment_number ASC`,
-                [loanId]
-            );
-            return schedule;
+            const { data, error } = await supabase
+                .from('repayment_schedules')
+                .select('*')
+                .eq('loan_id', loanId)
+                .order('installment_number', { ascending: true });
+
+            if (error) throw error;
+            return data as RepaymentSchedule[];
         } catch (err: any) {
             setError(err.message);
             return [];

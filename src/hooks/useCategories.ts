@@ -1,6 +1,5 @@
-import * as Crypto from 'expo-crypto';
 import { useCallback, useState } from 'react';
-import { getDatabase } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 export interface Category {
     id: string;
@@ -20,17 +19,15 @@ export const useCategories = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            let query = 'SELECT * FROM categories';
-            const params: any[] = [];
+            let query = supabase.from('categories').select('*');
 
             if (type) {
-                query += ' WHERE type = ?';
-                params.push(type);
+                query = query.eq('type', type);
             }
 
-            const categories = await db.getAllAsync<Category>(query, params);
-            return categories;
+            const { data, error } = await query;
+            if (error) throw error;
+            return data as Category[];
         } catch (err: any) {
             setError(err.message);
             return [];
@@ -43,13 +40,21 @@ export const useCategories = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const id = Crypto.randomUUID();
-            await db.runAsync(
-                'INSERT INTO categories (id, name, icon, color, type, parent_id, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [id, name, icon, color, type, parentId || null, isDefault ? 1 : 0]
-            );
-            return { id, name, icon, color, type, parent_id: parentId, is_default: isDefault };
+            const { data, error } = await supabase
+                .from('categories')
+                .insert({
+                    name,
+                    icon,
+                    color,
+                    type,
+                    parent_id: parentId || null,
+                    is_default: isDefault
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data as Category;
         } catch (err: any) {
             setError(err.message);
             throw err;
@@ -62,20 +67,24 @@ export const useCategories = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-
             // Check if default
-            const category = await db.getFirstAsync<{ is_default: boolean }>('SELECT is_default FROM categories WHERE id = ?', [id]);
+            const { data: category, error: fetchError } = await supabase
+                .from('categories')
+                .select('is_default')
+                .eq('id', id)
+                .single();
 
+            if (fetchError) throw fetchError;
             if (category?.is_default) {
                 throw new Error('Cannot delete default categories');
             }
 
-            await db.runAsync('DELETE FROM categories WHERE id = ?', [id]);
-            // Also delete subcategories if any? Or re-assign? For now, let's delete orphans or assume cascade if setup (SQLite FKs are ON)
-            // But we should probably check for transactions linked to this category.
-            // For MVP/step-by-step, we'll just delete the category.
+            const { error: deleteError } = await supabase
+                .from('categories')
+                .delete()
+                .eq('id', id);
 
+            if (deleteError) throw deleteError;
         } catch (err: any) {
             setError(err.message);
             throw err;

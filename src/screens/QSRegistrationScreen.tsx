@@ -15,7 +15,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { QSButton } from "../components/QSButton";
 import { useAuth } from "../context/AuthContext";
-import { useUser } from "../hooks/useUser";
 import { createStyles } from "../styles/QSRegistration.styles";
 
 export default function QSRegistrationScreen() {
@@ -35,8 +34,7 @@ export default function QSRegistrationScreen() {
   };
 
   const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
-  const { createUser, loading: dbLoading } = useUser();
-  const { signIn } = useAuth();
+  const { signUp, isLoading: authLoading } = useAuth();
 
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -69,16 +67,9 @@ export default function QSRegistrationScreen() {
 
   const handleRegister = async () => {
     if (validateForm()) {
-      const userId = await createUser(fullName, phoneNumber, password);
-      if (userId) {
-        const trimmedPhone = phoneNumber.trim();
-        const trimmedName = fullName.trim();
-        await signIn({
-          id: userId,
-          phone: trimmedPhone,
-          username: trimmedName,
-          avatar: undefined,
-        });
+      const { error } = await signUp(phoneNumber.trim(), password.trim(), fullName.trim());
+
+      if (!error) {
         Toast.show({
           type: 'success',
           text1: 'Success',
@@ -89,7 +80,7 @@ export default function QSRegistrationScreen() {
         Toast.show({
           type: 'error',
           text1: 'Error',
-          text2: 'Registration failed. This phone number might already be registered.'
+          text2: error.message || 'Registration failed.'
         });
       }
     }
@@ -198,7 +189,7 @@ export default function QSRegistrationScreen() {
             <QSButton
               title="Create Account"
               onPress={handleRegister}
-              loading={dbLoading}
+              loading={authLoading}
             />
 
             {/* Footer */}

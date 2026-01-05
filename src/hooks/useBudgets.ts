@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { generateUUID, getDatabase } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 export interface Budget {
     id: string;
@@ -21,36 +21,41 @@ export const useBudgets = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
+            // 1. Get budgets with category info
+            const { data: budgets, error: budgetsError } = await supabase
+                .from('budgets')
+                .select(`
+                    *,
+                    category:categories!budgets_category_id_fkey (name, icon, color)
+                `)
+                .eq('user_id', userId);
 
-            // Get budgets with category info
-            const budgets = await db.getAllAsync<any>(
-                `SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color 
-                 FROM budgets b
-                 JOIN categories c ON b.category_id = c.id
-                 WHERE b.user_id = ?`,
-                [userId]
-            );
+            if (budgetsError) throw budgetsError;
 
-            // Get current month start date
+            // 2. Get current month start date
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-            // For each budget, calculate spending in current month
-            const budgetsWithSpending = await Promise.all(budgets.map(async (budget: any) => {
-                const spending = await db.getFirstAsync<{ total: number }>(
-                    `SELECT SUM(amount) as total 
-                     FROM transactions 
-                     WHERE user_id = ? 
-                     AND category_id = ? 
-                     AND type = 'expense' 
-                     AND date >= ?`,
-                    [userId, budget.category_id, startOfMonth]
-                );
+            // 3. For each budget, calculate spending
+            const budgetsWithSpending = await Promise.all((budgets || []).map(async (budget: any) => {
+                const { data: spendingData, error: spendingError } = await supabase
+                    .from('transactions')
+                    .select('amount', { count: 'exact' })
+                    .eq('user_id', userId)
+                    .eq('category_id', budget.category_id)
+                    .eq('type', 'expense')
+                    .gte('date', startOfMonth);
+
+                if (spendingError) throw spendingError;
+
+                const spent = (spendingData || []).reduce((sum, t) => sum + t.amount, 0);
 
                 return {
                     ...budget,
-                    spent: Math.abs(spending?.total || 0)
+                    category_name: budget.category?.name,
+                    category_icon: budget.category?.icon,
+                    category_color: budget.category?.color,
+                    spent: Math.abs(spent)
                 };
             }));
 
@@ -67,21 +72,11 @@ export const useBudgets = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const id = await generateUUID();
+            const { error } = await supabase
+                .from('budgets')
+                .insert(budget);
 
-            // specific import if needed, or assume it's available in scope if I import it
-            // checking imports in original file: import { getDatabase } from '../lib/database';
-            // I need to make sure generateUUID is imported or I use a new one.  
-            // The file doesn't import generateUUID. I should check if I can import it or if I need to change imports.
-            // Wait, I should do this in a separate step or verify imports first.
-            // Actually, I'll assume I can add the import in the replace or I already see it.
-            // `import { getDatabase } from '../lib/database';` is there. I need to add generateUUID to imports.
-
-            await db.runAsync(
-                `INSERT INTO budgets (id, user_id, category_id, amount, period) VALUES (?, ?, ?, ?, ?)`,
-                [id, budget.user_id, budget.category_id, budget.amount, budget.period]
-            );
+            if (error) throw error;
             return true;
         } catch (err: any) {
             setError(err.message);
@@ -95,8 +90,12 @@ export const useBudgets = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            await db.runAsync('DELETE FROM budgets WHERE id = ?', [id]);
+            const { error } = await supabase
+                .from('budgets')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
             return true;
         } catch (err: any) {
             setError(err.message);
@@ -110,34 +109,39 @@ export const useBudgets = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const budget = await db.getFirstAsync<any>(
-                `SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color 
-                 FROM budgets b
-                 JOIN categories c ON b.category_id = c.id
-                 WHERE b.id = ?`,
-                [id]
-            );
+            const { data: budget, error: budgetError } = await supabase
+                .from('budgets')
+                .select(`
+                    *,
+                    category:categories!budgets_category_id_fkey (name, icon, color)
+                `)
+                .eq('id', id)
+                .single();
 
-            if (!budget) return null;
+            if (budgetError || !budget) return null;
 
-            // Simple spending calc for current month (consistent with getBudgetsWithSpending)
+            // Simple spending calc for current month
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-            const spending = await db.getFirstAsync<{ total: number }>(
-                `SELECT SUM(amount) as total 
-                 FROM transactions 
-                 WHERE user_id = ? 
-                 AND category_id = ? 
-                 AND type = 'expense' 
-                 AND date >= ?`,
-                [budget.user_id, budget.category_id, startOfMonth]
-            );
+            const { data: spendingData, error: spendingError } = await supabase
+                .from('transactions')
+                .select('amount')
+                .eq('user_id', budget.user_id)
+                .eq('category_id', budget.category_id)
+                .eq('type', 'expense')
+                .gte('date', startOfMonth);
+
+            if (spendingError) throw spendingError;
+
+            const spent = (spendingData || []).reduce((sum, t) => sum + t.amount, 0);
 
             return {
                 ...budget,
-                spent: Math.abs(spending?.total || 0)
+                category_name: budget.category?.name,
+                category_icon: budget.category?.icon,
+                category_color: budget.category?.color,
+                spent: Math.abs(spent)
             };
         } catch (err: any) {
             setError(err.message);

@@ -19,7 +19,7 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import { useBudgets } from "../hooks/useBudgets";
-import { getDatabase } from "../lib/database";
+import { useCategories } from "../hooks/useCategories";
 import { useTheme } from "../theme/ThemeContext";
 
 const { width } = Dimensions.get("window");
@@ -31,6 +31,7 @@ export default function QSBudgetCreationScreen() {
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const { addBudget } = useBudgets();
+    const { getCategories } = useCategories();
 
     const [amount, setAmount] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<any>(null);
@@ -43,12 +44,10 @@ export default function QSBudgetCreationScreen() {
     }, []);
 
     const loadCategories = async () => {
-        const db = await getDatabase();
-        // Fetch expense categories only for budgets usually
-        const cats = await db.getAllAsync(
-            `SELECT * FROM categories WHERE type = 'expense' AND parent_id IS NULL ORDER BY name ASC`
-        );
-        setCategories(cats);
+        const allCats = await getCategories('expense');
+        // Filter for parent categories only
+        const topLevelCats = allCats.filter(c => !c.parent_id);
+        setCategories(topLevelCats);
     };
 
     const handleSave = async () => {

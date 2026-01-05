@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { getDatabase } from "../lib/database";
+import { supabase } from "../lib/supabase";
 import { useTheme } from "../theme/ThemeContext";
 import { QSBottomSheet } from "./QSBottomSheet";
 
@@ -60,7 +60,6 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
         if (!user) return;
         setLoading(true);
         try {
-            const db = await getDatabase();
             const avatarUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAD7mWjrHawdcvg72D_ee4L0F4QjJxoQfOzVfXjJ65F9-GC4F5LyIrnMaId9frI4qeCg0TvlKBdDSNmWtiIXcvzMtxtiwiNEIJSnOYjpaC8kpvJn35xAqmWHbLQkuntEU0NLJiMseBtsZzfgZJxAgPOXlJp65B5pZcpbE-2irapS00uAdbPfoTTob9nEFve_mYCgfdMkaIK0KqYRMODRUtvH4jAlt6Ry8sMSn7WWgSzKNKqJI2HNH5uydSuMzSb2cA_Wt261a4Kz7o';
 
             // 1. Get Mobile Contacts
@@ -84,20 +83,22 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
                 }
             }
 
-            // 2. Fetch All Users from DB (Optimized: In real app, send contacts list to backend)
-            // For now, fetching all users to filter locally is okay for small scale
-            const allUsers = await db.getAllAsync<any>(
-                'SELECT id, username as name, phone, avatar FROM users WHERE id != ?',
-                [user.id]
-            );
+            // 2. Fetch All Users from profiles (Optimized: In real app, send contacts list to backend)
+            // For now, fetching users that match mobile contacts
+            const { data: matchedUsers, error } = await supabase
+                .from('profiles')
+                .select('id, username, phone, avatar')
+                .neq('id', user.id)
+                .in('phone', mobileContacts); // Assuming phone in DB matches what we extracted
 
-            // 3. Filter Matches
-            const matchedUsers = allUsers.filter(u => {
-                const uPhone = normalizePhone(u.phone);
-                return mobileContacts.some(mc => mc === uPhone || uPhone.includes(mc) || mc.includes(uPhone));
-            });
+            if (error) throw error;
 
-            setSuggestedUsers(matchedUsers);
+            setSuggestedUsers((matchedUsers || []).map(u => ({
+                id: u.id,
+                name: u.username,
+                phone: u.phone,
+                avatar: u.avatar
+            })));
 
         } catch (error) {
             console.log("Error syncing contacts:", error);
@@ -111,12 +112,19 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
         if (text.length > 0 && user) {
             setLoading(true);
             try {
-                const db = await getDatabase();
-                const users = await db.getAllAsync<any>(
-                    `SELECT id, username as name, phone FROM users WHERE (phone LIKE ? OR username LIKE ?) AND id != ?`,
-                    [`%${text}%`, `%${text}%`, user.id]
-                );
-                setSearchResults(users);
+                const { data: users, error } = await supabase
+                    .from('profiles')
+                    .select('id, username, phone')
+                    .neq('id', user.id)
+                    .or(`phone.ilike.%${text}%,username.ilike.%${text}%`);
+
+                if (error) throw error;
+
+                setSearchResults((users || []).map(u => ({
+                    id: u.id,
+                    name: u.username,
+                    phone: u.phone
+                })));
             } catch (error) {
                 console.log("Error searching users:", error);
             } finally {

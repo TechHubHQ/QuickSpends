@@ -16,15 +16,13 @@ import Toast from "react-native-toast-message";
 import { QSButton } from "../components/QSButton";
 import { QSLogo } from "../components/QSLogo";
 import { useAuth } from "../context/AuthContext";
-import { useUser } from "../hooks/useUser";
 import { createStyles } from "../styles/QSLogin.styles";
 
 export default function QSLoginScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === "dark";
-    const { getUserByPhone, loading: dbLoading } = useUser();
-    const { signIn } = useAuth();
+    const { signIn, isLoading: authLoading } = useAuth();
 
     const theme = {
         background: isDark ? "#0F172A" : "#F1F5F9",
@@ -56,22 +54,15 @@ export default function QSLoginScreen() {
             return;
         }
 
-        const user = await getUserByPhone(trimmedPhone);
+        const { error } = await signIn(trimmedPhone, trimmedPassword);
 
-        if (user && user.password_hash === trimmedPassword) {
-            // Success
-            await signIn({
-                id: user.id,
-                phone: user.phone,
-                username: user.username,
-                avatar: user.avatar,
-            });
+        if (!error) {
             router.replace("/");
         } else {
             Toast.show({
                 type: 'error',
                 text1: 'Error',
-                text2: 'Invalid phone number or password'
+                text2: error.message || 'Invalid phone number or password'
             });
         }
     };
@@ -160,7 +151,7 @@ export default function QSLoginScreen() {
                         <QSButton
                             title="Log In"
                             onPress={handleLogin}
-                            loading={dbLoading}
+                            loading={authLoading}
                         />
 
                         {/* Signup Link */}

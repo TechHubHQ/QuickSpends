@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { notificationRules } from '../config/notificationRules';
 import { useAuth } from '../context/AuthContext';
 import { useNotificationPreferences } from '../context/NotificationPreferencesContext';
-import { generateUUID, getDatabase } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 export interface Notification {
     id: string;
@@ -26,20 +26,22 @@ export const useNotifications = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const result = await db.getAllAsync<any>(
-                'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
-                [userId]
-            );
+            const { data: result, error } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
 
-            return result.map(n => ({
+            if (error) throw error;
+
+            return (result || []).map(n => ({
                 id: n.id,
                 userId: n.user_id,
                 type: n.type as any,
                 title: n.title,
                 message: n.message,
-                data: n.data ? JSON.parse(n.data) : undefined,
-                isRead: Boolean(n.is_read),
+                data: n.data, // Supabase stores JSON as object
+                isRead: n.is_read,
                 createdAt: n.created_at
             }));
         } catch (err: any) {
@@ -52,12 +54,13 @@ export const useNotifications = () => {
 
     const getUnreadCount = useCallback(async (userId: string) => {
         try {
-            const db = await getDatabase();
-            const result = await db.getFirstAsync<{ count: number }>(
-                'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
-                [userId]
-            );
-            return result?.count || 0;
+            const { count } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .eq('is_read', false);
+
+            return count || 0;
         } catch (err) {
             return 0;
         }
@@ -65,11 +68,10 @@ export const useNotifications = () => {
 
     const markAsRead = useCallback(async (notificationId: string) => {
         try {
-            const db = await getDatabase();
-            await db.runAsync(
-                'UPDATE notifications SET is_read = 1 WHERE id = ?',
-                [notificationId]
-            );
+            await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('id', notificationId);
             return true;
         } catch (err: any) {
             return false;
@@ -78,11 +80,10 @@ export const useNotifications = () => {
 
     const markAllAsRead = useCallback(async (userId: string) => {
         try {
-            const db = await getDatabase();
-            await db.runAsync(
-                'UPDATE notifications SET is_read = 1 WHERE user_id = ?',
-                [userId]
-            );
+            await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('user_id', userId);
             return true;
         } catch (err: any) {
             return false;
@@ -91,11 +92,10 @@ export const useNotifications = () => {
 
     const clearAllNotifications = useCallback(async (userId: string) => {
         try {
-            const db = await getDatabase();
-            await db.runAsync(
-                'DELETE FROM notifications WHERE user_id = ?',
-                [userId]
-            );
+            await supabase
+                .from('notifications')
+                .delete()
+                .eq('user_id', userId);
             return true;
         } catch (err: any) {
             return false;
@@ -105,38 +105,32 @@ export const useNotifications = () => {
     const sendInvite = useCallback(async (fromUserName: string, toPhoneNumber: string, groupName: string, groupId: string) => {
         setLoading(true);
         try {
-            const db = await getDatabase();
+            // 1. Find the user by phone number (profile)
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('phone', toPhoneNumber)
+                .maybeSingle();
 
-            // 1. Find the user by phone number
-            const user = await db.getFirstAsync<{ id: string }>(
-                'SELECT id FROM users WHERE phone = ?',
-                [toPhoneNumber]
-            );
-
-            if (!user) {
+            if (!profile) {
                 return { success: true, message: `Invite sent to ${toPhoneNumber}` };
             }
 
-            if (currentUser && user.id === currentUser.id) {
+            if (currentUser && profile.id === currentUser.id) {
                 return { success: false, message: "You cannot invite yourself." };
             }
 
             // 2. Create notification for that user
-            const id = generateUUID();
-            await db.runAsync(
-                `INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    id,
-                    user.id,
-                    'invite',
-                    'Group Invitation',
-                    `${fromUserName} invited you to join "${groupName}"`,
-                    JSON.stringify({ groupId, groupName, fromUserName }),
-                    0,
-                    new Date().toISOString()
-                ]
-            );
+            await supabase
+                .from('notifications')
+                .insert({
+                    user_id: profile.id,
+                    type: 'invite',
+                    title: 'Group Invitation',
+                    message: `${fromUserName} invited you to join "${groupName}"`,
+                    data: { groupId, groupName, fromUserName },
+                    is_read: false
+                });
 
             return { success: true, message: "Invitation sent successfully!" };
 
@@ -149,15 +143,17 @@ export const useNotifications = () => {
 
     const checkAllNotifications = useCallback(async (userId: string) => {
         try {
-            const db = await getDatabase();
-
             const createNotificationForUser = async (title: string, message: string, type: string, data: any = {}) => {
-                const id = generateUUID();
-                await db.runAsync(
-                    `INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [id, userId, type, title, message, JSON.stringify(data), 0, new Date().toISOString()]
-                );
+                await supabase
+                    .from('notifications')
+                    .insert({
+                        user_id: userId,
+                        type,
+                        title,
+                        message,
+                        data,
+                        is_read: false
+                    });
             };
 
             // Execute all enabled rules
@@ -167,7 +163,7 @@ export const useNotifications = () => {
                 activeRules.map(async (rule) => {
                     try {
                         await rule.check({
-                            db,
+                            supabase,
                             userId,
                             preferences,
                             createNotification: createNotificationForUser

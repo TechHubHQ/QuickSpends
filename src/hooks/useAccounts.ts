@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { generateUUID, getDatabase } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 export interface Account {
     id: string;
@@ -22,68 +22,70 @@ export const useAccounts = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const id = generateUUID();
-            await db.withTransactionAsync(async () => {
-                // 1. Create Account
-                await db.runAsync(
-                    `INSERT INTO accounts (id, user_id, name, type, card_type, credit_limit, balance, currency, account_number_last_4) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        id,
-                        account.user_id,
-                        account.name,
-                        account.type,
-                        account.card_type || null,
-                        account.credit_limit || null,
-                        account.balance,
-                        account.currency,
-                        account.account_number_last_4 || null,
-                    ]
-                );
+            // 1. Create Account
+            const { data: newAccount, error: accError } = await supabase
+                .from('accounts')
+                .insert({
+                    user_id: account.user_id,
+                    name: account.name,
+                    type: account.type,
+                    card_type: account.card_type || null,
+                    credit_limit: account.credit_limit || null,
+                    balance: account.balance,
+                    currency: account.currency,
+                    account_number_last_4: account.account_number_last_4 || null,
+                })
+                .select()
+                .single();
 
-                // 2. Create Opening Balance Transaction if balance > 0
-                if (account.balance > 0) {
-                    const transactionId = generateUUID();
-                    // For Credit Cards, balance is Available Credit (Asset-like positive capability).
-                    // For Bank/Cash, balance is Asset.
-                    // In all cases, initial positive balance is treated as 'income' (Positive Entry).
-                    const type = 'income';
+            if (accError) throw accError;
 
-                    // Find or Create "Opening Balance" Category
-                    let categoryId: string | null = null;
-                    const existingCategory = await db.getFirstAsync<{ id: string }>(
-                        `SELECT id FROM categories WHERE name = 'Opening Balance' AND type = 'income'`
-                    );
+            // 2. Create Opening Balance Transaction if balance > 0
+            if (account.balance > 0) {
+                // Find or Create "Opening Balance" Category
+                const { data: existingCategory, error: catFetchError } = await supabase
+                    .from('categories')
+                    .select('id')
+                    .eq('name', 'Opening Balance')
+                    .eq('type', 'income')
+                    .single();
 
-                    if (existingCategory) {
-                        categoryId = existingCategory.id;
-                    } else {
-                        categoryId = generateUUID();
-                        await db.runAsync(
-                            `INSERT INTO categories (id, name, icon, color, type) VALUES (?, ?, ?, ?, ?)`,
-                            [categoryId, 'Opening Balance', 'wallet-plus', '#4CAF50', 'income']
-                        );
-                    }
+                let categoryId: string | null = null;
+                if (existingCategory) {
+                    categoryId = existingCategory.id;
+                } else {
+                    const { data: newCat, error: catError } = await supabase
+                        .from('categories')
+                        .insert({
+                            name: 'Opening Balance',
+                            icon: 'wallet-plus',
+                            color: '#4CAF50',
+                            type: 'income',
+                            is_default: true
+                        })
+                        .select()
+                        .single();
 
-                    await db.runAsync(
-                        `INSERT INTO transactions (id, user_id, account_id, category_id, name, description, amount, type, date) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            transactionId,
-                            account.user_id,
-                            id, // account_id
-                            categoryId, // Now using the specific category ID
-                            'Opening Balance',
-                            'Initial account balance',
-                            account.balance,
-                            type,
-                            new Date().toISOString()
-                        ]
-                    );
+                    if (catError) throw catError;
+                    categoryId = newCat.id;
                 }
-            });
-            return id;
+
+                const { error: transError } = await supabase
+                    .from('transactions')
+                    .insert({
+                        user_id: account.user_id,
+                        account_id: newAccount.id,
+                        category_id: categoryId,
+                        name: 'Opening Balance',
+                        description: 'Initial account balance',
+                        amount: account.balance,
+                        type: 'income',
+                        date: new Date().toISOString()
+                    });
+
+                if (transError) throw transError;
+            }
+            return newAccount.id;
         } catch (err: any) {
             setError(err.message);
             return null;
@@ -96,12 +98,14 @@ export const useAccounts = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const accounts = await db.getAllAsync<Account>(
-                'SELECT * FROM accounts WHERE user_id = ? AND is_active = 1',
-                [userId]
-            );
-            return accounts;
+            const { data, error } = await supabase
+                .from('accounts')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('is_active', true);
+
+            if (error) throw error;
+            return data as Account[];
         } catch (err: any) {
             setError(err.message);
             return [];
@@ -114,21 +118,12 @@ export const useAccounts = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            const fields: string[] = [];
-            const values: any[] = [];
+            const { error } = await supabase
+                .from('accounts')
+                .update(updates)
+                .eq('id', id);
 
-            if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
-            if (updates.type !== undefined) { fields.push('type = ?'); values.push(updates.type); }
-            if (updates.card_type !== undefined) { fields.push('card_type = ?'); values.push(updates.card_type || null); }
-            if (updates.credit_limit !== undefined) { fields.push('credit_limit = ?'); values.push(updates.credit_limit || null); }
-            if (updates.balance !== undefined) { fields.push('balance = ?'); values.push(updates.balance); }
-            if (updates.account_number_last_4 !== undefined) { fields.push('account_number_last_4 = ?'); values.push(updates.account_number_last_4 || null); }
-
-            if (fields.length === 0) return true;
-
-            values.push(id);
-            await db.runAsync(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`, values);
+            if (error) throw error;
             return true;
         } catch (err: any) {
             setError(err.message);
@@ -142,8 +137,12 @@ export const useAccounts = () => {
         setLoading(true);
         setError(null);
         try {
-            const db = await getDatabase();
-            await db.runAsync('UPDATE accounts SET is_active = 0 WHERE id = ?', [id]);
+            const { error } = await supabase
+                .from('accounts')
+                .update({ is_active: false })
+                .eq('id', id);
+
+            if (error) throw error;
             return true;
         } catch (err: any) {
             setError(err.message);

@@ -1,6 +1,5 @@
-import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { getDatabase } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 const SESSION_KEY = 'user_session';
 
@@ -15,7 +14,8 @@ export interface UserSession {
 interface AuthContextType {
     user: UserSession | null;
     isLoading: boolean;
-    signIn: (userData: UserSession) => Promise<void>;
+    signIn: (phone: string, password: string) => Promise<{ error: any }>;
+    signUp: (phone: string, password: string, username: string) => Promise<{ error: any }>;
     signOut: () => Promise<void>;
     updateProfile: (data: Partial<UserSession>) => Promise<void>;
 }
@@ -27,52 +27,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        loadSession();
-    }, []);
-
-    async function loadSession() {
-        try {
-            const session = await SecureStore.getItemAsync(SESSION_KEY);
-            if (session) {
-                const sessionUser = JSON.parse(session);
-                // Verify with DB to get latest
-                const db = await getDatabase();
-                const dbUser = await db.getFirstAsync<UserSession>(
-                    'SELECT id, username, phone, avatar FROM users WHERE id = ?',
-                    [sessionUser.id]
-                );
-
-                if (dbUser) {
-                    setUser(dbUser);
-                    // Update session with fresh data
-                    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(dbUser));
-                } else {
-                    // User deleted or invalid? Fallback to session or logout
-                    setUser(sessionUser);
-                }
+        // 1. Initial session check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) {
+                setUser({
+                    id: session.user.id,
+                    phone: session.user.phone || '',
+                    username: session.user.user_metadata?.username || '',
+                    avatar: session.user.user_metadata?.avatar || '',
+                });
             }
-        } catch (error) {
-            console.error("Failed to load session:", error);
-        } finally {
             setIsLoading(false);
-        }
-    }
+        });
 
-    async function signIn(userData: UserSession) {
-        try {
-            await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(userData));
-            setUser(userData);
-        } catch (error) {
+        // 2. Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session?.user) {
+                setUser({
+                    id: session.user.id,
+                    phone: session.user.phone || '',
+                    username: session.user.user_metadata?.username || '',
+                    avatar: session.user.user_metadata?.avatar || '',
+                });
+            } else {
+                setUser(null);
+            }
+            setIsLoading(false);
+        });
 
-        }
-    }
+        return () => subscription.unsubscribe();
+    }, []);
 
     async function signOut() {
         try {
-            await SecureStore.deleteItemAsync(SESSION_KEY);
-            setUser(null);
+            await supabase.auth.signOut();
         } catch (error) {
-
+            console.error("Sign out error:", error);
         }
     }
 
@@ -80,31 +70,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!user) return;
 
         try {
-            const updatedUser = { ...user, ...data };
+            const { error } = await supabase.auth.updateUser({
+                data: {
+                    username: data.username || user.username,
+                    avatar: data.avatar || user.avatar,
+                }
+            });
 
-            // 1. Update SQLite
-            const db = await getDatabase();
-            // Dynamically build update query? Or just specific fields we allow
-            if (data.username || data.phone || data.avatar) {
-                await db.runAsync(
-                    'UPDATE users SET username = ?, avatar = ? WHERE id = ?',
-                    [updatedUser.username, updatedUser.avatar || null, user.id]
-                );
-            }
+            if (error) throw error;
 
-            // 2. Update SecureStore
-            await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(updatedUser));
+            // Update profiles table as well (publicly searchable)
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                    username: data.username || user.username,
+                    avatar: data.avatar || user.avatar,
+                })
+                .eq('id', user.id);
 
-            // 3. Update State
-            setUser(updatedUser);
+            if (profileError) throw profileError;
+
+            setUser(prev => prev ? { ...prev, ...data } : null);
         } catch (error) {
             console.error('Failed to update profile', error);
             throw error;
         }
     }
 
+    async function signIn(phone: string, password: string) {
+        const { error } = await supabase.auth.signInWithPassword({
+            phone: phone,
+            password: password,
+        });
+        return { error };
+    }
+
+    async function signUp(phone: string, password: string, username: string) {
+        const { error } = await supabase.auth.signUp({
+            phone: phone,
+            password: password,
+            options: {
+                data: {
+                    username: username,
+                    avatar: '',
+                }
+            }
+        });
+        return { error };
+    }
+
     return (
-        <AuthContext.Provider value={{ user, isLoading, signIn, signOut, updateProfile }}>
+        <AuthContext.Provider value={{ user, isLoading, signIn, signUp, signOut, updateProfile }}>
             {children}
         </AuthContext.Provider>
     );
