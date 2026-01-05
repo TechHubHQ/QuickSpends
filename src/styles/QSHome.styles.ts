@@ -1,0 +1,406 @@
+import { StyleSheet } from "react-native";
+import { Theme } from "../theme/theme";
+
+export const createStyles = (theme: Theme) => StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: theme.colors.background,
+    },
+    notificationButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        position: "relative",
+    },
+    notificationDot: {
+        position: "absolute",
+        top: 12,
+        right: 12,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: theme.colors.error,
+        borderWidth: 1.5,
+        borderColor: theme.colors.background,
+    },
+    scrollContent: {
+        paddingBottom: 120, // Space for custom tab bar
+    },
+    balanceCard: {
+        marginHorizontal: theme.spacing.l,
+        padding: theme.spacing.l,
+        borderRadius: theme.borderRadius.xl,
+        overflow: "hidden",
+        position: "relative",
+        ...theme.shadows.medium,
+        borderWidth: 1,
+        borderColor: theme.isDark ? 'rgba(255,255,255,0.1)' : theme.colors.border, // Explicit separation
+    },
+    balanceDecoration: {
+        position: "absolute",
+        top: -40,
+        right: -40,
+        width: 160,
+        height: 160,
+        borderRadius: 80,
+        backgroundColor: theme.colors.primary + '1A', // 10% opacity
+    },
+    balanceLabelRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: theme.spacing.s,
+    },
+    balanceLabel: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: theme.spacing.s,
+    },
+    balanceLabelText: {
+        ...theme.typography.bodySmall,
+        color: theme.colors.textSecondary,
+        fontWeight: "500",
+    },
+    balanceAmount: {
+        fontSize: 32,
+        fontWeight: "800",
+        color: theme.colors.text,
+        letterSpacing: -1,
+    },
+    trendBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
+        backgroundColor: theme.colors.success + '1A',
+    },
+    trendBadgeDown: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
+        backgroundColor: theme.colors.error + '1A',
+    },
+    trendText: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: theme.colors.success,
+    },
+    balanceActions: {
+        flexDirection: "row",
+        gap: theme.spacing.m,
+        marginTop: theme.spacing.l,
+    },
+    addMoneyButton: {
+        flex: 1,
+        height: 48,
+        borderRadius: theme.borderRadius.m,
+        backgroundColor: theme.colors.primary,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        ...theme.shadows.small,
+        shadowColor: theme.colors.primary,
+    },
+    addMoneyText: {
+        color: "#FFFFFF",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    transferButton: {
+        flex: 1,
+        height: 48,
+        borderRadius: theme.borderRadius.m,
+        backgroundColor: theme.colors.backgroundSecondary,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    transferText: {
+        color: theme.colors.text,
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    sectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: theme.spacing.l,
+        marginTop: theme.spacing.xl,
+        marginBottom: theme.spacing.m,
+    },
+    sectionTitle: {
+        ...theme.typography.h3,
+        color: theme.colors.text,
+    },
+    seeAllButton: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: theme.colors.primary,
+    },
+    budgetScroll: {
+        paddingLeft: theme.spacing.l,
+    },
+    budgetCard: {
+        width: 200,
+        padding: 16,
+        borderRadius: theme.borderRadius.l,
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        marginRight: 16,
+        gap: 12,
+        ...theme.shadows.small,
+    },
+    budgetIconWrapper: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    budgetPercentageWrapper: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        backgroundColor: theme.colors.backgroundSecondary,
+    },
+    budgetPercentage: {
+        fontSize: 10,
+        fontWeight: "700",
+        color: theme.colors.textTertiary,
+    },
+    budgetName: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: theme.colors.text,
+    },
+    budgetRemaining: {
+        fontSize: 12,
+        color: theme.colors.textSecondary,
+        marginTop: 2,
+    },
+    progressBarBackground: {
+        height: 6,
+        width: "100%",
+        backgroundColor: theme.colors.backgroundSecondary,
+        borderRadius: 3,
+        overflow: "hidden",
+        marginTop: 8, // Added margin for spacing
+    },
+    progressBarFill: {
+        height: "100%",
+        borderRadius: 3,
+    },
+    transactionList: {
+        paddingHorizontal: theme.spacing.l,
+        gap: 8,
+    },
+    transactionItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 8,
+    },
+    transactionLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+    },
+    transactionIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: theme.colors.backgroundSecondary,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    transactionName: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: theme.colors.text,
+    },
+    transactionTime: {
+        fontSize: 11,
+        color: theme.colors.textSecondary,
+    },
+    transactionAmount: {
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    transactionMeta: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 2,
+    },
+    indicatorContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    indicatorIcon: {
+        opacity: 0.6,
+    },
+    // Switcher and Trip Styles
+    switcherContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    tabButton: {
+        paddingVertical: 6,
+        paddingHorizontal: 2,
+        borderBottomWidth: 2,
+        borderBottomColor: "transparent",
+    },
+    activeTabButton: {
+        borderBottomColor: theme.colors.primary,
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: theme.colors.textTertiary,
+    },
+    activeTabText: {
+        color: theme.colors.text,
+    },
+    tripScroll: {
+        paddingLeft: theme.spacing.l,
+    },
+    tripCard: {
+        width: 280,
+        height: 160,
+        borderRadius: theme.borderRadius.l,
+        backgroundColor: theme.colors.card,
+        borderWidth: 2,
+        borderColor: "transparent",
+        marginRight: 16,
+        overflow: "hidden",
+        position: "relative",
+        ...theme.shadows.small,
+    },
+    tripActiveBorder: {
+        borderColor: theme.colors.primary,
+    },
+    tripImage: {
+        width: "100%",
+        height: "100%",
+        position: "absolute",
+    },
+    tripOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: theme.colors.overlay, // Use theme overlay
+        padding: 16,
+        justifyContent: "space-between",
+    },
+    tripHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+    },
+    tripHeaderLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        flex: 1,
+        marginRight: 10,
+    },
+    tripTypeIcon: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: "rgba(255,255,255,0.2)",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 4,
+    },
+    tripStatusBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        borderWidth: 1,
+    },
+    activeBadge: {
+        borderColor: theme.colors.success,
+        backgroundColor: theme.colors.success + '33',
+    },
+    completedBadge: {
+        borderColor: theme.colors.textSecondary,
+        backgroundColor: theme.colors.textSecondary + '33',
+    },
+    upcomingBadge: {
+        borderColor: theme.colors.primary,
+        backgroundColor: theme.colors.primary + '33',
+    },
+    tripStatusText: {
+        fontSize: 10,
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+    },
+    activeStatusText: {
+        color: theme.colors.success,
+    },
+    completedStatusText: {
+        color: theme.colors.textSecondary,
+    },
+    upcomingStatusText: {
+        color: theme.colors.primary,
+    },
+    tripName: {
+        fontSize: 18,
+        fontWeight: "700",
+        color: "#FFFFFF",
+    },
+    tripDate: {
+        fontSize: 12,
+        color: "rgba(255,255,255,0.8)",
+        marginTop: 2,
+    },
+    tripFooter: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "flex-end",
+        marginTop: 8,
+    },
+    tripAmount: {
+        fontSize: 16,
+        fontWeight: "800",
+        color: "#FFFFFF",
+    },
+    tripBudgetInfo: {
+        alignItems: "flex-end",
+    },
+    tripBudgetText: {
+        fontSize: 10,
+        color: "rgba(255,255,255,0.6)",
+        marginBottom: 4,
+    },
+    tripProgressBar: {
+        height: 4,
+        width: 80,
+        backgroundColor: "rgba(255,255,255,0.2)",
+        borderRadius: 2,
+        overflow: "hidden",
+    },
+    tripProgressBarFill: {
+        height: "100%",
+        backgroundColor: theme.colors.primary,
+        borderRadius: 2,
+    },
+});
