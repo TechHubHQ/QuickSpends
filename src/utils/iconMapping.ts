@@ -24,7 +24,7 @@ const LEGACY_ICON_MAP: Record<string, keyof typeof MaterialCommunityIcons.glyphM
     'add-shopping-cart': 'cart-plus',
     'account-balance': 'bank',
     'account-balance-wallet': 'wallet',
-    'attach-money': 'currency-usd',
+    'attach-money': 'currency-inr',
     'trending-up': 'trending-up',
     'trending-down': 'trending-down',
     'arrow-back-ios': 'chevron-left',

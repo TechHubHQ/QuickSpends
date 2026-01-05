@@ -13,6 +13,8 @@ import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../hooks/useAccounts";
 import { useBudgets } from "../hooks/useBudgets";
 import { useGroups } from "../hooks/useGroups";
+import { useLoans } from "../hooks/useLoans";
+import { useSavings } from "../hooks/useSavings";
 import { useTransactions } from "../hooks/useTransactions";
 import { Trip, useTrips } from "../hooks/useTrips";
 import { createStyles } from "../styles/QSHome.styles";
@@ -30,10 +32,12 @@ export default function QSHomeScreen() {
     const { getBudgetsWithSpending } = useBudgets();
     const { getTripsByUser } = useTrips();
     const { getGroupsByUser } = useGroups();
+    const { getSavingsGoals } = useSavings();
+    const { getLoans } = useLoans();
 
     const [isBalanceVisible, setIsBalanceVisible] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [activeTab, setActiveTab] = useState<'budgets' | 'trips' | 'groups'>('groups');
+    const [activeTab, setActiveTab] = useState<'budgets' | 'trips' | 'groups' | 'savings' | 'loans'>('groups');
     const [totalBalance, setTotalBalance] = useState(0);
     const [balanceTrend, setBalanceTrend] = useState({ percentage: 0, trend: 'up' as 'up' | 'down' });
     const [budgets, setBudgets] = useState<any[]>([]);
@@ -42,43 +46,81 @@ export default function QSHomeScreen() {
     const [accounts, setAccounts] = useState<any[]>([]); // Added accounts state
     const [excludeCreditCards, setExcludeCreditCards] = useState(false);
     const [transactions, setTransactions] = useState<any[]>([]);
+    const [savings, setSavings] = useState<any[]>([]);
+    const [loans, setLoans] = useState<any[]>([]);
 
     useEffect(() => {
-        if (accounts.length > 0) {
-            const balance = accounts.reduce((sum: number, acc: any) => {
-                if (excludeCreditCards && (acc.type === 'card' && acc.card_type === 'credit')) {
-                    return sum;
+        if (accounts.length > 0 || loans.length > 0) {
+            let assets = 0;
+            let liabilities = 0;
+
+            accounts.forEach((acc: any) => {
+                const isCredit = acc.type === 'card' && acc.card_type === 'credit';
+                if (isCredit) {
+                    if (!excludeCreditCards) {
+                        const debt = (acc.credit_limit || 0) - acc.balance;
+                        liabilities += Math.max(0, debt);
+                    }
+                } else {
+                    assets += acc.balance;
                 }
-                return sum + acc.balance;
-            }, 0);
+            });
+
+            loans.forEach((loan: any) => {
+                if (loan.status === 'active') {
+                    if (loan.type === 'lent') assets += loan.remaining_amount;
+                    else liabilities += loan.remaining_amount;
+                }
+            });
+
+            const balance = assets - liabilities;
             setTotalBalance(balance);
-            // Update trend based on new balance (optional, might need refetching trend if logic requires it, but for now simple update)
             getBalanceTrend(user!.id, balance).then(setBalanceTrend);
         }
-    }, [accounts, excludeCreditCards]);
+    }, [accounts, loans, excludeCreditCards, user, getBalanceTrend]);
 
     const fetchData = useCallback(async () => {
         if (!user) return;
 
         setRefreshing(true);
         try {
-            const [accountsData, transactionsData, budgetsData, tripsData, groupsData] = await Promise.all([
+            const [accountsData, transactionsData, budgetsData, tripsData, groupsData, savingsData, loansData] = await Promise.all([
                 getAccountsByUser(user.id),
                 getRecentTransactions(user.id, 5),
                 getBudgetsWithSpending(user.id),
                 getTripsByUser(user.id),
-                getGroupsByUser(user.id)
+                getGroupsByUser(user.id),
+                getSavingsGoals(user.id),
+                getLoans(user.id)
             ]);
 
-            setAccounts(accountsData); // Store accounts
+            setAccounts(accountsData);
+            setLoans(loansData);
 
-            // Calculate total balance initial
-            const initialBalance = accountsData.reduce((sum: number, acc: any) => {
-                if (excludeCreditCards && (acc.type === 'card' && acc.card_type === 'credit')) {
-                    return sum;
+            // Calculate initial balance using Asset - Liability logic
+            let assets = 0;
+            let liabilities = 0;
+
+            accountsData.forEach((acc: any) => {
+                const isCredit = acc.type === 'card' && acc.card_type === 'credit';
+                if (isCredit) {
+                    if (!excludeCreditCards) {
+                        const debt = (acc.credit_limit || 0) - acc.balance;
+                        liabilities += Math.max(0, debt);
+                    }
+                } else {
+                    assets += acc.balance;
                 }
-                return sum + acc.balance;
-            }, 0);
+            });
+
+            loansData.forEach((loan: any) => {
+                if (loan.status === 'active') {
+                    if (loan.type === 'lent') assets += loan.remaining_amount;
+                    else liabilities += loan.remaining_amount;
+                }
+            });
+
+            const initialBalance = assets - liabilities;
             setTotalBalance(initialBalance);
 
             const trendData = await getBalanceTrend(user.id, initialBalance);
@@ -88,6 +130,8 @@ export default function QSHomeScreen() {
             setBudgets(budgetsData);
             setTrips(tripsData);
             setGroups(groupsData);
+            setSavings(savingsData);
+            setLoans(loansData);
 
         } catch (error) {
 
@@ -210,28 +254,45 @@ export default function QSHomeScreen() {
                 </Animated.View>
 
                 {/* Switcher Section (Budgets / Trips / Groups) */}
-                <View style={styles.sectionHeader}>
-                    <View style={styles.switcherContainer}>
+                <View style={[styles.sectionHeader, { paddingRight: 0 }]}>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.switcherContainer}
+                        decelerationRate="fast"
+                    >
                         <TouchableOpacity
                             onPress={() => setActiveTab('groups')}
                             style={[styles.tabButton, activeTab === 'groups' && styles.activeTabButton]}
                         >
-                            <Text style={[styles.tabText, activeTab === 'groups' && styles.activeTabText]}>My Groups</Text>
+                            <Text style={[styles.tabText, activeTab === 'groups' && styles.activeTabText]}>Groups</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => setActiveTab('budgets')}
                             style={[styles.tabButton, activeTab === 'budgets' && styles.activeTabButton]}
                         >
-                            <Text style={[styles.tabText, activeTab === 'budgets' && styles.activeTabText]}>My Budgets</Text>
+                            <Text style={[styles.tabText, activeTab === 'budgets' && styles.activeTabText]}>Budgets</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => setActiveTab('trips')}
                             style={[styles.tabButton, activeTab === 'trips' && styles.activeTabButton]}
                         >
-                            <Text style={[styles.tabText, activeTab === 'trips' && styles.activeTabText]}>My Trips</Text>
+                            <Text style={[styles.tabText, activeTab === 'trips' && styles.activeTabText]}>Trips</Text>
                         </TouchableOpacity>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <TouchableOpacity
+                            onPress={() => setActiveTab('savings')}
+                            style={[styles.tabButton, activeTab === 'savings' && styles.activeTabButton]}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'savings' && styles.activeTabText]}>Savings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setActiveTab('loans')}
+                            style={[styles.tabButton, activeTab === 'loans' && styles.activeTabButton]}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'loans' && styles.activeTabText]}>Loans</Text>
+                        </TouchableOpacity>
+                    </ScrollView>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingRight: theme.spacing.l }}>
                         {activeTab === 'groups' && (
                             <TouchableOpacity onPress={() => router.push("/create-group")} style={{ backgroundColor: theme.colors.primary, padding: 4, borderRadius: 12 }}>
                                 <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
@@ -244,6 +305,16 @@ export default function QSHomeScreen() {
                         )}
                         {activeTab === 'trips' && (
                             <TouchableOpacity onPress={() => router.push("/create-trip")} style={{ backgroundColor: theme.colors.primary, padding: 4, borderRadius: 12 }}>
+                                <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
+                            </TouchableOpacity>
+                        )}
+                        {activeTab === 'savings' && (
+                            <TouchableOpacity onPress={() => router.push("/add-saving")} style={{ backgroundColor: theme.colors.primary, padding: 4, borderRadius: 12 }}>
+                                <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
+                            </TouchableOpacity>
+                        )}
+                        {activeTab === 'loans' && (
+                            <TouchableOpacity onPress={() => router.push("/add-loan")} style={{ backgroundColor: theme.colors.primary, padding: 4, borderRadius: 12 }}>
                                 <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
                             </TouchableOpacity>
                         )}
@@ -415,7 +486,106 @@ export default function QSHomeScreen() {
                             </View>
                         )}
                     </ScrollView>
-                ) : ( // Fallback or empty (but logic covers all 3)
+                ) : activeTab === 'savings' ? (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.budgetScroll}
+                        snapToInterval={216}
+                        decelerationRate="fast"
+                    >
+                        {savings.length > 0 ? savings.map((goal, index) => {
+                            const percentage = goal.target_amount > 0 ? Math.min(Math.round((goal.current_amount / goal.target_amount) * 100), 100) : 0;
+
+                            return (
+                                <Animated.View key={goal.id} entering={FadeInRight.delay(200 + index * 50).springify()}>
+                                    <TouchableOpacity
+                                        style={styles.budgetCard}
+                                        onPress={() => router.push({ pathname: "/saving-details/[id]", params: { id: goal.id } })}
+                                    >
+                                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                            <View style={[styles.budgetIconWrapper, { backgroundColor: (goal.category_color || theme.colors.primary) + "20" }]}>
+                                                <MaterialCommunityIcons name={getSafeIconName(goal.category_icon || "piggy-bank")} size={20} color={goal.category_color || theme.colors.primary} />
+                                            </View>
+                                            <View style={styles.budgetPercentageWrapper}>
+                                                <Text style={styles.budgetPercentage}>{percentage}%</Text>
+                                            </View>
+                                        </View>
+                                        <View>
+                                            <Text style={styles.budgetName}>{goal.name}</Text>
+                                            <Text style={styles.budgetRemaining}>₹{goal.current_amount.toLocaleString()} saved</Text>
+                                        </View>
+                                        <View style={[styles.progressBarBackground, { backgroundColor: (goal.category_color || theme.colors.primary) + "20" }]}>
+                                            <View
+                                                style={[
+                                                    styles.progressBarFill,
+                                                    {
+                                                        backgroundColor: goal.category_color || theme.colors.primary,
+                                                        width: `${percentage}%`
+                                                    }
+                                                ]}
+                                            />
+                                        </View>
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            );
+                        }) : (
+                            <View style={[styles.budgetCard, { width: 300, justifyContent: 'center' }]}>
+                                <Text style={[styles.budgetName, { textAlign: 'center' }]}>No savings goals yet</Text>
+                            </View>
+                        )}
+                    </ScrollView>
+                ) : activeTab === 'loans' ? (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.budgetScroll}
+                        snapToInterval={216}
+                        decelerationRate="fast"
+                    >
+                        {loans.length > 0 ? loans.map((loan, index) => {
+                            const isLent = loan.type === 'lent';
+                            const percentage = Math.min(Math.round((loan.remaining_amount / loan.total_amount) * 100), 100);
+
+                            return (
+                                <Animated.View key={loan.id} entering={FadeInRight.delay(200 + index * 50).springify()}>
+                                    <TouchableOpacity
+                                        style={styles.budgetCard}
+                                        onPress={() => router.push({ pathname: "/loan-details/[id]", params: { id: loan.id } })}
+                                    >
+                                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                            <View style={[styles.budgetIconWrapper, { backgroundColor: (isLent ? '#10B981' : '#EF4444') + "20" }]}>
+                                                <MaterialCommunityIcons name={isLent ? "hand-coin" : "hand-peace"} size={20} color={isLent ? '#10B981' : '#EF4444'} />
+                                            </View>
+                                            <View style={styles.budgetPercentageWrapper}>
+                                                <Text style={[styles.budgetPercentage, { color: isLent ? '#10B981' : '#EF4444' }]}>{isLent ? 'Lent' : 'Borrowed'}</Text>
+                                            </View>
+                                        </View>
+                                        <View>
+                                            <Text style={styles.budgetName}>{loan.person_name}</Text>
+                                            <Text style={styles.budgetRemaining}>₹{loan.remaining_amount.toLocaleString()} left</Text>
+                                        </View>
+                                        <View style={[styles.progressBarBackground, { backgroundColor: (isLent ? '#10B981' : '#EF4444') + "20" }]}>
+                                            <View
+                                                style={[
+                                                    styles.progressBarFill,
+                                                    {
+                                                        backgroundColor: isLent ? '#10B981' : '#EF4444',
+                                                        width: `${percentage}%`
+                                                    }
+                                                ]}
+                                            />
+                                        </View>
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            );
+                        }) : (
+                            <View style={[styles.budgetCard, { width: 300, justifyContent: 'center' }]}>
+                                <Text style={[styles.budgetName, { textAlign: 'center' }]}>No active loans</Text>
+                            </View>
+                        )}
+                    </ScrollView>
+                ) : ( // Fallback or empty (but logic covers all 5)
                     null
                 )}
 
@@ -476,6 +646,8 @@ export default function QSHomeScreen() {
                                                 isSplit={item.is_split}
                                                 tripId={item.trip_id}
                                                 groupId={item.group_id}
+                                                savingsId={item.savings_id}
+                                                loanId={item.loan_id}
                                             />
                                         </View>
                                     </View>

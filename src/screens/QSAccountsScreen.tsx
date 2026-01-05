@@ -9,6 +9,7 @@ import { QSBottomSheet } from "../components/QSBottomSheet";
 import { QSHeader } from "../components/QSHeader";
 import { useAuth } from "../context/AuthContext";
 import { Account, useAccounts } from "../hooks/useAccounts";
+import { useLoans } from "../hooks/useLoans";
 import { useTransactions } from "../hooks/useTransactions";
 import { createStyles } from "../styles/QSAccounts.styles";
 import { useTheme } from "../theme/ThemeContext";
@@ -20,6 +21,7 @@ export default function QSAccountsScreen() {
     const styles = createStyles(theme.colors, isDark);
     const { user } = useAuth();
     const { getAccountsByUser } = useAccounts();
+    const { getLoans } = useLoans();
     const { getBalanceTrend } = useTransactions();
 
     const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +37,7 @@ export default function QSAccountsScreen() {
         banks: true,
         cash: true,
         credit: true,
+        loans: true,
     });
 
     const fetchData = useCallback(async () => {
@@ -43,28 +46,37 @@ export default function QSAccountsScreen() {
         setRefreshing(true);
         try {
             const accountsData = await getAccountsByUser(user.id);
+            const loansData = await getLoans(user.id);
             setAccounts(accountsData);
 
-            // Calculate total net worth with filters
             // Calculate total net worth with filters (Assets - Liabilities)
-            const netWorth = accountsData.reduce((sum, acc) => {
+            let assets = 0;
+            let liabilities = 0;
+
+            accountsData.forEach(acc => {
                 const isBank = acc.type === 'bank' || (acc.type === 'card' && acc.card_type === 'debit');
                 const isCash = acc.type === 'cash';
                 const isCredit = acc.type === 'card' && acc.card_type === 'credit';
 
-                // Skip if filtered out
-                if (isBank && !balanceFilters.banks) return sum;
-                if (isCash && !balanceFilters.cash) return sum;
-                if (isCredit && !balanceFilters.credit) return sum;
-
-                // Subtract credit debt, add others
-                if (isCredit) {
+                if (isBank && balanceFilters.banks) assets += acc.balance;
+                if (isCash && balanceFilters.cash) assets += acc.balance;
+                if (isCredit && balanceFilters.credit) {
                     const debt = (acc.credit_limit || 0) - acc.balance;
-                    return sum - debt;
+                    liabilities += Math.max(0, debt);
                 }
-                return sum + acc.balance;
-            }, 0);
+            });
 
+            // Add Loans
+            if (balanceFilters.loans) {
+                loansData.forEach(loan => {
+                    if (loan.status === 'active') {
+                        if (loan.type === 'lent') assets += loan.remaining_amount;
+                        else liabilities += loan.remaining_amount;
+                    }
+                });
+            }
+
+            const netWorth = assets - liabilities;
             setTotalNetWorth(netWorth);
 
             const trendData = await getBalanceTrend(user.id, netWorth);
@@ -246,6 +258,21 @@ export default function QSAccountsScreen() {
                             <Switch
                                 value={balanceFilters.credit}
                                 onValueChange={(val) => setBalanceFilters(prev => ({ ...prev, credit: val }))}
+                                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                                thumbColor="#FFFFFF"
+                            />
+                        </View>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(249, 115, 22, 0.1)', justifyContent: 'center', alignItems: 'center' }}>
+                                    <MaterialCommunityIcons name="handshake" size={24} color="#F97316" />
+                                </View>
+                                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.text }}>Loans (Lent/Borrowed)</Text>
+                            </View>
+                            <Switch
+                                value={balanceFilters.loans}
+                                onValueChange={(val) => setBalanceFilters(prev => ({ ...prev, loans: val }))}
                                 trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
                                 thumbColor="#FFFFFF"
                             />

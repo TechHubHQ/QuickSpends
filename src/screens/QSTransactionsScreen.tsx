@@ -218,6 +218,8 @@ export default function QSTransactionsScreen() {
                                 isSplit={item.is_split}
                                 tripId={item.trip_id}
                                 groupId={item.group_id}
+                                savingsId={item.savings_id}
+                                loanId={item.loan_id}
                             />
                         </View>
                     </View>

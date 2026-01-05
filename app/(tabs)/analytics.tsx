@@ -1,19 +1,5 @@
-import { StyleSheet, Text, View } from "react-native";
-import { useTheme } from "../../src/theme/ThemeContext";
+import QSAnalyticsScreen from "../../src/screens/QSAnalyticsScreen";
 
 export default function AnalyticsScreen() {
-    const { theme } = useTheme();
-    return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <Text style={{ color: theme.colors.text }}>Analytics Screen</Text>
-        </View>
-    );
+    return <QSAnalyticsScreen />;
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-});

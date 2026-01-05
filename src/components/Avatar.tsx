@@ -3,17 +3,8 @@ import React, { useMemo } from 'react';
 import { View, ViewStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
-// Import local assets
-const AVATAR_IMAGES = [
-    require('../../assets/avatars/avatar1.png'),
-    require('../../assets/avatars/avatar2.png'),
-    require('../../assets/avatars/avatar3.png'),
-    require('../../assets/avatars/avatar4.png'),
-    require('../../assets/avatars/avatar5.png'),
-    require('../../assets/avatars/avatar6.png'),
-    require('../../assets/avatars/avatar7.png'),
-    require('../../assets/avatars/avatar8.png'),
-];
+const avatarContext = require.context('../../assets/avatars', false, /\.png$/);
+const AVATAR_IMAGES = avatarContext.keys().map((key) => avatarContext(key));
 
 export const TOTAL_AVATARS = AVATAR_IMAGES.length;
 

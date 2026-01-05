@@ -218,6 +218,17 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
     { name: 'Subscriptions', icon: 'autorenew', color: '#9E9E9E', type: 'expense' },
     { name: 'Bill Payment', icon: 'file-document-outline', color: '#607D8B', type: 'expense' },
     { name: 'Insurance', icon: 'shield-check', color: '#607D8B', type: 'expense' }, // General insurance if not covered above
+    {
+        name: 'Loans & Debt',
+        icon: 'handshake',
+        color: '#FF5722',
+        type: 'expense',
+        subCategories: [
+            { name: 'Loan Disbursement', icon: 'format-list-bulleted-type' },
+            { name: 'EMI Payment', icon: 'calendar-clock' },
+            { name: 'Debt Repayment', icon: 'cash-check' },
+        ]
+    },
 
     // Income Categories
     {
@@ -257,5 +268,16 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
         icon: 'wallet-outline',
         color: '#4CAF50',
         type: 'income'
+    },
+    {
+        name: 'Loans & Debt',
+        icon: 'handshake',
+        color: '#FF5722',
+        type: 'income',
+        subCategories: [
+            { name: 'Loan Received', icon: 'wallet-plus' },
+            { name: 'Debt Recovery', icon: 'cash-plus' },
+            { name: 'EMI Received', icon: 'calendar-check' },
+        ]
     }
 ];

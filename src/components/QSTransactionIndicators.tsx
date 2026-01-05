@@ -7,6 +7,8 @@ interface QSTransactionIndicatorsProps {
     isSplit?: boolean | number;
     tripId?: string | number | null;
     groupId?: string | number | null;
+    savingsId?: string | number | null;
+    loanId?: string | number | null;
     hideTrip?: boolean;
     hideGroup?: boolean;
 }
@@ -15,12 +17,14 @@ export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = (
     isSplit,
     tripId,
     groupId,
+    savingsId,
+    loanId,
     hideTrip = false,
     hideGroup = false,
 }) => {
     const { theme } = useTheme();
 
-    if (!isSplit && (!tripId || hideTrip) && (!groupId || hideGroup)) return null;
+    if (!isSplit && (!tripId || hideTrip) && (!groupId || hideGroup) && !savingsId && !loanId) return null;
 
     return (
         <View style={styles.container}>
@@ -40,6 +44,18 @@ export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = (
                 <View style={[styles.badge, { backgroundColor: '#EC489920' }]}>
                     <MaterialCommunityIcons name="account-group" size={10} color="#EC4899" />
                     <Text style={[styles.badgeText, { color: '#EC4899' }]}>GROUP</Text>
+                </View>
+            )}
+            {!!savingsId && (
+                <View style={[styles.badge, { backgroundColor: '#E91E6320' }]}>
+                    <MaterialCommunityIcons name="piggy-bank" size={10} color="#E91E63" />
+                    <Text style={[styles.badgeText, { color: '#E91E63' }]}>SAVING</Text>
+                </View>
+            )}
+            {!!loanId && (
+                <View style={[styles.badge, { backgroundColor: '#FF572220' }]}>
+                    <MaterialCommunityIcons name="handshake" size={10} color="#FF5722" />
+                    <Text style={[styles.badgeText, { color: '#FF5722' }]}>LOAN</Text>
                 </View>
             )}
         </View>

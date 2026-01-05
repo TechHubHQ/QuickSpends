@@ -542,6 +542,8 @@ export default function QSGroupDetailsScreen() {
                                                 isSplit={t.is_split}
                                                 tripId={t.trip_id}
                                                 groupId={t.group_id}
+                                                savingsId={t.savings_id}
+                                                loanId={t.loan_id}
                                                 hideGroup
                                             />
                                             <Text style={styles.activityDate}>{new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>

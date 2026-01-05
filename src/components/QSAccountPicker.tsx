@@ -7,7 +7,8 @@ import { QSBottomSheet } from "./QSBottomSheet";
 interface Account {
     id: string;
     name: string;
-    type: 'bank' | 'cash' | 'card';
+    type: string;
+    card_type?: string;
     balance: number;
     currency: string;
 }
@@ -50,10 +51,10 @@ export function QSAccountPicker({
         }
     };
 
-    const formatCurrency = (amount: number, currency: string) => {
+    const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
-            currency: currency,
+            currency: 'INR',
             maximumFractionDigits: 0
         }).format(amount);
     };
@@ -110,7 +111,7 @@ export function QSAccountPicker({
                                     {account.name}
                                 </Text>
                                 <Text style={[styles.balanceText, { color: theme.isDark ? '#94A3B8' : '#64748B' }]}>
-                                    {formatCurrency(account.balance, account.currency)}
+                                    {formatCurrency(account.balance)}
                                 </Text>
                             </View>
                             {isSelected && (

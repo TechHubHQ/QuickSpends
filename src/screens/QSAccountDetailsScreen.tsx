@@ -228,7 +228,7 @@ export default function QSAccountDetailsScreen() {
                             {account.type === 'cash'
                                 ? "Reconciled • Updated just now"
                                 : (account.type === 'card' && account.card_type === 'credit' && account.credit_limit
-                                    ? `Outstanding: ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: account.currency || 'INR', maximumFractionDigits: 0 }).format(account.credit_limit - account.balance)} • Limit: ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: account.currency || 'INR', maximumFractionDigits: 0 }).format(account.credit_limit)} `
+                                    ? `Outstanding: ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(account.credit_limit - account.balance)} • Limit: ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(account.credit_limit)} `
                                     : "Available Balance • Updated just now")
                             }
                         </Text>
@@ -352,6 +352,8 @@ export default function QSAccountDetailsScreen() {
                                                         isSplit={item.is_split}
                                                         tripId={item.trip_id}
                                                         groupId={item.group_id}
+                                                        savingsId={item.savings_id}
+                                                        loanId={item.loan_id}
                                                     />
                                                 </View>
                                             </View>
@@ -362,7 +364,7 @@ export default function QSAccountDetailsScreen() {
                                                 { color: item.type === 'income' ? "#48BB78" : (item.type === 'expense' ? "#F56565" : (item.type === 'transfer' ? "#8B5CF6" : theme.colors.text)) }
                                             ]}
                                         >
-                                            {item.type === 'expense' ? '-' : '+'}{new Intl.NumberFormat('en-IN', { style: 'currency', currency: account.currency || 'INR', maximumFractionDigits: 0 }).format(Math.abs(item.amount))}
+                                            {item.type === 'expense' ? '-' : '+'}{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.abs(item.amount))}
                                         </Text>
                                     </TouchableOpacity>
                                 </Animated.View>
@@ -422,7 +424,7 @@ export default function QSAccountDetailsScreen() {
                 <View style={{ paddingBottom: 30 }}>
                     <Text style={{ color: theme.colors.textSecondary, marginBottom: 8 }}>Current Balance</Text>
                     <Text style={{ color: theme.colors.text, fontSize: 24, fontWeight: 'bold', marginBottom: 20 }}>
-                        {new Intl.NumberFormat('en-IN', { style: 'currency', currency: account.currency || 'INR' }).format(account.balance)}
+                        {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(account.balance)}
                     </Text>
 
                     <Text style={{ color: theme.colors.text, marginBottom: 8, fontWeight: '500' }}>New Balance</Text>

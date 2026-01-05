@@ -249,8 +249,35 @@ export const useTrips = () => {
             // Ideally transactions table should have ON DELETE CASCADE for trip_id
 
             // Manual cleanup just in case
-            await db.runAsync('DELETE FROM transactions WHERE trip_id = ?', [tripId]);
-            await db.runAsync('DELETE FROM trips WHERE id = ?', [tripId]);
+            // 2. Delete Trip and Linked Transactions with Balance Revert
+
+            // Fetch transactions first to revert balances
+            const transactions = await db.getAllAsync<{
+                id: string,
+                amount: number,
+                type: 'income' | 'expense' | 'transfer',
+                account_id: string
+            }>(
+                `SELECT id, amount, type, account_id FROM transactions WHERE trip_id = ?`,
+                [tripId]
+            );
+
+            await db.withTransactionAsync(async () => {
+                // Revert balances
+                for (const txn of transactions) {
+                    if (txn.type === 'expense') {
+                        await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [txn.amount, txn.account_id]);
+                    } else if (txn.type === 'income') {
+                        await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [txn.amount, txn.account_id]);
+                    }
+                }
+
+                // Delete transactions
+                await db.runAsync('DELETE FROM transactions WHERE trip_id = ?', [tripId]);
+
+                // Delete Trip
+                await db.runAsync('DELETE FROM trips WHERE id = ?', [tripId]);
+            });
 
             return { success: true };
         } catch (err: any) {

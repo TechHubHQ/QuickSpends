@@ -9,6 +9,9 @@ export interface NotificationPreferences {
     lowBalanceAlerts: boolean;
     splitReminders: boolean;
     monthlySummary: boolean;
+    loanDueReminders: boolean;
+    loanPaidAlerts: boolean;
+    savingsGoalAlerts: boolean;
 }
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
@@ -18,6 +21,9 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
     lowBalanceAlerts: true,
     splitReminders: true,
     monthlySummary: true,
+    loanDueReminders: true,
+    loanPaidAlerts: true,
+    savingsGoalAlerts: true,
 };
 
 interface NotificationPreferencesContextType {

@@ -61,7 +61,7 @@ export const QSAccountCard: React.FC<QSAccountCardProps> = ({ account, monthIn, 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
-            currency: account.currency || 'INR',
+            currency: 'INR',
             maximumFractionDigits: 0
         }).format(amount);
     };

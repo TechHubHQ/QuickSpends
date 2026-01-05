@@ -24,6 +24,8 @@ export interface Transaction {
     to_account_id?: string;
     receipt_url?: string;
     is_split?: boolean;
+    savings_id?: string;
+    loan_id?: string;
 }
 
 export const useTransactions = () => {
@@ -200,8 +202,8 @@ export const useTransactions = () => {
 
                 // Insert transaction
                 await db.runAsync(
-                    `INSERT INTO transactions (id, user_id, account_id, category_id, name, description, amount, type, date, group_id, trip_id, to_account_id, receipt_url, recurring_id) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO transactions (id, user_id, account_id, category_id, name, description, amount, type, date, group_id, trip_id, to_account_id, receipt_url, recurring_id, savings_id, loan_id) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         id,
                         transaction.user_id,
@@ -216,9 +218,34 @@ export const useTransactions = () => {
                         transaction.trip_id || null,
                         transaction.to_account_id || null,
                         transaction.receipt_url || null,
-                        recurringId || null
+                        recurringId || null,
+                        transaction.savings_id || null,
+                        transaction.loan_id || null
                     ]
                 );
+
+                // Update Savings if linked
+                if (transaction.savings_id) {
+                    if (transaction.type === 'income' || transaction.type === 'transfer') {
+                        await db.runAsync('UPDATE savings SET current_amount = current_amount + ? WHERE id = ?', [transaction.amount, transaction.savings_id]);
+                    } else if (transaction.type === 'expense') {
+                        await db.runAsync('UPDATE savings SET current_amount = current_amount - ? WHERE id = ?', [transaction.amount, transaction.savings_id]);
+                    }
+                }
+
+                // Update Loans if linked
+                if (transaction.loan_id) {
+                    const loan = await db.getFirstAsync<{ type: string }>('SELECT type FROM loans WHERE id = ?', [transaction.loan_id]);
+                    if (loan) {
+                        if (loan.type === 'lent' && transaction.type === 'income') {
+                            // Repayment RECEIVED for money LENT
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount - ? WHERE id = ?', [transaction.amount, transaction.loan_id]);
+                        } else if (loan.type === 'borrowed' && transaction.type === 'expense') {
+                            // Repayment MADE for money BORROWED
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount - ? WHERE id = ?', [transaction.amount, transaction.loan_id]);
+                        }
+                    }
+                }
 
                 // Update account balances with Asset/Liability Logic
                 // Asset (Bank, Cash): +Income, -Expense
@@ -368,6 +395,29 @@ export const useTransactions = () => {
                     }
                 }
 
+                // Revert Savings if linked
+                if (transaction.savings_id) {
+                    if (transaction.type === 'income' || transaction.type === 'transfer') {
+                        await db.runAsync('UPDATE savings SET current_amount = current_amount - ? WHERE id = ?', [transaction.amount, transaction.savings_id]);
+                    } else if (transaction.type === 'expense') {
+                        await db.runAsync('UPDATE savings SET current_amount = current_amount + ? WHERE id = ?', [transaction.amount, transaction.savings_id]);
+                    }
+                }
+
+                // Revert Loans if linked
+                if (transaction.loan_id) {
+                    const loan = await db.getFirstAsync<{ type: string }>('SELECT type FROM loans WHERE id = ?', [transaction.loan_id]);
+                    if (loan) {
+                        if (loan.type === 'lent' && transaction.type === 'income') {
+                            // Revert repayment RECEIVED (Add back to remaining)
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount + ? WHERE id = ?', [transaction.amount, transaction.loan_id]);
+                        } else if (loan.type === 'borrowed' && transaction.type === 'expense') {
+                            // Revert repayment MADE (Add back to remaining)
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount + ? WHERE id = ?', [transaction.amount, transaction.loan_id]);
+                        }
+                    }
+                }
+
                 // 3. Delete the transaction
                 await db.runAsync('DELETE FROM transactions WHERE id = ?', [transactionId]);
             });
@@ -420,12 +470,23 @@ export const useTransactions = () => {
                         await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [currentTransaction.amount, currentTransaction.to_account_id]);
                     }
                 }
+                // Revert Loan if linked
+                if (currentTransaction.loan_id) {
+                    const loan = await db.getFirstAsync<{ type: string }>('SELECT type FROM loans WHERE id = ?', [currentTransaction.loan_id]);
+                    if (loan) {
+                        if (loan.type === 'lent' && currentTransaction.type === 'income') {
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount + ? WHERE id = ?', [currentTransaction.amount, currentTransaction.loan_id]);
+                        } else if (loan.type === 'borrowed' && currentTransaction.type === 'expense') {
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount + ? WHERE id = ?', [currentTransaction.amount, currentTransaction.loan_id]);
+                        }
+                    }
+                }
                 // --- END REVERT LOGIC ---
 
                 // 3. Apply New Details
                 await db.runAsync(
                     `UPDATE transactions 
-                     SET account_id = ?, category_id = ?, name = ?, description = ?, amount = ?, type = ?, date = ?, group_id = ?, trip_id = ?, to_account_id = ?
+                     SET account_id = ?, category_id = ?, name = ?, description = ?, amount = ?, type = ?, date = ?, group_id = ?, trip_id = ?, to_account_id = ?, savings_id = ?, loan_id = ?
                      WHERE id = ?`,
                     [
                         updates.account_id,
@@ -438,6 +499,8 @@ export const useTransactions = () => {
                         updates.group_id || null,
                         updates.trip_id || null,
                         updates.to_account_id || null,
+                        updates.savings_id || null,
+                        updates.loan_id || null,
                         transactionId
                     ]
                 );
@@ -459,6 +522,18 @@ export const useTransactions = () => {
                     if (updates.to_account_id) {
                         // Apply Dest: +Balance
                         await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [updates.amount, updates.to_account_id]);
+                    }
+                }
+
+                // Apply Loan if linked
+                if (updates.loan_id) {
+                    const loan = await db.getFirstAsync<{ type: string }>('SELECT type FROM loans WHERE id = ?', [updates.loan_id]);
+                    if (loan) {
+                        if (loan.type === 'lent' && updates.type === 'income') {
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount - ? WHERE id = ?', [updates.amount, updates.loan_id]);
+                        } else if (loan.type === 'borrowed' && updates.type === 'expense') {
+                            await db.runAsync('UPDATE loans SET remaining_amount = remaining_amount - ? WHERE id = ?', [updates.amount, updates.loan_id]);
+                        }
                     }
                 }
 
@@ -516,6 +591,100 @@ export const useTransactions = () => {
         }
     }, []);
 
+    const getTransactionsBySaving = useCallback(async (savingId: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const db = await getDatabase();
+            const transactions = await db.getAllAsync<Transaction>(
+                `SELECT t.*, 
+                        c.name as category_name, c.icon as category_icon, c.color as category_color,
+                        a.name as account_name
+                 FROM transactions t
+                 LEFT JOIN categories c ON t.category_id = c.id
+                 LEFT JOIN accounts a ON t.account_id = a.id
+                 WHERE t.savings_id = ?
+                 ORDER BY t.date DESC`,
+                [savingId]
+            );
+            return transactions;
+        } catch (err: any) {
+            setError(err.message);
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const getTransactionsByLoan = useCallback(async (loanId: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const db = await getDatabase();
+            const transactions = await db.getAllAsync<Transaction>(
+                `SELECT t.*, 
+                        c.name as category_name, c.icon as category_icon, c.color as category_color,
+                        a.name as account_name
+                 FROM transactions t
+                 LEFT JOIN categories c ON t.category_id = c.id
+                 LEFT JOIN accounts a ON t.account_id = a.id
+                 WHERE t.loan_id = ?
+                 ORDER BY t.date DESC`,
+                [loanId]
+            );
+            return transactions;
+        } catch (err: any) {
+            setError(err.message);
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const linkTransactionsToLoan = useCallback(async (transactionIds: string[], loanId: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const db = await getDatabase();
+            await db.withTransactionAsync(async () => {
+                for (const id of transactionIds) {
+                    await db.runAsync('UPDATE transactions SET loan_id = ? WHERE id = ?', [loanId, id]);
+                }
+            });
+            return true;
+        } catch (err: any) {
+            setError(err.message);
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const getTransactionsByAccount = useCallback(async (accountId: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const db = await getDatabase();
+            const transactions = await db.getAllAsync<Transaction>(
+                `SELECT t.*, 
+                        c.name as category_name, c.icon as category_icon, c.color as category_color,
+                        a.name as account_name
+                 FROM transactions t
+                 LEFT JOIN categories c ON t.category_id = c.id
+                 LEFT JOIN accounts a ON t.account_id = a.id
+                 WHERE t.account_id = ?
+                 ORDER BY t.date DESC`,
+                [accountId]
+            );
+            return transactions;
+        } catch (err: any) {
+            setError(err.message);
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     return {
         getRecentTransactions,
         getMonthlyStats,
@@ -526,6 +695,10 @@ export const useTransactions = () => {
         updateTransaction,
         getTransactionsByTrip,
         getSpendingByCategoryByTrip,
+        getTransactionsBySaving,
+        getTransactionsByLoan,
+        getTransactionsByAccount,
+        linkTransactionsToLoan,
         loading,
         error,
     };

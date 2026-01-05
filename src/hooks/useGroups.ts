@@ -392,6 +392,25 @@ export const useGroups = () => {
                     [groupId]
                 );
 
+                // Fetch transactions to revert balances
+                const transactions = await db.getAllAsync<{
+                    id: string,
+                    amount: number,
+                    type: 'income' | 'expense' | 'transfer',
+                    account_id: string
+                }>(
+                    `SELECT id, amount, type, account_id FROM transactions WHERE group_id = ?`,
+                    [groupId]
+                );
+
+                for (const txn of transactions) {
+                    if (txn.type === 'expense') {
+                        await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [txn.amount, txn.account_id]);
+                    } else if (txn.type === 'income') {
+                        await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [txn.amount, txn.account_id]);
+                    }
+                }
+
                 // Delete transactions
                 await db.runAsync(
                     'DELETE FROM transactions WHERE group_id = ?',

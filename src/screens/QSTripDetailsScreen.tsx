@@ -115,7 +115,7 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
-            currency: trip?.currency || 'INR',
+            currency: 'INR',
             maximumFractionDigits: 0
         }).format(amount);
     };
@@ -380,6 +380,8 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
                                                             isSplit={item.is_split}
                                                             tripId={item.trip_id}
                                                             groupId={item.group_id}
+                                                            savingsId={item.savings_id}
+                                                            loanId={item.loan_id}
                                                             hideTrip
                                                         />
                                                     </View>

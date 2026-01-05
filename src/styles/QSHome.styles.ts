@@ -257,26 +257,29 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     },
     // Switcher and Trip Styles
     switcherContainer: {
-        flexDirection: "row",
+        paddingRight: theme.spacing.l,
+        gap: 12,
         alignItems: "center",
-        gap: 10,
     },
     tabButton: {
-        paddingVertical: 6,
-        paddingHorizontal: 2,
-        borderBottomWidth: 2,
-        borderBottomColor: "transparent",
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        backgroundColor: "transparent",
+        borderWidth: 1,
+        borderColor: "transparent",
     },
     activeTabButton: {
-        borderBottomColor: theme.colors.primary,
+        backgroundColor: theme.colors.primary + '15',
+        borderColor: theme.colors.primary + '30',
     },
     tabText: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: "700",
         color: theme.colors.textTertiary,
     },
     activeTabText: {
-        color: theme.colors.text,
+        color: theme.colors.primary,
     },
     tripScroll: {
         paddingLeft: theme.spacing.l,

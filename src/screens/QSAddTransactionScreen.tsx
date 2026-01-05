@@ -11,12 +11,16 @@ import { QSCreateCategorySheet } from "../components/QSCreateCategorySheet";
 import { QSDatePicker } from "../components/QSDatePicker";
 import { QSGroupPicker } from "../components/QSGroupPicker";
 import { QSHeader } from "../components/QSHeader";
+import { QSLoanPicker } from "../components/QSLoanPicker";
+import { QSSavingsPicker } from "../components/QSSavingsPicker";
 import { QSTripPicker } from "../components/QSTripPicker";
 import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../hooks/useAccounts";
 import { useCategories } from "../hooks/useCategories";
 import { useGroups } from "../hooks/useGroups";
+import { useLoans } from "../hooks/useLoans";
 import { useNotifications } from "../hooks/useNotifications";
+import { useSavings } from "../hooks/useSavings";
 import { useTransactions } from "../hooks/useTransactions";
 import { useTrips } from "../hooks/useTrips";
 import { createStyles } from "../styles/QSAddTransaction.styles";
@@ -39,6 +43,8 @@ export default function QSAddTransactionScreen() {
     const { addCategory } = useCategories(); // Added hook
     const { addTransaction, updateTransaction, loading: saving } = useTransactions();
     const { checkAllNotifications } = useNotifications();
+    const { getSavingsGoals } = useSavings();
+    const { getLoans } = useLoans();
 
     // Parse edit transaction if available
     const editTransaction = params.editTransaction ? JSON.parse(params.editTransaction as string) : null;
@@ -71,12 +77,21 @@ export default function QSAddTransactionScreen() {
     const [showGroupPicker, setShowGroupPicker] = useState(false);
     const [showTripPicker, setShowTripPicker] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showSavingsPicker, setShowSavingsPicker] = useState(false);
+    const [showLoanPicker, setShowLoanPicker] = useState(false);
 
     const [accounts, setAccounts] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     // We will derive sub-categories from 'categories' based on 'categoryId' selection
     const [groups, setGroups] = useState<any[]>([]);
     const [trips, setTrips] = useState<any[]>([]);
+    const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
+    const [loans, setLoans] = useState<any[]>([]);
+
+    const [savingsId, setSavingsId] = useState('');
+    const [loanId, setLoanId] = useState('');
+    const [isSavings, setIsSavings] = useState(false);
+    const [isLoan, setIsLoan] = useState(false);
 
     // Pre-fill data if editing
     useEffect(() => {
@@ -112,8 +127,30 @@ export default function QSAddTransactionScreen() {
                 // we might skip pre-filling frequency or default to monthly.
                 setIsRecurring(true);
             }
+
+            if (editTransaction.savings_id) {
+                setIsSavings(true);
+                setSavingsId(editTransaction.savings_id);
+            }
+
+            if (editTransaction.loan_id) {
+                setIsLoan(true);
+                setLoanId(editTransaction.loan_id);
+            }
         }
     }, [params.editTransaction]);
+
+    // Handle initial savingsId param
+    useEffect(() => {
+        if (params.savingsId) {
+            setIsSavings(true);
+            setSavingsId(params.savingsId as string);
+            // Default to transfer if adding funds to savings
+            if (params.initialType === 'transfer') {
+                setType('transfer');
+            }
+        }
+    }, [params.savingsId, params.initialType]);
 
     // Handle initial params for trip/group
     useEffect(() => {
@@ -135,6 +172,30 @@ export default function QSAddTransactionScreen() {
         }
     }, [params.tripId, params.groupId, trips]);
 
+    // Handle initial loanId from params
+    useEffect(() => {
+        if (params.loanId) {
+            setIsLoan(true);
+            setLoanId(params.loanId as string);
+        }
+    }, [params.loanId]);
+
+    // Handle loan auto-categorization when a loan is linked
+    useEffect(() => {
+        if (isLoan && loanId && categories.length > 0 && !categoryId) {
+            const loanCategory = categories.find((c: any) => c.name === 'Loans & Debt' && !c.parent_id);
+            if (loanCategory) {
+                const targetSubName = type === 'income' ? 'EMI Received' : 'EMI Payment';
+                const subCategory = categories.find((c: any) => c.parent_id === loanCategory.id && c.name === targetSubName);
+                if (subCategory) {
+                    setCategoryId(subCategory.id);
+                } else {
+                    setCategoryId(loanCategory.id);
+                }
+            }
+        }
+    }, [isLoan, loanId, categories, type, categoryId]);
+
     useEffect(() => {
         if (user) {
             fetchData();
@@ -143,16 +204,20 @@ export default function QSAddTransactionScreen() {
 
     const fetchData = async () => {
         if (!user) return;
-        const [accs, cats, grps, trps] = await Promise.all([
+        const [accs, cats, grps, trps, goals, lnz] = await Promise.all([
             getAccountsByUser(user.id),
             getCategories(type === 'transfer' ? 'expense' : type as any),
             getGroupsByUser(user.id),
-            getTripsByUser(user.id)
+            getTripsByUser(user.id),
+            getSavingsGoals(user.id),
+            getLoans(user.id)
         ]);
         setAccounts(accs);
         setCategories(cats);
         setGroups(grps);
         setTrips(trps);
+        setSavingsGoals(goals);
+        setLoans(lnz);
 
         if (accs.length > 0 && !accountId) setAccountId(accs[0].id);
 
@@ -170,6 +235,8 @@ export default function QSAddTransactionScreen() {
     const getSelectedToAccount = () => accounts.find(a => a.id === toAccountId);
     const getSelectedGroup = () => groups.find(g => g.id === selectedGroupId);
     const getSelectedTrip = () => trips.find(t => t.id === selectedTripId);
+    const getSelectedSavingsGoal = () => savingsGoals.find(g => g.id === savingsId);
+    const getSelectedLoan = () => loans.find(l => l.id === loanId);
 
     const handleCreateCategory = async (name: string, icon: string, color: string) => {
         try {
@@ -208,12 +275,15 @@ export default function QSAddTransactionScreen() {
         }
 
         if (type === 'transfer' && accountId === toAccountId) {
-            Toast.show({
-                type: 'error',
-                text1: 'Error',
-                text2: 'Source and Destination accounts cannot be the same'
-            });
-            return;
+            // Allow same account transfer ONLY if it's for a savings goal (earmarking funds)
+            if (!isSavings) {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Source and Destination accounts cannot be the same'
+                });
+                return;
+            }
         }
 
         if (editTransaction) {
@@ -228,6 +298,8 @@ export default function QSAddTransactionScreen() {
                 group_id: isGroup ? selectedGroupId : undefined,
                 trip_id: isTrip ? selectedTripId : undefined,
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
+                savings_id: isSavings ? savingsId : undefined,
+                loan_id: isLoan ? loanId : undefined,
             });
 
             if (success) {
@@ -252,6 +324,8 @@ export default function QSAddTransactionScreen() {
                 group_id: isGroup ? selectedGroupId : undefined,
                 trip_id: isTrip ? selectedTripId : undefined,
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
+                savings_id: isSavings ? savingsId : undefined,
+                loan_id: isLoan ? loanId : undefined,
             }, isRecurring ? { frequency: recurringType === 'one-time' ? 'monthly' : recurringType as 'weekly' | 'monthly' } : undefined);
 
             if (success) {
@@ -276,16 +350,17 @@ export default function QSAddTransactionScreen() {
     return (
         <>
             <View style={styles.container}>
-                <QSHeader
-                    title={editTransaction ? "Edit Transaction" : "Add Transaction"}
-                    showBack
-                    onBackPress={() => router.back()}
-                />
+
 
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
+                    <QSHeader
+                        title={editTransaction ? "Edit Transaction" : "Add Transaction"}
+                        showBack
+                        onBackPress={() => router.back()}
+                    />
                     {/* Transaction Type Segmented Control */}
                     <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.typeContainer}>
                         {(['income', 'expense', 'transfer'] as TransactionType[]).map((t) => (
@@ -487,6 +562,81 @@ export default function QSAddTransactionScreen() {
                         </View>
                     </Animated.View>
 
+                    {/* Savings and Loan Toggles */}
+                    <Animated.View entering={FadeInDown.delay(1000).springify()} style={styles.toggleGrid}>
+                        <View style={styles.toggleCard}>
+                            <View style={styles.toggleCardHeader}>
+                                <View style={styles.toggleIconContainer}>
+                                    <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
+                                </View>
+                                <Switch
+                                    value={isSavings}
+                                    onValueChange={setIsSavings}
+                                    trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#E91E63' }}
+                                    thumbColor={isSavings ? '#FFFFFF' : '#F3F4F6'}
+                                />
+                            </View>
+                            <Text style={styles.toggleLabel}>Savings Link</Text>
+                        </View>
+
+                        <View style={styles.toggleCard}>
+                            <View style={styles.toggleCardHeader}>
+                                <View style={styles.toggleIconContainer}>
+                                    <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
+                                </View>
+                                <Switch
+                                    value={isLoan}
+                                    onValueChange={setIsLoan}
+                                    trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FF5722' }}
+                                    thumbColor={isLoan ? '#FFFFFF' : '#F3F4F6'}
+                                />
+                            </View>
+                            <Text style={styles.toggleLabel}>Loan Link</Text>
+                        </View>
+                    </Animated.View>
+
+                    {/* Savings Selection (if enabled) */}
+                    {isSavings && (
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Select Savings Goal</Text>
+                            <View style={styles.inputWrapper}>
+                                <View style={styles.iconContainer}>
+                                    <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.selectButton}
+                                    onPress={() => setShowSavingsPicker(true)}
+                                >
+                                    <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
+                                        {getSelectedSavingsGoal()?.name || 'Select Goal'}
+                                    </Text>
+                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Loan Selection (if enabled) */}
+                    {isLoan && (
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Select Loan</Text>
+                            <View style={styles.inputWrapper}>
+                                <View style={styles.iconContainer}>
+                                    <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.selectButton}
+                                    onPress={() => setShowLoanPicker(true)}
+                                >
+                                    <Text style={getSelectedLoan() ? styles.selectText : styles.selectPlaceholder}>
+                                        {getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : 'Select Loan'}
+                                    </Text>
+                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
                     {/* Group Selection (if enabled) */}
                     {isGroup && (
                         <View style={styles.inputGroup}>
@@ -635,7 +785,7 @@ export default function QSAddTransactionScreen() {
                 accounts={accounts}
                 selectedId={accountId}
                 onSelect={(acc) => setAccountId(acc ? acc.id : '')}
-                excludeId={type === 'transfer' ? toAccountId : undefined}
+                excludeId={(type === 'transfer' && !isSavings) ? toAccountId : undefined}
             />
 
             <QSAccountPicker
@@ -644,7 +794,7 @@ export default function QSAddTransactionScreen() {
                 accounts={accounts}
                 selectedId={toAccountId}
                 onSelect={(acc) => setToAccountId(acc ? acc.id : '')}
-                excludeId={accountId}
+                excludeId={!isSavings ? accountId : undefined}
             />
 
             <QSGroupPicker
@@ -674,6 +824,22 @@ export default function QSAddTransactionScreen() {
                 onClose={() => setShowDatePicker(false)}
                 selectedDate={date}
                 onSelect={(selectedDate) => setDate(selectedDate)}
+            />
+
+            <QSSavingsPicker
+                visible={showSavingsPicker}
+                onClose={() => setShowSavingsPicker(false)}
+                goals={savingsGoals}
+                selectedId={savingsId}
+                onSelect={(goal) => setSavingsId(goal.id)}
+            />
+
+            <QSLoanPicker
+                visible={showLoanPicker}
+                onClose={() => setShowLoanPicker(false)}
+                loans={loans}
+                selectedId={loanId}
+                onSelect={(loan) => setLoanId(loan.id)}
             />
         </>
     );

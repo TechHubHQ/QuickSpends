@@ -70,6 +70,27 @@ const QSNotificationSettingsScreen = () => {
                         '#10B981' // Green
                     )}
                     {renderToggle(
+                        'Loan Due Dates',
+                        'Get reminded 3 days before a loan payment is due',
+                        'loanDueReminders',
+                        'calendar-alert',
+                        '#DC2626' // Red
+                    )}
+                    {renderToggle(
+                        'Loan Clearance',
+                        'Get notified when a loan is fully paid off',
+                        'loanPaidAlerts',
+                        'check-decagram',
+                        '#059669' // Emerald Green
+                    )}
+                    {renderToggle(
+                        'Savings Goals',
+                        'Celebrate when you reach your savings target',
+                        'savingsGoalAlerts',
+                        'piggy-bank',
+                        '#EC4899' // Pink
+                    )}
+                    {renderToggle(
                         'Low Balance & High Dues',
                         'Alert when balance is low or credit card dues are high',
                         'lowBalanceAlerts',

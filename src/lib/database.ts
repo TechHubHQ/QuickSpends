@@ -133,13 +133,51 @@ export const initializeDatabase = async () => {
       trip_id TEXT,
       recurring_id TEXT,
       to_account_id TEXT,
+      savings_id TEXT,
+      loan_id TEXT,
       FOREIGN KEY (user_id) REFERENCES users (id),
       FOREIGN KEY (account_id) REFERENCES accounts (id),
       FOREIGN KEY (category_id) REFERENCES categories (id),
       FOREIGN KEY (group_id) REFERENCES groups (id),
       FOREIGN KEY (trip_id) REFERENCES trips (id),
       FOREIGN KEY (recurring_id) REFERENCES recurring_configs (id),
-      FOREIGN KEY (to_account_id) REFERENCES accounts (id)
+      FOREIGN KEY (to_account_id) REFERENCES accounts (id),
+      FOREIGN KEY (savings_id) REFERENCES savings (id),
+      FOREIGN KEY (loan_id) REFERENCES loans (id)
+    );
+
+    -- Savings Table
+    CREATE TABLE IF NOT EXISTS savings (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      target_amount REAL NOT NULL,
+      current_amount REAL DEFAULT 0,
+      category_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id),
+      FOREIGN KEY (category_id) REFERENCES categories (id)
+    );
+
+    -- Loans Table
+    CREATE TABLE IF NOT EXISTS loans (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT, -- Added name field
+      person_name TEXT NOT NULL,
+      type TEXT CHECK(type IN ('lent', 'borrowed')) NOT NULL,
+      total_amount REAL NOT NULL,
+      remaining_amount REAL NOT NULL,
+      interest_rate REAL DEFAULT 0,
+      due_date DATETIME,
+      loan_type TEXT, -- Added loan_type (personal, home, etc.)
+      payment_type TEXT, -- Added payment_type (emi, bullet, etc.)
+      emi_amount REAL, -- Added emi_amount
+      tenure_months INTEGER, -- Added tenure_months
+      next_due_date DATETIME, -- Added next_due_date
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT CHECK(status IN ('active', 'closed')) DEFAULT 'active',
+      FOREIGN KEY (user_id) REFERENCES users (id)
     );
 
     -- Splits Table
@@ -175,6 +213,18 @@ export const initializeDatabase = async () => {
       is_read BOOLEAN DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users (id)
+    );
+
+    -- Repayment Schedules Table
+    CREATE TABLE IF NOT EXISTS repayment_schedules (
+      id TEXT PRIMARY KEY,
+      loan_id TEXT NOT NULL,
+      due_date DATETIME NOT NULL,
+      amount REAL NOT NULL,
+      status TEXT CHECK(status IN ('pending', 'paid', 'overdue')) DEFAULT 'pending',
+      payment_date DATETIME,
+      installment_number INTEGER,
+      FOREIGN KEY (loan_id) REFERENCES loans (id) ON DELETE CASCADE
     );
   `);
 
@@ -271,6 +321,21 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
       await db.execAsync(`ALTER TABLE users ADD COLUMN last_monthly_summary TEXT;`).catch(() => { });
     }
 
+    // Loans Notification Columns
+    const loanNotificationTableInfo = await db.getAllAsync<{ name: string }>("PRAGMA table_info(loans)");
+    if (!loanNotificationTableInfo.some(c => c.name === 'last_reminder_date')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN last_reminder_date DATETIME;`).catch(() => { });
+    }
+    if (!loanNotificationTableInfo.some(c => c.name === 'paid_notification_sent')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN paid_notification_sent BOOLEAN DEFAULT 0;`).catch(() => { });
+    }
+
+    // Savings Notification Columns
+    const savingsTableInfo = await db.getAllAsync<{ name: string }>("PRAGMA table_info(savings)");
+    if (!savingsTableInfo.some(c => c.name === 'goal_reached_notification_sent')) {
+      await db.execAsync(`ALTER TABLE savings ADD COLUMN goal_reached_notification_sent BOOLEAN DEFAULT 0;`).catch(() => { });
+    }
+
     // Categories is_default
     const categoryTableInfo = await db.getAllAsync<{ name: string }>("PRAGMA table_info(categories)");
     if (!categoryTableInfo.some(c => c.name === 'is_default')) {
@@ -280,8 +345,91 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
       // For now, let's assume seedCategories handles it if we modify it.
     }
 
+    // Savings Table Migration
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS savings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        current_amount REAL DEFAULT 0,
+        category_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (category_id) REFERENCES categories (id)
+      );
+    `).catch(() => { });
+
+    // Loans Table Migration
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS loans (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT,
+        person_name TEXT NOT NULL,
+        type TEXT CHECK(type IN ('lent', 'borrowed')) NOT NULL,
+        total_amount REAL NOT NULL,
+        remaining_amount REAL NOT NULL,
+        interest_rate REAL DEFAULT 0,
+        due_date DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        status TEXT CHECK(status IN ('active', 'closed')) DEFAULT 'active',
+        FOREIGN KEY (user_id) REFERENCES users (id)
+      );
+    `).catch(() => { });
+
+    const loanTableInfo = await db.getAllAsync<{ name: string }>("PRAGMA table_info(loans)");
+    if (!loanTableInfo.some(c => c.name === 'name')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN name TEXT;`).catch(() => { });
+    }
+    if (!loanTableInfo.some(c => c.name === 'loan_type')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN loan_type TEXT;`).catch(() => { });
+    }
+    if (!loanTableInfo.some(c => c.name === 'payment_type')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN payment_type TEXT;`).catch(() => { });
+    }
+    if (!loanTableInfo.some(c => c.name === 'emi_amount')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN emi_amount REAL;`).catch(() => { });
+    }
+    if (!loanTableInfo.some(c => c.name === 'tenure_months')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN tenure_months INTEGER;`).catch(() => { });
+    }
+    if (!loanTableInfo.some(c => c.name === 'next_due_date')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN next_due_date DATETIME;`).catch(() => { });
+    }
+    if (!loanTableInfo.some(c => c.name === 'interest_type')) {
+      await db.execAsync(`ALTER TABLE loans ADD COLUMN interest_type TEXT DEFAULT 'yearly';`).catch(() => { });
+    }
+
+    // Transactions Table Migration for Savings and Loans
+    const transactionTableInfo = await db.getAllAsync<{ name: string }>("PRAGMA table_info(transactions)");
+    if (!transactionTableInfo.some(c => c.name === 'savings_id')) {
+      await db.execAsync(`ALTER TABLE transactions ADD COLUMN savings_id TEXT REFERENCES savings(id);`).catch(() => { });
+    }
+    if (!transactionTableInfo.some(c => c.name === 'loan_id')) {
+      await db.execAsync(`ALTER TABLE transactions ADD COLUMN loan_id TEXT REFERENCES loans(id);`).catch(() => { });
+    }
+
   } catch (error) {
 
+  }
+
+  // Migration for Repayment Schedules
+  try {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS repayment_schedules (
+        id TEXT PRIMARY KEY,
+        loan_id TEXT NOT NULL,
+        due_date DATETIME NOT NULL,
+        amount REAL NOT NULL,
+        status TEXT CHECK(status IN ('pending', 'paid', 'overdue')) DEFAULT 'pending',
+        payment_date DATETIME,
+        installment_number INTEGER,
+        FOREIGN KEY (loan_id) REFERENCES loans (id) ON DELETE CASCADE
+      );
+    `);
+  } catch (error) {
+    console.log('Error creating repayment_schedules table:', error);
   }
 };
 
