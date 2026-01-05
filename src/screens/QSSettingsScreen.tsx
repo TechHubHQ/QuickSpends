@@ -22,7 +22,7 @@ const AVATAR_OPTIONS = Array.from({ length: TOTAL_AVATARS }, (_, i) => String(i)
 
 
 const QSSettingsScreen = () => {
-    const { theme, toggleTheme, themeId, setThemeId, updateCustomOverrides } = useTheme();
+    const { theme, toggleTheme, themeId, setThemeId, updateCustomOverrides, customOverrides } = useTheme();
     const styles = createStyles(theme);
     const { user, signOut, updateProfile } = useAuth();
     const router = useRouter();
@@ -128,52 +128,86 @@ const QSSettingsScreen = () => {
 
                     {/* Customization Section */}
                     <View style={styles.customizationContainer}>
-                        <Text style={styles.subLabel}>Customize Colors</Text>
+                        <Text style={styles.subLabel}>Primary Color</Text>
                         <View style={styles.customColorList}>
+                            {[
+                                { name: 'Indigo', color: '#6366F1' },
+                                { name: 'Emerald', color: '#10B981' },
+                                { name: 'Amber', color: '#F59E0B' },
+                                { name: 'Rose', color: '#F43F5E' },
+                                { name: 'Cyan', color: '#06B6D4' },
+                                { name: 'Violet', color: '#8B5CF6' },
+                            ].map((c) => (
+                                <TouchableOpacity
+                                    key={c.name}
+                                    style={styles.customColorOption}
+                                    onPress={() => updateCustomOverrides({ primary: c.color })}
+                                >
+                                    <View style={[styles.colorBubble, { backgroundColor: c.color }, customOverrides.primary === c.color && styles.selectedColorBubble]} />
+                                    <Text style={styles.colorBubbleLabel}>{c.name}</Text>
+                                </TouchableOpacity>
+                            ))}
                             <TouchableOpacity
                                 style={styles.customColorOption}
-                                onPress={() => updateCustomOverrides({ primary: '#6366F1' })} // Reset example or pick
-                            >
-                                <View style={[styles.colorBubble, { backgroundColor: '#6366F1' }]} />
-                                <Text style={styles.colorBubbleLabel}>Indigo</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.customColorOption}
-                                onPress={() => updateCustomOverrides({ primary: '#10B981' })}
-                            >
-                                <View style={[styles.colorBubble, { backgroundColor: '#10B981' }]} />
-                                <Text style={styles.colorBubbleLabel}>Emerald</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.customColorOption}
-                                onPress={() => updateCustomOverrides({ primary: '#F59E0B' })}
-                            >
-                                <View style={[styles.colorBubble, { backgroundColor: '#F59E0B' }]} />
-                                <Text style={styles.colorBubbleLabel}>Amber</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.customColorOption}
-                                onPress={() => updateCustomOverrides({ primary: '#F43F5E' })}
-                            >
-                                <View style={[styles.colorBubble, { backgroundColor: '#F43F5E' }]} />
-                                <Text style={styles.colorBubbleLabel}>Rose</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.customColorOption}
-                                onPress={() => updateCustomOverrides({ primary: '#06B6D4' })}
-                            >
-                                <View style={[styles.colorBubble, { backgroundColor: '#06B6D4' }]} />
-                                <Text style={styles.colorBubbleLabel}>Cyan</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.customColorOption}
-                                onPress={() => updateCustomOverrides({ primary: undefined })} // Reset
+                                onPress={() => updateCustomOverrides({ primary: undefined })}
                             >
                                 <View style={[styles.colorBubble, { backgroundColor: theme.colors.border, borderWidth: 1, borderStyle: 'dashed' }]} >
                                     <MaterialCommunityIcons name="close" size={16} color={theme.colors.textSecondary} />
                                 </View>
                                 <Text style={styles.colorBubbleLabel}>Reset</Text>
                             </TouchableOpacity>
+                        </View>
+
+                        <Text style={[styles.subLabel, { marginTop: theme.spacing.m }]}>Corner Settings</Text>
+                        <View style={styles.optionRow}>
+                            {[
+                                { id: 'sharp', label: 'Sharp', icon: 'square-outline' },
+                                { id: 'medium', label: 'Default', icon: 'square-rounded-outline' },
+                                { id: 'rounded', label: 'Rounded', icon: 'checkbox-blank-circle-outline' },
+                            ].map((opt) => (
+                                <TouchableOpacity
+                                    key={opt.id}
+                                    style={[
+                                        styles.optionButton,
+                                        customOverrides.borderRadius === opt.id && styles.selectedOptionButton
+                                    ]}
+                                    onPress={() => updateCustomOverrides({ borderRadius: opt.id as any })}
+                                >
+                                    <MaterialCommunityIcons
+                                        name={opt.icon as any}
+                                        size={20}
+                                        color={customOverrides.borderRadius === opt.id ? theme.colors.onPrimary : theme.colors.textSecondary}
+                                    />
+                                    <Text style={[
+                                        styles.optionButtonText,
+                                        customOverrides.borderRadius === opt.id && { color: theme.colors.onPrimary }
+                                    ]}>{opt.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <Text style={[styles.subLabel, { marginTop: theme.spacing.m }]}>Shadow Intensity</Text>
+                        <View style={styles.optionRow}>
+                            {[
+                                { id: 'none', label: 'None' },
+                                { id: 'low', label: 'Low' },
+                                { id: 'medium', label: 'Med' },
+                                { id: 'high', label: 'High' },
+                            ].map((opt) => (
+                                <TouchableOpacity
+                                    key={opt.id}
+                                    style={[
+                                        styles.optionButton,
+                                        (customOverrides.shadowIntensity === opt.id || (!customOverrides.shadowIntensity && opt.id === 'medium')) && styles.selectedOptionButton
+                                    ]}
+                                    onPress={() => updateCustomOverrides({ shadowIntensity: opt.id as any })}
+                                >
+                                    <Text style={[
+                                        styles.optionButtonText,
+                                        (customOverrides.shadowIntensity === opt.id || (!customOverrides.shadowIntensity && opt.id === 'medium')) && { color: theme.colors.onPrimary }
+                                    ]}>{opt.label}</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </View>
 
@@ -512,7 +546,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     },
     saveText: {
         ...theme.typography.button,
-        color: '#FFF',
+        color: theme.colors.onPrimary,
     },
     customizationContainer: {
         marginTop: theme.spacing.m,
@@ -542,6 +576,33 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     colorBubbleLabel: {
         ...theme.typography.caption,
         color: theme.colors.textSecondary,
+    },
+    selectedColorBubble: {
+        borderWidth: 3,
+        borderColor: theme.colors.text,
+    },
+    optionRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.s,
+        marginTop: theme.spacing.xs,
+    },
+    optionButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: theme.spacing.s,
+        backgroundColor: theme.colors.backgroundSecondary,
+        borderRadius: theme.borderRadius.s,
+        gap: 6,
+    },
+    selectedOptionButton: {
+        backgroundColor: theme.colors.primary,
+    },
+    optionButtonText: {
+        ...theme.typography.bodySmall,
+        fontWeight: '600',
+        color: theme.colors.text,
     },
 });
 

@@ -53,7 +53,7 @@ export const QSButton: React.FC<QSButtonProps> = ({
             disabled={disabled || loading}
         >
             {loading ? (
-                <ActivityIndicator color={variant === "primary" ? "#FFFFFF" : theme.colors.primary} />
+                <ActivityIndicator color={variant === "primary" ? theme.colors.onPrimary : theme.colors.primary} />
             ) : (
                 <Text style={labelStyles}>{title}</Text>
             )}

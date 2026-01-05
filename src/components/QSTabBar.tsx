@@ -128,7 +128,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                 onPress={toggleMenu}
                 activeOpacity={0.9}
             >
-                <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+                <MaterialCommunityIcons name="plus" size={32} color={theme.colors.onPrimary} />
             </TouchableOpacity>
 
             {/* FAB Menu Overlay */}

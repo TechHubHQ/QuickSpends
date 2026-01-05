@@ -192,7 +192,7 @@ export default function QSHomeScreen() {
                                     router.push({ pathname: "/add-transaction", params: { initialType: 'income' } });
                                 }}
                             >
-                                <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+                                <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
                                 <Text style={styles.addMoneyText}>Add Money</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
@@ -234,17 +234,17 @@ export default function QSHomeScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                         {activeTab === 'groups' && (
                             <TouchableOpacity onPress={() => router.push("/create-group")} style={{ backgroundColor: theme.colors.primary, padding: 4, borderRadius: 12 }}>
-                                <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+                                <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
                             </TouchableOpacity>
                         )}
                         {activeTab === 'budgets' && (
                             <TouchableOpacity onPress={() => router.push("/budget-creation")} style={{ backgroundColor: theme.colors.primary, padding: 4, borderRadius: 12 }}>
-                                <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+                                <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
                             </TouchableOpacity>
                         )}
                         {activeTab === 'trips' && (
                             <TouchableOpacity onPress={() => router.push("/create-trip")} style={{ backgroundColor: theme.colors.primary, padding: 4, borderRadius: 12 }}>
-                                <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+                                <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
                             </TouchableOpacity>
                         )}
                     </View>

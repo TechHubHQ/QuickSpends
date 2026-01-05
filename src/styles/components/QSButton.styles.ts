@@ -28,7 +28,7 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         borderColor: theme.colors.border,
     },
     primaryButtonText: {
-        color: "#FFFFFF",
+        color: theme.colors.onPrimary,
         ...theme.typography.button,
     },
     secondaryButtonText: {

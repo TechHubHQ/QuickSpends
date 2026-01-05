@@ -410,7 +410,7 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
                     params: { initialType: 'expense', tripId: trip.id }
                 })}
             >
-                <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+                <MaterialCommunityIcons name="plus" size={32} color={theme.colors.onPrimary} />
             </TouchableOpacity>
         </View>
     );

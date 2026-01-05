@@ -113,7 +113,7 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         shadowColor: theme.colors.primary,
     },
     addMoneyText: {
-        color: "#FFFFFF",
+        color: theme.colors.onPrimary,
         fontWeight: "600",
         fontSize: 14,
     },

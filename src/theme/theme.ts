@@ -18,6 +18,7 @@ export interface ThemeColors {
   primary: string;
   primaryLight: string;
   primaryDark: string;
+  onPrimary: string;
 
   // Secondary / Accent
   secondary: string;
@@ -154,6 +155,7 @@ export interface ThemePreset {
   surface?: string;
   card?: string;
   modal?: string;
+  onPrimary?: string;
 }
 
 export const PREMIUM_THEMES: ThemePreset[] = [
@@ -203,8 +205,52 @@ export const PREMIUM_THEMES: ThemePreset[] = [
     primary: '#F59E0B',
     primaryLight: '#FBBF24',
     primaryDark: '#D97706',
+    onPrimary: '#000000',
     background: '#FFFBEB',
     backgroundSecondary: '#FEF3C7'
+  },
+  {
+    id: 'lavender-light',
+    name: 'Lavender Mist',
+    type: 'light',
+    primary: '#8B5CF6',
+    primaryLight: '#A78BFA',
+    primaryDark: '#6D28D9',
+    onPrimary: '#FFFFFF',
+    background: '#F5F3FF',
+    backgroundSecondary: '#EDE9FE',
+  },
+  {
+    id: 'mint-light',
+    name: 'Fresh Mint',
+    type: 'light',
+    primary: '#10B981',
+    primaryLight: '#34D399',
+    primaryDark: '#059669',
+    onPrimary: '#FFFFFF',
+    background: '#F0FDF4',
+    backgroundSecondary: '#DCFCE7',
+  },
+  {
+    id: 'peach-light',
+    name: 'Peach Sorbet',
+    type: 'light',
+    primary: '#F97316',
+    primaryLight: '#FB923C',
+    primaryDark: '#EA580C',
+    onPrimary: '#FFFFFF',
+    background: '#FFF7ED',
+    backgroundSecondary: '#FFEDD5',
+  },
+  {
+    id: 'slate-pro',
+    name: 'Slate Pro',
+    type: 'light',
+    primary: '#334155',
+    primaryLight: '#475569',
+    primaryDark: '#1E293B',
+    background: '#F8FAFC',
+    backgroundSecondary: '#F1F5F9',
   },
 
   // --- DARK THEMES ---
@@ -281,6 +327,62 @@ export const PREMIUM_THEMES: ThemePreset[] = [
     surface: '#3B4252',
     card: '#3B4252',
     modal: '#3B4252'
+  },
+  {
+    id: 'oled-black',
+    name: 'OLED Black',
+    type: 'dark',
+    primary: '#FFFFFF',
+    primaryLight: '#E2E8F0',
+    primaryDark: '#94A3B8',
+    onPrimary: '#000000',
+    background: '#000000',
+    backgroundSecondary: '#111111',
+    surface: '#0A0A0A',
+    card: '#0A0A0A',
+    modal: '#0A0A0A',
+  },
+  {
+    id: 'matrix-dark',
+    name: 'The Matrix',
+    type: 'dark',
+    primary: '#00FF41',
+    primaryLight: '#008F11',
+    primaryDark: '#003B00',
+    onPrimary: '#000000',
+    background: '#000800',
+    backgroundSecondary: '#001A00',
+    surface: '#001A00',
+    card: '#000D00',
+    modal: '#0A0A0A',
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk',
+    type: 'dark',
+    primary: '#FCEE09', // Cyberpunk Yellow
+    primaryLight: '#00FF9F', // Neon Green
+    primaryDark: '#FF003C', // Neon Red
+    onPrimary: '#000000',
+    background: '#0D0221',
+    backgroundSecondary: '#190E4F',
+    surface: '#261447',
+    card: '#261447',
+    modal: '#190E4F',
+  },
+  {
+    id: 'royal-dark',
+    name: 'Royal Purple',
+    type: 'dark',
+    primary: '#FBBF24', // Gold
+    primaryLight: '#FDE68A',
+    primaryDark: '#D97706',
+    onPrimary: '#000000',
+    background: '#1E1B4B', // Deep Indigo
+    backgroundSecondary: '#312E81',
+    surface: '#312E81',
+    card: '#3730A3',
+    modal: '#312E81',
   }
 ];
 
@@ -293,6 +395,8 @@ export interface ThemeOverrides {
   background?: string;
   card?: string;
   text?: string;
+  borderRadius?: 'sharp' | 'medium' | 'rounded';
+  shadowIntensity?: 'none' | 'low' | 'medium' | 'high';
 }
 
 export const generateTheme = (themeId: string, overrides: ThemeOverrides = {}): Theme => {
@@ -320,6 +424,7 @@ export const generateTheme = (themeId: string, overrides: ThemeOverrides = {}): 
     primary: primary,
     primaryLight: primaryLight,
     primaryDark: primaryDark,
+    onPrimary: preset.onPrimary || baseColors.onPrimary,
 
     // Secondary Overrides
     secondary: overrides.secondary || preset.secondary || baseColors.secondary,
@@ -329,8 +434,34 @@ export const generateTheme = (themeId: string, overrides: ThemeOverrides = {}): 
     text: overrides.text || baseColors.text,
   };
 
+  // Handle Border Radius Overrides
+  const radiusMap = {
+    sharp: { s: 0, m: 2, l: 4, xl: 8, round: 9999 },
+    medium: commonTokens.borderRadius,
+    rounded: { s: 12, m: 18, l: 24, xl: 32, round: 9999 },
+  };
+  const resolvedBorderRadius = overrides.borderRadius ? radiusMap[overrides.borderRadius] : commonTokens.borderRadius;
+
+  // Handle Shadow Overrides
+  const shadowIntensity = overrides.shadowIntensity || 'medium';
+  const shadowOpacityMap = {
+    none: { small: 0, medium: 0, large: 0 },
+    low: { small: 0.02, medium: 0.05, large: 0.08 },
+    medium: { small: 0.05, medium: 0.1, large: 0.15 },
+    high: { small: 0.1, medium: 0.2, large: 0.3 },
+  };
+  const opacities = shadowOpacityMap[shadowIntensity];
+
+  const resolvedShadows = {
+    small: { ...commonTokens.shadows.small, shadowOpacity: opacities.small, elevation: shadowIntensity === 'none' ? 0 : 2 },
+    medium: { ...commonTokens.shadows.medium, shadowOpacity: opacities.medium, elevation: shadowIntensity === 'none' ? 0 : 4 },
+    large: { ...commonTokens.shadows.large, shadowOpacity: opacities.large, elevation: shadowIntensity === 'none' ? 0 : 10 },
+  };
+
   return {
     ...commonTokens,
+    borderRadius: resolvedBorderRadius,
+    shadows: resolvedShadows,
     isDark,
     colors: {
       ...resolvedColors,
@@ -368,6 +499,7 @@ export const lightTheme: Theme = {
     primary: '#6366F1', // Indigo 500
     primaryLight: '#818CF8', // Indigo 400
     primaryDark: '#4338CA', // Indigo 700
+    onPrimary: '#FFFFFF',
 
     // Secondary - Cyan/Teal accent
     secondary: '#06B6D4', // Cyan 500
@@ -417,6 +549,7 @@ export const darkTheme: Theme = {
     primary: '#6366F1', // Indigo 500 (Consistent default)
     primaryLight: '#818CF8',
     primaryDark: '#4338CA',
+    onPrimary: '#FFFFFF',
 
     // Secondary
     secondary: '#22D3EE', // Cyan 400
