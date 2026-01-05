@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { NotificationPreferencesProvider } from "../src/context/NotificationPreferencesContext";
 import { useNotifications } from "../src/hooks/useNotifications";
 import { useTransactions } from "../src/hooks/useTransactions";
-import { initializeDatabase } from "../src/lib/database";
 import { ThemeProvider } from "../src/theme/ThemeContext";
 
 function AppContent() {
@@ -35,11 +34,6 @@ function AppContent() {
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    initializeDatabase().catch(err => {
-      console.error("Failed to initialize database", err);
-    });
-  }, []);
 
   return (
     <AuthProvider>
