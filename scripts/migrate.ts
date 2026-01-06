@@ -40,6 +40,7 @@ async function migrate() {
                     name TEXT UNIQUE NOT NULL,
                     executed_at TIMESTAMPTZ DEFAULT NOW()
                 );
+                ALTER TABLE _migrations ENABLE ROW LEVEL SECURITY;
             `;
 
             // If we just created the table but other tables exist, 

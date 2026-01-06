@@ -4,14 +4,13 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
-    Modal,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
 import { AlertButton, QSAlertModal } from '../components/QSAlertModal';
+import { QSCreateCategorySheet } from '../components/QSCreateCategorySheet';
 import { QSHeader } from '../components/QSHeader';
 import { Category, useCategories } from '../hooks/useCategories';
 import { useTheme } from '../theme/ThemeContext';
@@ -31,11 +30,8 @@ const QSCategoryManagementScreen = () => {
     const [incomeCategories, setIncomeCategories] = useState<CategoryWithChildren[]>([]);
     const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
 
-    // Add Category Modal State
-    const [isModalVisible, setIsModalVisible] = useState(false);
-    const [newCatName, setNewCatName] = useState('');
-    const [newCatIcon, setNewCatIcon] = useState('shape'); // Default icon
-    const [newCatColor, setNewCatColor] = useState(theme.colors.primary);
+    // Add Category Sheet State
+    const [isSheetVisible, setIsSheetVisible] = useState(false);
 
     // Sub-category state
     const [selectedParentId, setSelectedParentId] = useState<string | undefined>(undefined);
@@ -118,23 +114,17 @@ const QSCategoryManagementScreen = () => {
         );
     };
 
-    const openAddModal = (parentId?: string) => {
+    const openAddSheet = (parentId?: string) => {
         setSelectedParentId(parentId);
-        setNewCatName('');
-        setIsModalVisible(true);
+        setIsSheetVisible(true);
     };
 
-    const handleAddCategory = async () => {
-        if (!newCatName.trim()) {
-            showAlert('Error', 'Please enter a category name');
-            return;
-        }
-
+    const handleAddCategory = async (name: string, icon: string, color: string) => {
         try {
             await addCategory(
-                newCatName.trim(),
-                newCatIcon,
-                theme.colors.primary, // Using theme primary for now
+                name.trim(),
+                icon,
+                color,
                 activeTab,
                 selectedParentId
             );
@@ -146,8 +136,7 @@ const QSCategoryManagementScreen = () => {
                 setExpandedCategories(newExpanded);
             }
 
-            setNewCatName('');
-            setIsModalVisible(false);
+            setIsSheetVisible(false);
             loadData();
         } catch (error: any) {
             showAlert('Error', error.message);
@@ -179,7 +168,7 @@ const QSCategoryManagementScreen = () => {
 
                     <View style={styles.actionsContainer}>
                         {!isChild && (
-                            <TouchableOpacity onPress={() => openAddModal(item.id)} style={styles.actionButton}>
+                            <TouchableOpacity onPress={() => openAddSheet(item.id)} style={styles.actionButton}>
                                 <MaterialCommunityIcons name="plus-circle-outline" size={24} color={theme.colors.primary} />
                             </TouchableOpacity>
                         )}
@@ -246,51 +235,18 @@ const QSCategoryManagementScreen = () => {
 
             <TouchableOpacity
                 style={styles.fab}
-                onPress={() => openAddModal(undefined)}
+                onPress={() => openAddSheet(undefined)}
             >
                 <MaterialCommunityIcons name="plus" size={32} color="#FFF" />
             </TouchableOpacity>
 
-            <Modal
-                transparent
-                visible={isModalVisible}
-                animationType="slide"
-                onRequestClose={() => setIsModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>
-                            {selectedParentId
-                                ? `New Sub-Category`
-                                : `New ${activeTab === 'expense' ? 'Expense' : 'Income'} Category`}
-                        </Text>
-
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Category Name"
-                            placeholderTextColor={theme.colors.textTertiary}
-                            value={newCatName}
-                            onChangeText={setNewCatName}
-                            autoFocus
-                        />
-
-                        <View style={styles.modalActions}>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
-                                onPress={() => setIsModalVisible(false)}
-                            >
-                                <Text style={styles.cancelText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.saveButton]}
-                                onPress={handleAddCategory}
-                            >
-                                <Text style={styles.saveText}>Save</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
+            <QSCreateCategorySheet
+                visible={isSheetVisible}
+                onClose={() => setIsSheetVisible(false)}
+                onSave={handleAddCategory}
+                parentId={selectedParentId}
+                type={activeTab}
+            />
 
             <QSAlertModal
                 visible={alertConfig.visible}
@@ -405,54 +361,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         ...theme.shadows.large,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: theme.colors.overlay,
-        justifyContent: 'center',
-        padding: theme.spacing.l,
-    },
-    modalContent: {
-        backgroundColor: theme.colors.modal,
-        borderRadius: theme.borderRadius.l,
-        padding: theme.spacing.l,
-    },
-    modalTitle: {
-        ...theme.typography.h3,
-        color: theme.colors.text,
-        marginBottom: theme.spacing.l,
-        textAlign: 'center',
-    },
-    input: {
-        backgroundColor: theme.colors.backgroundSecondary,
-        padding: theme.spacing.m,
-        borderRadius: theme.borderRadius.m,
-        color: theme.colors.text,
-        marginBottom: theme.spacing.l,
-    },
-    modalActions: {
-        flexDirection: 'row',
-        gap: theme.spacing.m,
-    },
-    modalButton: {
-        flex: 1,
-        paddingVertical: theme.spacing.m,
-        borderRadius: theme.borderRadius.m,
-        alignItems: 'center',
-    },
-    cancelButton: {
-        backgroundColor: theme.colors.backgroundSecondary,
-    },
-    saveButton: {
-        backgroundColor: theme.colors.primary,
-    },
-    cancelText: {
-        ...theme.typography.button,
-        color: theme.colors.text,
-    },
-    saveText: {
-        ...theme.typography.button,
-        color: '#FFF',
     },
 });
 

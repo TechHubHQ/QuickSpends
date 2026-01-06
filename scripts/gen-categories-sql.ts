@@ -1,19 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-
-export interface SubCategory {
-    name: string;
-    icon: keyof typeof MaterialCommunityIcons.glyphMap;
-}
-
-export interface CategoryDef {
-    name: string;
-    icon: keyof typeof MaterialCommunityIcons.glyphMap;
-    color: string;
-    type: 'income' | 'expense';
-    subCategories?: SubCategory[];
-}
-
-export const DEFAULT_CATEGORIES: CategoryDef[] = [
+const DEFAULT_CATEGORIES = [
     // Expense Categories
     {
         name: 'Transport',
@@ -54,7 +39,7 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
         subCategories: [
             { name: 'Fruits & Vegetables', icon: 'food-apple' },
             { name: 'Meat, Fish & Dairy', icon: 'food-steak' },
-            { name: 'Pantry & Staples', icon: 'shaker' }, // broad interpretation
+            { name: 'Pantry & Staples', icon: 'shaker' },
             { name: 'Beverages', icon: 'cup-water' },
             { name: 'Household Supplies', icon: 'paper-roll' },
         ]
@@ -207,7 +192,7 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
         name: 'Transfer',
         icon: 'bank-transfer',
         color: '#607D8B',
-        type: 'expense', // Usually handled as a transfer type in app logic, but good to have as category if needed
+        type: 'expense',
         subCategories: [
             { name: 'Self Transfer', icon: 'bank-transfer-out' },
             { name: 'Bank Transfer', icon: 'bank' },
@@ -215,7 +200,6 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
             { name: 'Lent to Friend', icon: 'account-arrow-right' },
         ]
     },
-
     // Bills & Fees
     {
         name: 'Bills & Fees',
@@ -231,7 +215,6 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
             { name: 'Mobile Recharge', icon: 'cellphone-wireless' },
         ]
     },
-
     // Taxes
     {
         name: 'Taxes',
@@ -245,7 +228,6 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
             { name: 'Professional Tax', icon: 'briefcase' },
         ]
     },
-
     // Insurance (Separate from Health/Car)
     {
         name: 'Insurance',
@@ -260,7 +242,6 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
             { name: 'Travel Insurance', icon: 'airplane-check' },
         ]
     },
-
     // Office & Business
     {
         name: 'Business',
@@ -275,7 +256,6 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
             { name: 'Business Meals', icon: 'food-fork-drink' },
         ]
     },
-
     // Expanded Investment Subcategories
     {
         name: 'Investment',
@@ -292,7 +272,11 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
             { name: 'Provident Fund', icon: 'piggy-bank' },
         ]
     },
-
+    // Subscriptions & Others
+    { name: 'Subscriptions', icon: 'autorenew', color: '#9E9E9E', type: 'expense' },
+    { name: 'Bill Payment', icon: 'file-document-outline', color: '#607D8B', type: 'expense' },
+    // Insurance General fallback
+    // Loans & Debt
     {
         name: 'Loans & Debt',
         icon: 'handshake',
@@ -357,3 +341,35 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
         ]
     }
 ];
+
+async function generate() {
+    let sql = `-- Seed ALL categories (Consolidated)\n\n`;
+
+    // Add Constraint Logic
+    sql += `DO $$\nBEGIN\n    IF NOT EXISTS (\n        SELECT 1 FROM pg_constraint WHERE conname = 'unique_default_category_name_type_parent'\n    ) THEN\n        ALTER TABLE categories \n        ADD CONSTRAINT unique_default_category_name_type_parent \n        UNIQUE NULLS NOT DISTINCT (name, type, parent_id, user_id);\n    END IF;\nEND $$;\n\n`;
+
+    sql += `DO $$\nDECLARE\n    parent_id UUID;\nBEGIN\n`;
+
+    for (const cat of DEFAULT_CATEGORIES) {
+        sql += `    -- Parent: ${cat.name}\n`;
+        sql += `    INSERT INTO categories (name, icon, color, type, is_default, user_id)\n`;
+        sql += `    VALUES ('${cat.name}', '${cat.icon}', '${cat.color}', '${cat.type}', true, NULL)\n`;
+        sql += `    ON CONFLICT (name, type) WHERE user_id IS NULL DO UPDATE SET icon = EXCLUDED.icon, color = EXCLUDED.color\n`;
+        sql += `    RETURNING id INTO parent_id;\n\n`;
+
+        if (cat.subCategories) {
+            for (const sub of cat.subCategories) {
+                sql += `    INSERT INTO categories (name, icon, color, type, is_default, user_id, parent_id)\n`;
+                sql += `    VALUES ('${sub.name}', '${sub.icon}', '${cat.color}', '${cat.type}', true, NULL, parent_id)\n`;
+                sql += `    ON CONFLICT (name, type, parent_id) WHERE user_id IS NULL DO NOTHING;\n`;
+            }
+            sql += `\n`;
+        }
+    }
+
+    sql += `END $$;`;
+
+    console.log(sql);
+}
+
+generate();

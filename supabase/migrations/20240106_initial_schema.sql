@@ -20,8 +20,10 @@ CREATE TABLE categories (
   type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
   parent_id UUID REFERENCES categories(id),
   is_default BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT unique_default_category_name_type_parent UNIQUE NULLS NOT DISTINCT (name, type, parent_id, user_id)
 );
+
 
 -- 3. Accounts Table
 CREATE TABLE accounts (

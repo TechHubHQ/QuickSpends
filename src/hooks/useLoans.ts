@@ -59,10 +59,14 @@ export const useLoans = () => {
         setLoading(true);
         setError(null);
         try {
+            const userId = (await supabase.auth.getUser()).data.user?.id;
+            if (!userId) throw new Error("User not found");
+
             const { data: newLoan, error: loanError } = await supabase
                 .from('loans')
                 .insert({
                     ...loan,
+                    user_id: userId,
                     remaining_amount: loan.total_amount,
                     status: 'active'
                 })

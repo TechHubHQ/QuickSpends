@@ -57,6 +57,7 @@ export const useAccounts = () => {
                     const { data: newCat, error: catError } = await supabase
                         .from('categories')
                         .insert({
+                            user_id: account.user_id,
                             name: 'Opening Balance',
                             icon: 'wallet-plus',
                             color: '#4CAF50',

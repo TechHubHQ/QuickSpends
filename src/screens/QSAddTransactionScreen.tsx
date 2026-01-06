@@ -353,7 +353,6 @@ export default function QSAddTransactionScreen() {
 
 
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
                     <QSHeader
@@ -361,121 +360,102 @@ export default function QSAddTransactionScreen() {
                         showBack
                         onBackPress={() => router.back()}
                     />
-                    {/* Transaction Type Segmented Control */}
-                    <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.typeContainer}>
-                        {(['income', 'expense', 'transfer'] as TransactionType[]).map((t) => (
-                            <TouchableOpacity
-                                key={t}
-                                style={[styles.typeButton, type === t && styles.activeTypeButton]}
-                                onPress={() => setType(t)}
-                            >
-                                <Text style={[styles.typeText, type === t && styles.activeTypeText]}>
-                                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </Animated.View>
+                    <View style={styles.scrollContent}>
+                        {/* Transaction Type Segmented Control */}
+                        <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.typeContainer}>
+                            {(['income', 'expense', 'transfer'] as TransactionType[]).map((t) => (
+                                <TouchableOpacity
+                                    key={t}
+                                    style={[styles.typeButton, type === t && styles.activeTypeButton]}
+                                    onPress={() => setType(t)}
+                                >
+                                    <Text style={[styles.typeText, type === t && styles.activeTypeText]}>
+                                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </Animated.View>
 
-                    {/* Amount Input */}
-                    <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.amountSection}>
-                        <Text style={styles.amountLabel}>Enter Amount</Text>
-                        <View style={styles.amountInputWrapper}>
-                            <Text style={styles.currencySymbol}>₹</Text>
-                            <TextInput
-                                style={styles.amountInput}
-                                placeholder="0.00"
-                                placeholderTextColor={theme.isDark ? '#475569' : '#94A3B8'}
-                                keyboardType="decimal-pad"
-                                value={amount}
-                                onChangeText={setAmount}
-                            />
-                        </View>
-                    </Animated.View>
-
-                    {/* Transaction Name - Now available for all types */}
-                    <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.inputGroup}>
-                        <Text style={styles.label}>Transaction Name {type === 'transfer' && '(Optional)'}</Text>
-                        <View style={styles.inputWrapper}>
-                            <View style={styles.iconContainer}>
-                                <MaterialCommunityIcons name="format-title" size={20} color={theme.colors.primary} />
+                        {/* Amount Input */}
+                        <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.amountSection}>
+                            <Text style={styles.amountLabel}>Enter Amount</Text>
+                            <View style={styles.amountInputWrapper}>
+                                <Text style={styles.currencySymbol}>₹</Text>
+                                <TextInput
+                                    style={styles.amountInput}
+                                    placeholder="0.00"
+                                    placeholderTextColor={theme.isDark ? '#475569' : '#94A3B8'}
+                                    keyboardType="decimal-pad"
+                                    value={amount}
+                                    onChangeText={setAmount}
+                                />
                             </View>
-                            <TextInput
-                                style={styles.input}
-                                placeholder={type === 'transfer' ? "e.g. Bill Payment" : "e.g. Starbucks Coffee"}
-                                placeholderTextColor={theme.isDark ? '#475569' : '#94A3B8'}
-                                value={name}
-                                onChangeText={setName}
-                            />
-                        </View>
-                    </Animated.View>
+                        </Animated.View>
 
-                    {/* Category - Now available for all types */}
-                    <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.inputGroup}>
-                        <Text style={styles.label}>Category {type === 'transfer' && '(Optional)'}</Text>
-                        <View style={styles.inputWrapper}>
-                            <View style={styles.iconContainer}>
-                                <MaterialCommunityIcons name="shape" size={20} color={theme.colors.primary} />
-                            </View>
-                            <TouchableOpacity
-                                style={styles.selectButton}
-                                onPress={() => setShowCategoryPicker(true)}
-                            >
-                                <Text style={getSelectedCategory() ? styles.selectText : styles.selectPlaceholder}>
-                                    {getSelectedCategory()
-                                        ? (getSelectedSubCategory()
-                                            ? `${getSelectedCategory()?.name} > ${getSelectedSubCategory()?.name}`
-                                            : getSelectedCategory()?.name)
-                                        : 'Select Category'}
-                                </Text>
-                                <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                            </TouchableOpacity>
-                        </View>
-                    </Animated.View>
-
-                    {/* Description - Now available for all types */}
-                    <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputGroup}>
-                        <Text style={styles.label}>Description</Text>
-                        <View style={styles.inputWrapper}>
-                            <View style={styles.iconContainer}>
-                                <MaterialCommunityIcons name="note-edit" size={20} color="#A78BFA" />
-                            </View>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Add notes (optional)"
-                                placeholderTextColor={theme.isDark ? '#475569' : '#94A3B8'}
-                                value={description}
-                                onChangeText={setDescription}
-                            />
-                        </View>
-                    </Animated.View>
-
-                    {/* Account Selection Logic */}
-                    {type !== 'transfer' ? (
-                        <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
-                            <Text style={styles.label}>Account</Text>
+                        {/* Transaction Name - Now available for all types */}
+                        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.inputGroup}>
+                            <Text style={styles.label}>Transaction Name {type === 'transfer' && '(Optional)'}</Text>
                             <View style={styles.inputWrapper}>
                                 <View style={styles.iconContainer}>
-                                    <MaterialCommunityIcons name="wallet" size={20} color="#10B981" />
+                                    <MaterialCommunityIcons name="format-title" size={20} color={theme.colors.primary} />
+                                </View>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={type === 'transfer' ? "e.g. Bill Payment" : "e.g. Starbucks Coffee"}
+                                    placeholderTextColor={theme.isDark ? '#475569' : '#94A3B8'}
+                                    value={name}
+                                    onChangeText={setName}
+                                />
+                            </View>
+                        </Animated.View>
+
+                        {/* Category - Now available for all types */}
+                        <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.inputGroup}>
+                            <Text style={styles.label}>Category {type === 'transfer' && '(Optional)'}</Text>
+                            <View style={styles.inputWrapper}>
+                                <View style={styles.iconContainer}>
+                                    <MaterialCommunityIcons name="shape" size={20} color={theme.colors.primary} />
                                 </View>
                                 <TouchableOpacity
                                     style={styles.selectButton}
-                                    onPress={() => setShowAccountPicker(true)}
+                                    onPress={() => setShowCategoryPicker(true)}
                                 >
-                                    <Text style={getSelectedAccount() ? styles.selectText : styles.selectPlaceholder}>
-                                        {getSelectedAccount()?.name || 'Select Account'}
+                                    <Text style={getSelectedCategory() ? styles.selectText : styles.selectPlaceholder}>
+                                        {getSelectedCategory()
+                                            ? (getSelectedSubCategory()
+                                                ? `${getSelectedCategory()?.name} > ${getSelectedSubCategory()?.name}`
+                                                : getSelectedCategory()?.name)
+                                            : 'Select Category'}
                                     </Text>
                                     <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
                                 </TouchableOpacity>
                             </View>
                         </Animated.View>
-                    ) : (
-                        <>
-                            {/* From Account */}
+
+                        {/* Description - Now available for all types */}
+                        <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputGroup}>
+                            <Text style={styles.label}>Description</Text>
+                            <View style={styles.inputWrapper}>
+                                <View style={styles.iconContainer}>
+                                    <MaterialCommunityIcons name="note-edit" size={20} color="#A78BFA" />
+                                </View>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Add notes (optional)"
+                                    placeholderTextColor={theme.isDark ? '#475569' : '#94A3B8'}
+                                    value={description}
+                                    onChangeText={setDescription}
+                                />
+                            </View>
+                        </Animated.View>
+
+                        {/* Account Selection Logic */}
+                        {type !== 'transfer' ? (
                             <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
-                                <Text style={styles.label}>From Account</Text>
+                                <Text style={styles.label}>Account</Text>
                                 <View style={styles.inputWrapper}>
                                     <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="bank-transfer-out" size={20} color="#EF4444" />
+                                        <MaterialCommunityIcons name="wallet" size={20} color="#10B981" />
                                     </View>
                                     <TouchableOpacity
                                         style={styles.selectButton}
@@ -488,235 +468,256 @@ export default function QSAddTransactionScreen() {
                                     </TouchableOpacity>
                                 </View>
                             </Animated.View>
+                        ) : (
+                            <>
+                                {/* From Account */}
+                                <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
+                                    <Text style={styles.label}>From Account</Text>
+                                    <View style={styles.inputWrapper}>
+                                        <View style={styles.iconContainer}>
+                                            <MaterialCommunityIcons name="bank-transfer-out" size={20} color="#EF4444" />
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.selectButton}
+                                            onPress={() => setShowAccountPicker(true)}
+                                        >
+                                            <Text style={getSelectedAccount() ? styles.selectText : styles.selectPlaceholder}>
+                                                {getSelectedAccount()?.name || 'Select Account'}
+                                            </Text>
+                                            <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                        </TouchableOpacity>
+                                    </View>
+                                </Animated.View>
 
-                            {/* To Account */}
-                            <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.inputGroup}>
-                                <Text style={styles.label}>To Account</Text>
+                                {/* To Account */}
+                                <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.inputGroup}>
+                                    <Text style={styles.label}>To Account</Text>
+                                    <View style={styles.inputWrapper}>
+                                        <View style={styles.iconContainer}>
+                                            <MaterialCommunityIcons name="bank-transfer-in" size={20} color="#10B981" />
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.selectButton}
+                                            onPress={() => setShowToAccountPicker(true)}
+                                        >
+                                            <Text style={getSelectedToAccount() ? styles.selectText : styles.selectPlaceholder}>
+                                                {getSelectedToAccount()?.name || 'To Account'}
+                                            </Text>
+                                            <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                        </TouchableOpacity>
+                                    </View>
+                                </Animated.View>
+                            </>
+                        )}
+
+                        {/* Date */}
+                        <Animated.View entering={FadeInDown.delay(800).springify()} style={styles.inputGroup}>
+                            <Text style={styles.label}>Date</Text>
+                            <View style={styles.inputWrapper}>
+                                <View style={styles.iconContainer}>
+                                    <MaterialCommunityIcons name="calendar" size={20} color="#FB923C" />
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.selectButton}
+                                    onPress={() => setShowDatePicker(true)}
+                                >
+                                    <Text style={styles.selectText}>
+                                        {date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                    </Text>
+                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                </TouchableOpacity>
+                            </View>
+                        </Animated.View>
+
+                        {/* Group and Trip Toggles */}
+                        <Animated.View entering={FadeInDown.delay(900).springify()} style={styles.toggleGrid}>
+                            <View style={styles.toggleCard}>
+                                <View style={styles.toggleCardHeader}>
+                                    <View style={styles.toggleIconContainer}>
+                                        <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
+                                    </View>
+                                    <Switch
+                                        value={isGroup}
+                                        onValueChange={toggleGroup}
+                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#EC4899' }}
+                                        thumbColor={isGroup ? '#FFFFFF' : '#F3F4F6'}
+                                    />
+                                </View>
+                                <Text style={styles.toggleLabel}>Group Txn</Text>
+                            </View>
+
+                            <View style={styles.toggleCard}>
+                                <View style={styles.toggleCardHeader}>
+                                    <View style={styles.toggleIconContainer}>
+                                        <MaterialCommunityIcons name="airplane" size={20} color="#FBBF24" />
+                                    </View>
+                                    <Switch
+                                        value={isTrip}
+                                        onValueChange={toggleTrip}
+                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FBBF24' }}
+                                        thumbColor={isTrip ? '#FFFFFF' : '#F3F4F6'}
+                                    />
+                                </View>
+                                <Text style={styles.toggleLabel}>Trip Txn</Text>
+                            </View>
+                        </Animated.View>
+
+                        {/* Savings and Loan Toggles */}
+                        <Animated.View entering={FadeInDown.delay(1000).springify()} style={styles.toggleGrid}>
+                            <View style={styles.toggleCard}>
+                                <View style={styles.toggleCardHeader}>
+                                    <View style={styles.toggleIconContainer}>
+                                        <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
+                                    </View>
+                                    <Switch
+                                        value={isSavings}
+                                        onValueChange={setIsSavings}
+                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#E91E63' }}
+                                        thumbColor={isSavings ? '#FFFFFF' : '#F3F4F6'}
+                                    />
+                                </View>
+                                <Text style={styles.toggleLabel}>Savings Link</Text>
+                            </View>
+
+                            <View style={styles.toggleCard}>
+                                <View style={styles.toggleCardHeader}>
+                                    <View style={styles.toggleIconContainer}>
+                                        <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
+                                    </View>
+                                    <Switch
+                                        value={isLoan}
+                                        onValueChange={setIsLoan}
+                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FF5722' }}
+                                        thumbColor={isLoan ? '#FFFFFF' : '#F3F4F6'}
+                                    />
+                                </View>
+                                <Text style={styles.toggleLabel}>Loan Link</Text>
+                            </View>
+                        </Animated.View>
+
+                        {/* Savings Selection (if enabled) */}
+                        {isSavings && (
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Select Savings Goal</Text>
                                 <View style={styles.inputWrapper}>
                                     <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="bank-transfer-in" size={20} color="#10B981" />
+                                        <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
                                     </View>
                                     <TouchableOpacity
                                         style={styles.selectButton}
-                                        onPress={() => setShowToAccountPicker(true)}
+                                        onPress={() => setShowSavingsPicker(true)}
                                     >
-                                        <Text style={getSelectedToAccount() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedToAccount()?.name || 'To Account'}
+                                        <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
+                                            {getSelectedSavingsGoal()?.name || 'Select Goal'}
                                         </Text>
                                         <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
                                     </TouchableOpacity>
                                 </View>
-                            </Animated.View>
-                        </>
-                    )}
-
-                    {/* Date */}
-                    <Animated.View entering={FadeInDown.delay(800).springify()} style={styles.inputGroup}>
-                        <Text style={styles.label}>Date</Text>
-                        <View style={styles.inputWrapper}>
-                            <View style={styles.iconContainer}>
-                                <MaterialCommunityIcons name="calendar" size={20} color="#FB923C" />
                             </View>
-                            <TouchableOpacity
-                                style={styles.selectButton}
-                                onPress={() => setShowDatePicker(true)}
-                            >
-                                <Text style={styles.selectText}>
-                                    {date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
-                                </Text>
-                                <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                            </TouchableOpacity>
-                        </View>
-                    </Animated.View>
+                        )}
 
-                    {/* Group and Trip Toggles */}
-                    <Animated.View entering={FadeInDown.delay(900).springify()} style={styles.toggleGrid}>
-                        <View style={styles.toggleCard}>
-                            <View style={styles.toggleCardHeader}>
-                                <View style={styles.toggleIconContainer}>
-                                    <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
-                                </View>
-                                <Switch
-                                    value={isGroup}
-                                    onValueChange={toggleGroup}
-                                    trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#EC4899' }}
-                                    thumbColor={isGroup ? '#FFFFFF' : '#F3F4F6'}
-                                />
-                            </View>
-                            <Text style={styles.toggleLabel}>Group Txn</Text>
-                        </View>
-
-                        <View style={styles.toggleCard}>
-                            <View style={styles.toggleCardHeader}>
-                                <View style={styles.toggleIconContainer}>
-                                    <MaterialCommunityIcons name="airplane" size={20} color="#FBBF24" />
-                                </View>
-                                <Switch
-                                    value={isTrip}
-                                    onValueChange={toggleTrip}
-                                    trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FBBF24' }}
-                                    thumbColor={isTrip ? '#FFFFFF' : '#F3F4F6'}
-                                />
-                            </View>
-                            <Text style={styles.toggleLabel}>Trip Txn</Text>
-                        </View>
-                    </Animated.View>
-
-                    {/* Savings and Loan Toggles */}
-                    <Animated.View entering={FadeInDown.delay(1000).springify()} style={styles.toggleGrid}>
-                        <View style={styles.toggleCard}>
-                            <View style={styles.toggleCardHeader}>
-                                <View style={styles.toggleIconContainer}>
-                                    <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
-                                </View>
-                                <Switch
-                                    value={isSavings}
-                                    onValueChange={setIsSavings}
-                                    trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#E91E63' }}
-                                    thumbColor={isSavings ? '#FFFFFF' : '#F3F4F6'}
-                                />
-                            </View>
-                            <Text style={styles.toggleLabel}>Savings Link</Text>
-                        </View>
-
-                        <View style={styles.toggleCard}>
-                            <View style={styles.toggleCardHeader}>
-                                <View style={styles.toggleIconContainer}>
-                                    <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
-                                </View>
-                                <Switch
-                                    value={isLoan}
-                                    onValueChange={setIsLoan}
-                                    trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FF5722' }}
-                                    thumbColor={isLoan ? '#FFFFFF' : '#F3F4F6'}
-                                />
-                            </View>
-                            <Text style={styles.toggleLabel}>Loan Link</Text>
-                        </View>
-                    </Animated.View>
-
-                    {/* Savings Selection (if enabled) */}
-                    {isSavings && (
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Select Savings Goal</Text>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.iconContainer}>
-                                    <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
-                                </View>
-                                <TouchableOpacity
-                                    style={styles.selectButton}
-                                    onPress={() => setShowSavingsPicker(true)}
-                                >
-                                    <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
-                                        {getSelectedSavingsGoal()?.name || 'Select Goal'}
-                                    </Text>
-                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Loan Selection (if enabled) */}
-                    {isLoan && (
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Select Loan</Text>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.iconContainer}>
-                                    <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
-                                </View>
-                                <TouchableOpacity
-                                    style={styles.selectButton}
-                                    onPress={() => setShowLoanPicker(true)}
-                                >
-                                    <Text style={getSelectedLoan() ? styles.selectText : styles.selectPlaceholder}>
-                                        {getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : 'Select Loan'}
-                                    </Text>
-                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Group Selection (if enabled) */}
-                    {isGroup && (
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Select Group</Text>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.iconContainer}>
-                                    <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
-                                </View>
-                                <TouchableOpacity
-                                    style={styles.selectButton}
-                                    onPress={() => setShowGroupPicker(true)}
-                                >
-                                    <Text style={getSelectedGroup() ? styles.selectText : styles.selectPlaceholder}>
-                                        {getSelectedGroup()?.name || 'Select Group'}
-                                    </Text>
-                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Trip Selection (if enabled) */}
-                    {isTrip && (
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Select Trip</Text>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.iconContainer}>
-                                    <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
-                                </View>
-                                <TouchableOpacity
-                                    style={styles.selectButton}
-                                    onPress={() => setShowTripPicker(true)}
-                                >
-                                    <Text style={getSelectedTrip() ? styles.selectText : styles.selectPlaceholder}>
-                                        {getSelectedTrip()?.name || 'Select Trip'}
-                                    </Text>
-                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Recurring Transaction Toggle */}
-                    <View style={styles.inputGroup}>
-                        <View style={styles.recurringToggleRow}>
-                            <Text style={styles.label}>Make this recurring?</Text>
-                            <Switch
-                                value={isRecurring}
-                                onValueChange={setIsRecurring}
-                                trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: theme.colors.primary + '80' }}
-                                thumbColor={isRecurring ? theme.colors.primary : '#F3F4F6'}
-                            />
-                        </View>
-                    </View>
-
-                    {/* Recurring Frequency (only if recurring is enabled) */}
-                    {isRecurring && (
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Frequency</Text>
-                            <View style={styles.recurringContainer}>
-                                {(['weekly', 'monthly'] as RecurringType[]).map((r) => (
+                        {/* Loan Selection (if enabled) */}
+                        {isLoan && (
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Select Loan</Text>
+                                <View style={styles.inputWrapper}>
+                                    <View style={styles.iconContainer}>
+                                        <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
+                                    </View>
                                     <TouchableOpacity
-                                        key={r}
-                                        style={[
-                                            styles.recurringButton,
-                                            recurringType === r && styles.activeRecurringButton
-                                        ]}
-                                        onPress={() => setRecurringType(r)}
+                                        style={styles.selectButton}
+                                        onPress={() => setShowLoanPicker(true)}
                                     >
-                                        <Text style={[
-                                            styles.recurringText,
-                                            recurringType === r && styles.activeRecurringText
-                                        ]}>
-                                            {r.charAt(0).toUpperCase() + r.slice(1)}
+                                        <Text style={getSelectedLoan() ? styles.selectText : styles.selectPlaceholder}>
+                                            {getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : 'Select Loan'}
                                         </Text>
+                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
                                     </TouchableOpacity>
-                                ))}
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Group Selection (if enabled) */}
+                        {isGroup && (
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Select Group</Text>
+                                <View style={styles.inputWrapper}>
+                                    <View style={styles.iconContainer}>
+                                        <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.selectButton}
+                                        onPress={() => setShowGroupPicker(true)}
+                                    >
+                                        <Text style={getSelectedGroup() ? styles.selectText : styles.selectPlaceholder}>
+                                            {getSelectedGroup()?.name || 'Select Group'}
+                                        </Text>
+                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Trip Selection (if enabled) */}
+                        {isTrip && (
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Select Trip</Text>
+                                <View style={styles.inputWrapper}>
+                                    <View style={styles.iconContainer}>
+                                        <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.selectButton}
+                                        onPress={() => setShowTripPicker(true)}
+                                    >
+                                        <Text style={getSelectedTrip() ? styles.selectText : styles.selectPlaceholder}>
+                                            {getSelectedTrip()?.name || 'Select Trip'}
+                                        </Text>
+                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Recurring Transaction Toggle */}
+                        <View style={styles.inputGroup}>
+                            <View style={styles.recurringToggleRow}>
+                                <Text style={styles.label}>Make this recurring?</Text>
+                                <Switch
+                                    value={isRecurring}
+                                    onValueChange={setIsRecurring}
+                                    trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: theme.colors.primary + '80' }}
+                                    thumbColor={isRecurring ? theme.colors.primary : '#F3F4F6'}
+                                />
                             </View>
                         </View>
-                    )}
+
+                        {/* Recurring Frequency (only if recurring is enabled) */}
+                        {isRecurring && (
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Frequency</Text>
+                                <View style={styles.recurringContainer}>
+                                    {(['weekly', 'monthly'] as RecurringType[]).map((r) => (
+                                        <TouchableOpacity
+                                            key={r}
+                                            style={[
+                                                styles.recurringButton,
+                                                recurringType === r && styles.activeRecurringButton
+                                            ]}
+                                            onPress={() => setRecurringType(r)}
+                                        >
+                                            <Text style={[
+                                                styles.recurringText,
+                                                recurringType === r && styles.activeRecurringText
+                                            ]}>
+                                                {r.charAt(0).toUpperCase() + r.slice(1)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+                    </View>
                 </ScrollView>
 
                 {/* Save Button (Fixed at Bottom) */}

@@ -55,6 +55,7 @@ export const useSavings = () => {
                 .from('savings')
                 .insert({
                     ...goal,
+                    user_id: (await supabase.auth.getUser()).data.user?.id,
                     current_amount: 0
                 })
                 .select()

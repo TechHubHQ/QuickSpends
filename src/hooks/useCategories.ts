@@ -43,6 +43,7 @@ export const useCategories = () => {
             const { data, error } = await supabase
                 .from('categories')
                 .insert({
+                    user_id: (await supabase.auth.getUser()).data.user?.id,
                     name,
                     icon,
                     color,

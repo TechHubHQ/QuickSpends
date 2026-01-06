@@ -10,8 +10,8 @@ import {
     View
 } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { QSHeader } from "../components/QSHeader";
 import { useAlert } from "../context/AlertContext";
 import { useTransactions } from "../hooks/useTransactions";
 import { useTheme } from "../theme/ThemeContext";
@@ -112,27 +112,34 @@ export default function QSTransactionDetailsScreen() {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
             <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-            {/* Header */}
-            <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-                >
-                    <MaterialCommunityIcons name="chevron-left" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Details</Text>
-                <TouchableOpacity
-                    style={[styles.editButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-                    onPress={handleEdit}
-                >
-                    <Text style={[styles.editButtonText, { color: theme.colors.primary }]}>Edit</Text>
-                </TouchableOpacity>
-            </View>
-
             <ScrollView contentContainerStyle={styles.content}>
+                <QSHeader
+                    title="Details"
+                    showBack
+                    onBackPress={() => router.back()}
+                    style={{ marginHorizontal: -16 }} // Compensate for ScrollView padding if needed? Wait. contentContainerStyle has paddingHorizontal: 16. QSHeader has its own padding.
+                    // If contentContainer has padding, QSHeader will be indented.
+                    // QSHeader styles have paddingHorizontal: theme.spacing.l (24? or 16?).
+                    // Let's check theme.spacing.l. Usually 24.
+                    // The screen has paddingHorizontal: 16.
+                    // If we put QSHeader inside, it will be double padded?
+                    // YES.
+                    // Option 1: Remove padding from contentContainerStyle and add it to children.
+                    // Option 2: Negative margin on QSHeader.
+                    // Let's use negative margin for simplicity to break out of container padding.
+                    rightElement={
+                        <TouchableOpacity
+                            style={[styles.editButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+                            onPress={handleEdit}
+                        >
+                            <Text style={[styles.editButtonText, { color: theme.colors.primary }]}>Edit</Text>
+                        </TouchableOpacity>
+                    }
+                />
+
                 {/* Hero Section */}
                 <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.heroSection}>
                     <View style={[
@@ -319,7 +326,7 @@ export default function QSTransactionDetailsScreen() {
                 </TouchableOpacity>
 
             </ScrollView>
-        </SafeAreaView >
+        </View>
     );
 }
 

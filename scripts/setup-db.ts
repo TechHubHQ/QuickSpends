@@ -40,30 +40,7 @@ async function setup() {
         await sql.unsafe(migrationSql);
         console.log('✅ Schema migration completed.');
 
-        // 3. Seed Default Categories
-        console.log('🌱 Seeding default categories...');
-        const defaultCategories = [
-            { name: 'Housing', icon: 'home', color: '#FF5733', type: 'expense' },
-            { name: 'Transportation', icon: 'car', color: '#33FF57', type: 'expense' },
-            { name: 'Food', icon: 'food', color: '#3357FF', type: 'expense' },
-            { name: 'Utilities', icon: 'flash', color: '#F333FF', type: 'expense' },
-            { name: 'Insurance', icon: 'shield-check', color: '#33FFF3', type: 'expense' },
-            { name: 'Healthcare', icon: 'medical-bag', color: '#FF3333', type: 'expense' },
-            { name: 'Entertainment', icon: 'movie', color: '#33FF33', type: 'expense' },
-            { name: 'Shopping', icon: 'cart', color: '#3333FF', type: 'expense' },
-            { name: 'Salary', icon: 'cash-multiple', color: '#4CAF50', type: 'income' },
-            { name: 'Freelance', icon: 'laptop', color: '#2196F3', type: 'income' },
-            { name: 'Investment', icon: 'trending-up', color: '#FFC107', type: 'income' },
-            { name: 'Opening Balance', icon: 'wallet-plus', color: '#9C27B0', type: 'income' }
-        ];
-
-        for (const cat of defaultCategories) {
-            await sql`
-        INSERT INTO categories (name, icon, color, type, is_default, user_id)
-        VALUES (${cat.name}, ${cat.icon}, ${cat.color}, ${cat.type}, true, NULL)
-        ON CONFLICT (id) DO NOTHING
-      `;
-        }
+        console.log('ℹ️  To seed categories, please run: npm run db:migrate');
         console.log('✅ Default categories seeded.');
 
         console.log('🏁 Database Setup Finished Successfully!');

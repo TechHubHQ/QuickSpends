@@ -4,8 +4,8 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Dimensions, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Animated, { FadeInDown, FadeInRight, FadeInUp } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { QSHeader } from "../components/QSHeader";
 import { QSMemberSheet } from "../components/QSMemberSheet";
 import { useAuth } from "../context/AuthContext";
 import { useGroups } from "../hooks/useGroups";
@@ -120,21 +120,20 @@ export default function QSCreateGroupScreen() {
                 style={[StyleSheet.absoluteFillObject, { opacity: 0.15 }]}
             />
 
-            <SafeAreaView style={{ flex: 1 }}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-                        <MaterialCommunityIcons name="close" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>New Group</Text>
-                    <TouchableOpacity onPress={handleCreate} disabled={loading}>
-                        <Text style={[styles.createButtonText, { color: selectedColor, opacity: loading ? 0.5 : 1 }]}>
-                            {loading ? 'Creating...' : 'Create'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
+            <View style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.content}>
+                    <QSHeader
+                        title="New Group"
+                        showBack
+                        onBackPress={() => router.back()}
+                        rightElement={
+                            <TouchableOpacity onPress={handleCreate} disabled={loading}>
+                                <Text style={[styles.createButtonText, { color: selectedColor, opacity: loading ? 0.5 : 1 }]}>
+                                    {loading ? 'Creating...' : 'Create'}
+                                </Text>
+                            </TouchableOpacity>
+                        }
+                    />
 
                     {/* Icon & Name Input */}
                     <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.topSection}>
@@ -262,7 +261,7 @@ export default function QSCreateGroupScreen() {
                     </Animated.View>
 
                 </ScrollView>
-            </SafeAreaView>
+            </View>
 
             {/* Invite Sheet */}
             <QSMemberSheet

@@ -77,9 +77,8 @@ const QSSettingsScreen = () => {
 
     return (
         <View style={styles.container}>
-            <QSHeader title="Settings" />
-
             <ScrollView contentContainerStyle={styles.content}>
+                <QSHeader title="Settings" style={{ marginHorizontal: -theme.spacing.m }} />
                 {/* Profile Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Profile</Text>
