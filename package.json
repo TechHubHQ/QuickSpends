@@ -14,9 +14,9 @@
     "build:android:preview": "eas build --platform android --profile preview",
     "build:android:production": "eas build --platform android --profile production",
     "build:android:dev": "eas build --platform android --profile development",
-    "db:setup": "ts-node scripts/setup-db.ts",
-    "db:migrate": "ts-node scripts/migrate.ts",
-    "db:reset": "ts-node scripts/reset-db.ts"
+    "db:setup": "ts-node scripts/setup-db.mts",
+    "db:migrate": "ts-node scripts/migrate.mts",
+    "db:reset": "ts-node scripts/reset-db.mts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
