@@ -81,6 +81,7 @@ export default function QSLandingScreen() {
               <View style={styles.imageContainer}>
                 <QSLogo />
               </View>
+              <Text style={styles.appName}>QuickSpends</Text>
             </View>
 
             {/* Headings */}

@@ -102,18 +102,18 @@ export const useNotifications = () => {
         }
     }, []);
 
-    const sendInvite = useCallback(async (fromUserName: string, toPhoneNumber: string, groupName: string, groupId: string) => {
+    const sendInvite = useCallback(async (fromUserName: string, toEmail: string, groupName: string, groupId: string) => {
         setLoading(true);
         try {
-            // 1. Find the user by phone number (profile)
+            // 1. Find the user by email (profile)
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('id')
-                .eq('phone', toPhoneNumber)
+                .eq('email', toEmail)
                 .maybeSingle();
 
             if (!profile) {
-                return { success: true, message: `Invite sent to ${toPhoneNumber}` };
+                return { success: true, message: `Invite sent to ${toEmail}` };
             }
 
             if (currentUser && profile.id === currentUser.id) {

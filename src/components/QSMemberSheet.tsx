@@ -8,7 +8,7 @@ import { QSBottomSheet } from "./QSBottomSheet";
 interface QSMemberSheetProps {
     visible: boolean;
     onClose: () => void;
-    onMembersSelected: (members: { name: string; phone: string; id?: string }[]) => void;
+    onMembersSelected: (members: { name: string; email: string; id?: string }[]) => void;
     existingMembers?: string[]; // to avoid adding duplicates
 }
 
@@ -63,19 +63,18 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
             const avatarUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAD7mWjrHawdcvg72D_ee4L0F4QjJxoQfOzVfXjJ65F9-GC4F5LyIrnMaId9frI4qeCg0TvlKBdDSNmWtiIXcvzMtxtiwiNEIJSnOYjpaC8kpvJn35xAqmWHbLQkuntEU0NLJiMseBtsZzfgZJxAgPOXlJp65B5pZcpbE-2irapS00uAdbPfoTTob9nEFve_mYCgfdMkaIK0KqYRMODRUtvH4jAlt6Ry8sMSn7WWgSzKNKqJI2HNH5uydSuMzSb2cA_Wt261a4Kz7o';
 
             // 1. Get Mobile Contacts
-            let mobileContacts: string[] = [];
+            let mobileEmails: string[] = [];
             if (permissionGranted) {
                 const { data } = await Contacts.getContactsAsync({
-                    fields: [Contacts.Fields.PhoneNumbers],
+                    fields: [Contacts.Fields.Emails],
                 });
 
                 if (data.length > 0) {
                     data.forEach(c => {
-                        if (c.phoneNumbers) {
-                            c.phoneNumbers.forEach(p => {
-                                const normalized = normalizePhone(p.number || '');
-                                if (normalized.length >= 10) {
-                                    mobileContacts.push(normalized);
+                        if (c.emails) {
+                            c.emails.forEach(e => {
+                                if (e.email) {
+                                    mobileEmails.push(e.email.toLowerCase());
                                 }
                             });
                         }
@@ -87,16 +86,16 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
             // For now, fetching users that match mobile contacts
             const { data: matchedUsers, error } = await supabase
                 .from('profiles')
-                .select('id, username, phone, avatar')
+                .select('id, username, email, avatar')
                 .neq('id', user.id)
-                .in('phone', mobileContacts); // Assuming phone in DB matches what we extracted
+                .in('email', mobileEmails); // Match by email
 
             if (error) throw error;
 
             setSuggestedUsers((matchedUsers || []).map(u => ({
                 id: u.id,
                 name: u.username,
-                phone: u.phone,
+                email: u.email,
                 avatar: u.avatar
             })));
 
@@ -114,16 +113,16 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
             try {
                 const { data: users, error } = await supabase
                     .from('profiles')
-                    .select('id, username, phone')
+                    .select('id, username, email')
                     .neq('id', user.id)
-                    .or(`phone.ilike.%${text}%,username.ilike.%${text}%`);
+                    .or(`email.ilike.%${text}%,username.ilike.%${text}%`);
 
                 if (error) throw error;
 
                 setSearchResults((users || []).map(u => ({
                     id: u.id,
                     name: u.username,
-                    phone: u.phone
+                    email: u.email
                 })));
             } catch (error) {
                 console.log("Error searching users:", error);
@@ -136,9 +135,9 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
     };
 
     const toggleSelection = (user: any) => {
-        const isSelected = selectedUsers.find(u => u.phone === user.phone);
+        const isSelected = selectedUsers.find(u => u.email === user.email);
         if (isSelected) {
-            setSelectedUsers(selectedUsers.filter(u => u.phone !== user.phone));
+            setSelectedUsers(selectedUsers.filter(u => u.email !== user.email));
         } else {
             setSelectedUsers([...selectedUsers, user]);
         }
@@ -148,7 +147,7 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
         if (selectedUsers.length > 0) {
             onMembersSelected(selectedUsers.map(u => ({
                 name: u.name,
-                phone: u.phone,
+                email: u.email,
                 id: u.id
             })));
         }
@@ -160,11 +159,11 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
 
     const renderUserItem = (user: any, isSuggestion = false) => {
         const isAlreadyMember = existingMembers.includes(user.name); // Simple check by name for now
-        const isSelected = selectedUsers.find(u => u.phone === user.phone);
+        const isSelected = selectedUsers.find(u => u.email === user.email);
 
         return (
             <TouchableOpacity
-                key={user.id || user.phone}
+                key={user.id || user.email}
                 style={[styles.userRow, { borderColor: theme.colors.border }]}
                 onPress={() => !isAlreadyMember && toggleSelection(user)}
                 disabled={isAlreadyMember}
@@ -176,7 +175,7 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text style={[styles.userName, { color: theme.colors.text }]}>{user.name}</Text>
-                    <Text style={[styles.userPhone, { color: theme.colors.textSecondary }]}>{user.phone}</Text>
+                    <Text style={[styles.userPhone, { color: theme.colors.textSecondary }]}>{user.email}</Text>
                 </View>
                 {isAlreadyMember ? (
                     <MaterialCommunityIcons name="check-circle" size={24} color={theme.colors.success} />
@@ -199,7 +198,7 @@ export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
             onClose={onClose}
             title="Add Members"
             showSearch
-            searchPlaceholder="Search by name or phone"
+            searchPlaceholder="Search by name or email"
             searchValue={searchText}
             onSearchChange={handleSearch}
             showDoneButton={selectedUsers.length > 0}

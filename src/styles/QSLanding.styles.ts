@@ -55,8 +55,17 @@ export const createStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     aspectRatio: 4 / 3, // Maintain height/placement
     alignItems: "center",
     justifyContent: "center",
-    transform: [{ scale: 0.85 }], // Slightly increased scale since card is gone
+    transform: [{ scale: 0.7 }], // Reduced scale as requested
     overflow: "visible",
+  },
+  appName: {
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: -1.5,
+    color: theme.text,
+    marginTop: -30, // Pull closer to the logo due to scale
+    marginBottom: 8,
+    textTransform: "none",
   },
   liveSyncBadge: {
     position: "absolute",

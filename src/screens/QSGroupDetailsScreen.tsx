@@ -83,14 +83,14 @@ export default function QSGroupDetailsScreen() {
         }, [fetchDetails])
     );
 
-    const handleMembersAdd = async (newMembers: { name: string, phone: string, id?: string }[]) => {
+    const handleMembersAdd = async (newMembers: { name: string, email: string, id?: string }[]) => {
         if (!group || newMembers.length === 0 || !user) return;
 
         await addMembersToGroup(group.id, newMembers);
 
         // Send Invites to each new member
         for (const member of newMembers) {
-            await sendInvite(user.username, member.phone, group.name, group.id);
+            await sendInvite(user.username, member.email, group.name, group.id);
         }
 
         await fetchDetails(); // Refresh to show new members

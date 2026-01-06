@@ -316,7 +316,7 @@ export const useGroups = () => {
         }
     }, []);
 
-    const addMembersToGroup = useCallback(async (groupId: string, members: { name: string, phone: string, id?: string }[]) => {
+    const addMembersToGroup = useCallback(async (groupId: string, members: { name: string, email: string, id?: string }[]) => {
         if (!members || members.length === 0) return;
 
         setLoading(true);
@@ -326,21 +326,18 @@ export const useGroups = () => {
                 let userId = member.id;
 
                 if (!userId) {
-                    // Check if profile exists by phone
+                    // Check if profile exists by email
                     const { data: existingProfile } = await supabase
                         .from('profiles')
                         .select('id')
-                        .eq('phone', member.phone)
+                        .eq('email', member.email)
                         .maybeSingle();
 
                     if (existingProfile) {
                         userId = existingProfile.id;
                     } else {
                         // NOTE: In Supabase, we can't easily create a profile without an auth user.
-                        // However, for group members, we might just want to store their name/phone 
-                        // in a separate "invited_members" table or just group_members with no profile.
-                        // For now, let's assume we only add existing users or we need a real signup.
-                        // For the sake of migration, let's try to find them by username if phone fails.
+                        // For the sake of migration, let's try to find them by username if email fails.
                         const { data: byUsername } = await supabase
                             .from('profiles')
                             .select('id')

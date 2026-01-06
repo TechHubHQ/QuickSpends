@@ -37,12 +37,12 @@ export default function QSRegistrationScreen() {
   const { signUp, isLoading: authLoading } = useAuth();
 
   const [fullName, setFullName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{
     fullName?: string;
-    phoneNumber?: string;
+    email?: string;
     password?: string;
   }>({});
 
@@ -50,10 +50,10 @@ export default function QSRegistrationScreen() {
     const newErrors: typeof errors = {};
 
     if (!fullName.trim()) newErrors.fullName = "Full Name is required";
-    if (!phoneNumber.trim()) {
-      newErrors.phoneNumber = "Phone Number is required";
-    } else if (!/^\d{10}$/.test(phoneNumber.trim())) {
-      newErrors.phoneNumber = "Invalid phone number";
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      newErrors.email = "Invalid email address";
     }
     if (!password.trim()) {
       newErrors.password = "Password is required";
@@ -67,15 +67,15 @@ export default function QSRegistrationScreen() {
 
   const handleRegister = async () => {
     if (validateForm()) {
-      const { error } = await signUp(phoneNumber.trim(), password.trim(), fullName.trim());
+      const { error } = await signUp(email.trim(), password.trim(), fullName.trim());
 
       if (!error) {
         Toast.show({
           type: 'success',
-          text1: 'Success',
-          text2: 'Account created successfully!'
+          text1: 'Registration Successful',
+          text2: 'Please verify your email and then log in.'
         });
-        router.replace("/");
+        router.replace("/login");
       } else {
         Toast.show({
           type: 'error',
@@ -140,27 +140,28 @@ export default function QSRegistrationScreen() {
               {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
             </View>
 
-            {/* Phone Number */}
+            {/* Email Address */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Phone Number</Text>
+              <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputWrapper}>
-                <MaterialCommunityIcons name="cellphone" size={20} color={theme.textSecondary} style={styles.inputIcon} />
+                <MaterialCommunityIcons name="email-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[
                     styles.input,
-                    errors.phoneNumber && styles.inputError,
+                    errors.email && styles.inputError,
                   ]}
-                  placeholder="1234567890"
+                  placeholder="yourname@gmail.com"
                   placeholderTextColor={theme.inputPlaceholder}
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                 />
-                {phoneNumber.length === 10 && !errors.phoneNumber && (
+                {/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && !errors.email && (
                   <MaterialCommunityIcons name="check-circle" size={20} color={theme.primary} style={styles.inputSuccessIcon} />
                 )}
               </View>
-              {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+              {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
             </View>
 
             {/* Password */}

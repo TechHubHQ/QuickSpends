@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 export interface User {
     id: string;
     username: string;
-    phone: string;
+    email: string;
     created_at: string;
     avatar?: string;
 }
@@ -13,14 +13,14 @@ export const useUser = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const getUserByPhone = useCallback(async (phone: string) => {
+    const getUserByEmail = useCallback(async (email: string) => {
         setLoading(true);
         setError(null);
         try {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
-                .eq('phone', phone)
+                .eq('email', email)
                 .maybeSingle();
 
             if (error) throw error;
@@ -34,7 +34,7 @@ export const useUser = () => {
     }, []);
 
     return {
-        getUserByPhone,
+        getUserByEmail,
         loading,
         error,
     };

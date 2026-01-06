@@ -4,7 +4,7 @@
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   username TEXT,
-  phone TEXT UNIQUE,
+  email TEXT UNIQUE,
   avatar TEXT,
   last_monthly_summary TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -234,8 +234,8 @@ CREATE POLICY "Users can manage repayment schedules of their loans" ON repayment
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, username, phone)
-  VALUES (new.id, new.raw_user_meta_data->>'username', new.phone);
+  INSERT INTO public.profiles (id, username, email)
+  VALUES (new.id, new.raw_user_meta_data->>'username', new.email);
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

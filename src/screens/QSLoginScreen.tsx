@@ -37,15 +37,15 @@ export default function QSLoginScreen() {
 
     const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]) as any;
 
-    const [phoneNumber, setPhoneNumber] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = async () => {
-        const trimmedPhone = phoneNumber.trim();
+        const trimmedEmail = email.trim();
         const trimmedPassword = password.trim();
 
-        if (!trimmedPhone || !trimmedPassword) {
+        if (!trimmedEmail || !trimmedPassword) {
             Toast.show({
                 type: 'error',
                 text1: 'Error',
@@ -54,7 +54,7 @@ export default function QSLoginScreen() {
             return;
         }
 
-        const { error } = await signIn(trimmedPhone, trimmedPassword);
+        const { error } = await signIn(trimmedEmail, trimmedPassword);
 
         if (!error) {
             router.replace("/");
@@ -62,7 +62,7 @@ export default function QSLoginScreen() {
             Toast.show({
                 type: 'error',
                 text1: 'Error',
-                text2: error.message || 'Invalid phone number or password'
+                text2: error.message || 'Invalid email or password'
             });
         }
     };
@@ -98,18 +98,19 @@ export default function QSLoginScreen() {
 
                     {/* Form Section */}
                     <View style={styles.formContainer}>
-                        {/* Phone Number Input */}
+                        {/* Email Input */}
                         <View style={styles.inputGroup}>
                             <View style={styles.inputIconContainer}>
-                                <MaterialCommunityIcons name="cellphone" size={20} color={theme.textSecondary} />
+                                <MaterialCommunityIcons name="email-outline" size={20} color={theme.textSecondary} />
                             </View>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Phone Number"
+                                placeholder="Email Address"
                                 placeholderTextColor={theme.placeholder}
-                                value={phoneNumber}
-                                onChangeText={setPhoneNumber}
-                                keyboardType="phone-pad"
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
                             />
                         </View>
 

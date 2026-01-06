@@ -39,7 +39,7 @@ export default function QSCreateGroupScreen() {
     const [linkTrip, setLinkTrip] = useState(false);
     const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
     const [trips, setTrips] = useState<any[]>([]);
-    const [members, setMembers] = useState<{ name: string, phone: string, id?: string }[]>([]);
+    const [members, setMembers] = useState<{ name: string, email: string, id?: string }[]>([]);
     const [showInviteSheet, setShowInviteSheet] = useState(false);
 
     const [tripsLoading, setTripsLoading] = useState(false);
@@ -74,7 +74,7 @@ export default function QSCreateGroupScreen() {
 
             // Send invites to selected members
             for (const member of members) {
-                await sendInvite(user?.username || "Someone", member.phone, name, groupId);
+                await sendInvite(user?.username || "Someone", member.email, name, groupId);
             }
             if (members.length > 0) {
                 Toast.show({
@@ -95,8 +95,8 @@ export default function QSCreateGroupScreen() {
         }
     };
 
-    const handleMembersAdded = (newMembers: { name: string; phone: string; id?: string }[]) => {
-        const filteredNewMembers = newMembers.filter(nm => !members.find(m => m.phone === nm.phone));
+    const handleMembersAdded = (newMembers: { name: string; email: string; id?: string }[]) => {
+        const filteredNewMembers = newMembers.filter(nm => !members.find(m => m.email === nm.email));
         if (filteredNewMembers.length > 0) {
             setMembers([...members, ...filteredNewMembers]);
         }
@@ -243,7 +243,7 @@ export default function QSCreateGroupScreen() {
                                     </View>
                                     <View style={{ flex: 1 }}>
                                         <Text style={[styles.memberName, { color: theme.colors.text }]}>{m.name}</Text>
-                                        <Text style={{ fontSize: 10, color: theme.colors.textTertiary }}>{m.phone}</Text>
+                                        <Text style={{ fontSize: 10, color: theme.colors.textTertiary }}>{m.email}</Text>
                                     </View>
                                     <TouchableOpacity onPress={() => setMembers(members.filter((_, i) => i !== idx))}>
                                         <MaterialCommunityIcons name="close-circle" size={20} color={theme.colors.textTertiary} />

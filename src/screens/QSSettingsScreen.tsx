@@ -91,7 +91,7 @@ const QSSettingsScreen = () => {
                         />
                         <View style={styles.profileInfo}>
                             <Text style={styles.profileName}>{user?.username || 'User'}</Text>
-                            <Text style={styles.profilePhone}>{user?.phone || 'No phone'}</Text>
+                            <Text style={styles.profilePhone}>{user?.email || 'No email'}</Text>
                         </View>
                         <TouchableOpacity style={styles.editButton} onPress={() => {
                             setEditName(user?.username || '');

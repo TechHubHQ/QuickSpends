@@ -5,7 +5,7 @@ const SESSION_KEY = 'user_session';
 
 export interface UserSession {
     id: string;
-    phone: string;
+    email: string;
     username: string;
     avatar?: string;
     profile_url?: string; // Legacy/Auth
@@ -14,8 +14,8 @@ export interface UserSession {
 interface AuthContextType {
     user: UserSession | null;
     isLoading: boolean;
-    signIn: (phone: string, password: string) => Promise<{ error: any }>;
-    signUp: (phone: string, password: string, username: string) => Promise<{ error: any }>;
+    signIn: (email: string, password: string) => Promise<{ error: any }>;
+    signUp: (email: string, password: string, username: string) => Promise<{ error: any }>;
     signOut: () => Promise<void>;
     updateProfile: (data: Partial<UserSession>) => Promise<void>;
 }
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (session?.user) {
                 setUser({
                     id: session.user.id,
-                    phone: session.user.phone || '',
+                    email: session.user.email || '',
                     username: session.user.user_metadata?.username || '',
                     avatar: session.user.user_metadata?.avatar || '',
                 });
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (session?.user) {
                 setUser({
                     id: session.user.id,
-                    phone: session.user.phone || '',
+                    email: session.user.email || '',
                     username: session.user.user_metadata?.username || '',
                     avatar: session.user.user_metadata?.avatar || '',
                 });
@@ -97,17 +97,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }
 
-    async function signIn(phone: string, password: string) {
+    async function signIn(email: string, password: string) {
         const { error } = await supabase.auth.signInWithPassword({
-            phone: phone,
+            email: email,
             password: password,
         });
         return { error };
     }
 
-    async function signUp(phone: string, password: string, username: string) {
+    async function signUp(email: string, password: string, username: string) {
         const { error } = await supabase.auth.signUp({
-            phone: phone,
+            email: email,
             password: password,
             options: {
                 data: {
