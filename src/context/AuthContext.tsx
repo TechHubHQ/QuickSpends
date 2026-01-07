@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { Logger } from '../services/logger';
 
 const SESSION_KEY = 'user_session';
 
@@ -30,12 +31,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // 1. Initial session check
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
+                Logger.info('Session restored', { userId: session.user.id });
                 setUser({
                     id: session.user.id,
                     email: session.user.email || '',
                     username: session.user.user_metadata?.username || '',
                     avatar: session.user.user_metadata?.avatar || '',
                 });
+            } else {
+                Logger.debug('No active session found during initialization');
             }
             setIsLoading(false);
         });
@@ -60,8 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function signOut() {
         try {
+            Logger.info('User signing out', { userId: user?.id });
             await supabase.auth.signOut();
         } catch (error) {
+            Logger.error("Sign out error", error);
             console.error("Sign out error:", error);
         }
     }
@@ -93,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(prev => prev ? { ...prev, ...data } : null);
         } catch (error) {
             console.error('Failed to update profile', error);
+            Logger.error('Failed to update profile', error);
             throw error;
         }
     }
@@ -102,6 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: email,
             password: password,
         });
+        if (error) {
+            Logger.error('Sign in failed', error, { email });
+        } else {
+            Logger.info('Sign in successful', { email });
+        }
         return { error };
     }
 
@@ -116,6 +128,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             }
         });
+        if (error) {
+            Logger.error('Sign up failed', error, { email });
+        } else {
+            Logger.info('Sign up successful', { email });
+        }
         return { error };
     }
 

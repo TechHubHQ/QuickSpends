@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export type ColorScheme = 'light' | 'dark' | 'auto';
 
 export interface ThemeColors {
@@ -116,25 +118,46 @@ const commonTokens = {
   },
   shadows: {
     small: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 3,
-      elevation: 2,
+      ...Platform.select({
+        web: {
+          boxShadow: '0px 2px 3px rgba(0,0,0,0.05)', // Approx for small
+        },
+        default: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 3,
+          elevation: 2,
+        },
+      }),
     },
     medium: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 6,
-      elevation: 4,
+      ...Platform.select({
+        web: {
+          boxShadow: '0px 4px 6px rgba(0,0,0,0.1)', // Approx for medium
+        },
+        default: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 6,
+          elevation: 4,
+        },
+      }),
     },
     large: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.15,
-      shadowRadius: 20,
-      elevation: 10,
+      ...Platform.select({
+        web: {
+          boxShadow: '0px 10px 20px rgba(0,0,0,0.15)', // Approx for large
+        },
+        default: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.15,
+          shadowRadius: 20,
+          elevation: 10,
+        },
+      }),
     },
   },
 };
@@ -453,9 +476,33 @@ export const generateTheme = (themeId: string, overrides: ThemeOverrides = {}): 
   const opacities = shadowOpacityMap[shadowIntensity];
 
   const resolvedShadows = {
-    small: { ...commonTokens.shadows.small, shadowOpacity: opacities.small, elevation: shadowIntensity === 'none' ? 0 : 2 },
-    medium: { ...commonTokens.shadows.medium, shadowOpacity: opacities.medium, elevation: shadowIntensity === 'none' ? 0 : 4 },
-    large: { ...commonTokens.shadows.large, shadowOpacity: opacities.large, elevation: shadowIntensity === 'none' ? 0 : 10 },
+    small: {
+      ...commonTokens.shadows.small,
+      ...Platform.select({
+        default: {
+          shadowOpacity: opacities.small,
+          elevation: shadowIntensity === 'none' ? 0 : 2
+        }
+      })
+    },
+    medium: {
+      ...commonTokens.shadows.medium,
+      ...Platform.select({
+        default: {
+          shadowOpacity: opacities.medium,
+          elevation: shadowIntensity === 'none' ? 0 : 4
+        }
+      })
+    },
+    large: {
+      ...commonTokens.shadows.large,
+      ...Platform.select({
+        default: {
+          shadowOpacity: opacities.large,
+          elevation: shadowIntensity === 'none' ? 0 : 10
+        }
+      })
+    },
   };
 
   return {

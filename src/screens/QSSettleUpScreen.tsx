@@ -236,15 +236,18 @@ export default function QSSettleUpScreen() {
 
     return (
         <View style={styles.container}>
-            <QSHeader title="Settle Up" showBack onBackPress={() => router.back()} />
-
             {loading ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                <View style={{ flex: 1, justifyContent: 'center' }}>
+                    <QSHeader title="Settle Up" showBack onBackPress={() => router.back()} />
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <ActivityIndicator size="large" color={theme.colors.primary} />
+                    </View>
                 </View>
+
             ) : (
                 <>
                     <ScrollView contentContainerStyle={styles.scrollContent}>
+                        <QSHeader title="Settle Up" showBack onBackPress={() => router.back()} />
                         {/* Payer Section */}
                         <View style={styles.heroSection}>
                             <Text style={{ color: theme.colors.textSecondary, marginBottom: 8, fontWeight: '600' }}>PAYING FROM</Text>

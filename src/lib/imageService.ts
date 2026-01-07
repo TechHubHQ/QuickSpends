@@ -1,6 +1,10 @@
-import { Directory, File, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 const IMAGE_DIR_NAME = 'trip_images';
+// Use explicit casting if types are missing in the legacy export, or rely on it being present at runtime.
+// logger.ts used (FileSystem as any).cacheDirectory. We'll try standard access first, if it fails lint again we cast.
+const imgDir = (FileSystem.documentDirectory || (FileSystem as any).documentDirectory) + IMAGE_DIR_NAME + '/';
 
 const slugify = (text: string) => {
     return text
@@ -13,17 +17,14 @@ const slugify = (text: string) => {
 };
 
 /**
- * Ensures the trip_images directory exists using the modern Directory API
+ * Ensures the trip_images directory exists
  */
-const getTripImagesDir = () => {
-    // In SDK 54, Directory constructor can take a parent Directory or path string
-    const tripImagesDir = new Directory(Paths.document, IMAGE_DIR_NAME);
-
-    if (!tripImagesDir.exists) {
-        tripImagesDir.create();
+const ensureDirExists = async () => {
+    if (Platform.OS === 'web') return;
+    const dirInfo = await FileSystem.getInfoAsync(imgDir);
+    if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(imgDir, { intermediates: true });
     }
-
-    return tripImagesDir;
 };
 
 const fetchFromUnsplash = async (query: string): Promise<string | null> => {
@@ -31,9 +32,8 @@ const fetchFromUnsplash = async (query: string): Promise<string | null> => {
     if (!accessKey) return null;
 
     try {
-        const response = await fetch(
-            `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query + ' india temple landmark')}&per_page=1&client_id=${accessKey}`
-        );
+        const searchUrl = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=1&client_id=${accessKey}`;
+        const response = await fetch(searchUrl);
         const data = await response.json();
         if (data.results && data.results.length > 0) {
             return data.results[0].urls.regular;
@@ -49,8 +49,9 @@ const fetchFromPexels = async (query: string): Promise<string | null> => {
     if (!apiKey) return null;
 
     try {
+        const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`;
         const response = await fetch(
-            `https://api.pexels.com/v1/search?query=${encodeURIComponent(query + ' india temple')}&per_page=1`,
+            searchUrl,
             {
                 headers: {
                     Authorization: apiKey
@@ -71,14 +72,32 @@ export const fetchAndCacheImage = async (location: string): Promise<string> => {
     if (!location) return "https://loremflickr.com/800/600/travel,landscape";
 
     const filename = `${slugify(location)}.jpg`;
+    const imageUri = imgDir + filename;
 
     try {
-        const tripImagesDir = getTripImagesDir();
-        const imageFile = new File(tripImagesDir, filename);
+        // Skip caching on web
+        if (Platform.OS === 'web') {
+            // 1. Fetch from Unsplash
+            let remoteUrl = await fetchFromUnsplash(location);
 
-        // 1. Check if cached (using .exists property)
-        if (imageFile.exists) {
-            return imageFile.uri;
+            // 2. Fallback to Pexels
+            if (!remoteUrl) {
+                remoteUrl = await fetchFromPexels(location);
+            }
+
+            // 3. Final fallback
+            if (!remoteUrl) {
+                return `https://loremflickr.com/800/600/${encodeURIComponent(location)},travel/all`;
+            }
+            return remoteUrl;
+        }
+
+        await ensureDirExists();
+
+        // 1. Check if cached
+        const fileInfo = await FileSystem.getInfoAsync(imageUri);
+        if (fileInfo.exists) {
+            return imageUri;
         }
 
         // 2. Fetch from Unsplash
@@ -89,17 +108,17 @@ export const fetchAndCacheImage = async (location: string): Promise<string> => {
             remoteUrl = await fetchFromPexels(location);
         }
 
-        // 4. Final fallback to LoremFlickr (don't cache this as it's a redirect service)
+        // 4. Final fallback to LoremFlickr
         if (!remoteUrl) {
-            return `https://loremflickr.com/800/600/${encodeURIComponent(location)},india,temple/all`;
+            return `https://loremflickr.com/800/600/${encodeURIComponent(location)},travel/all`;
         }
 
-        // 5. Download and cache using the static File.downloadFileAsync
-        await File.downloadFileAsync(remoteUrl, imageFile);
-        return imageFile.uri;
+        // 5. Download and cache
+        await FileSystem.downloadAsync(remoteUrl, imageUri);
+        return imageUri;
 
     } catch (error) {
         console.error("Image service error:", error);
-        return `https://loremflickr.com/800/600/${encodeURIComponent(location)},india,temple/all`;
+        return `https://loremflickr.com/800/600/${encodeURIComponent(location)},travel/all`;
     }
 };

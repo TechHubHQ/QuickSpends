@@ -25,7 +25,7 @@ async function setup() {
 
     try {
         // 1. Read Migration File
-        const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '20240106_initial_schema.sql');
+        const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '20260107_consolidated_schema.sql');
         if (!fs.existsSync(migrationPath)) {
             console.error(`Migration file not found at ${migrationPath}`);
             process.exit(1);

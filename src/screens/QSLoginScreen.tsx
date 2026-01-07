@@ -111,6 +111,7 @@ export default function QSLoginScreen() {
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
+
                             />
                         </View>
 
@@ -126,6 +127,7 @@ export default function QSLoginScreen() {
                                 secureTextEntry={!showPassword}
                                 value={password}
                                 onChangeText={setPassword}
+
                             />
                             <TouchableOpacity
                                 onPress={() => setShowPassword(!showPassword)}
@@ -153,6 +155,7 @@ export default function QSLoginScreen() {
                             title="Log In"
                             onPress={handleLogin}
                             loading={authLoading}
+
                         />
 
                         {/* Signup Link */}

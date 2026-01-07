@@ -17,6 +17,7 @@ interface QSButtonProps {
     disabled?: boolean;
     style?: ViewStyle;
     textStyle?: TextStyle;
+
 }
 
 export const QSButton: React.FC<QSButtonProps> = ({
@@ -27,6 +28,7 @@ export const QSButton: React.FC<QSButtonProps> = ({
     disabled = false,
     style,
     textStyle,
+
 }) => {
     const { theme } = useTheme();
     const isDark = theme.isDark;
@@ -51,6 +53,7 @@ export const QSButton: React.FC<QSButtonProps> = ({
             onPress={onPress}
             activeOpacity={0.9}
             disabled={disabled || loading}
+
         >
             {loading ? (
                 <ActivityIndicator color={variant === "primary" ? theme.colors.onPrimary : theme.colors.primary} />

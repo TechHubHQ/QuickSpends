@@ -127,7 +127,7 @@ export const useLoans = () => {
                 .from('transactions')
                 .select(`
                     id, amount, type, account_id,
-                    category:categories!transactions_category_id_fkey (name, parent:categories!categories_parent_id_fkey (name))
+                    category:categories (name, parent:categories (name))
                 `)
                 .eq('loan_id', id);
 
@@ -135,28 +135,19 @@ export const useLoans = () => {
 
             // 2. Revert logic (only revert balance, do not delete transaction manually)
             for (const txn of (transactions || [])) {
-                const category = txn.category as any;
-                const categoryName = category?.name;
-                const parentName = category?.parent?.name;
-                const isLoanRelated = categoryName === 'Loans & Debt' || parentName === 'Loans & Debt';
+                // Revert Account Balance for ALL linked transactions
+                const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txn.account_id).single();
+                if (acc) {
+                    // Logic:
+                    // If it was an Expense (money out), we add it back.
+                    // If it was Income (money in), we deduct it.
+                    // If it was Transfer?
+                    // - Loan disbursement is usually Expense (Lent) or Income (Borrowed).
+                    // - Repayment is Income (Lent) or Expense (Borrowed).
+                    // - So the standard logic holds.
 
-                if (isLoanRelated) {
-                    // Revert Account Balance
-                    const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txn.account_id).single();
-                    if (acc) {
-                        const change = txn.type === 'expense' ? txn.amount : -txn.amount;
-                        await supabase.from('accounts').update({ balance: acc.balance + change }).eq('id', txn.account_id);
-                    }
-                    // CASCADE will delete the transaction
-                } else {
-                    // Just unlink (This works even with cascade, but if we delete the loan, 
-                    // this update is irrelevant unless we want to SAVE the transaction.
-                    // If the user wants to keep the transaction but unlike it, we should do it here.
-                    // But usually deleting a loan implies deleting the "repayment" records.
-                    // The standard behavior here is: linked repayment transactions should be deleted (cascade).
-                    // Unrelated transactions (maybe tagged by mistake?) might be better to unlink.
-                    // For now, to solve the error, we'll let cascade delete everything linked. 
-                    // This is safer than partial state.
+                    const change = txn.type === 'expense' ? txn.amount : -txn.amount;
+                    await supabase.from('accounts').update({ balance: acc.balance + change }).eq('id', txn.account_id);
                 }
             }
 

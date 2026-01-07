@@ -1,3 +1,443 @@
+-- SUPABASE SCHEMA FOR QUICKSPENDS MIGRATION
+
+-- 1. Profiles Table (Extends Supabase Auth)
+CREATE TABLE profiles (
+  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  username TEXT,
+  email TEXT UNIQUE,
+  avatar TEXT,
+  last_monthly_summary TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Categories Table
+CREATE TABLE categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE, -- NULL for default categories
+  name TEXT NOT NULL,
+  icon TEXT,
+  color TEXT,
+  type TEXT CHECK(type IN ('income', 'expense')) NOT NULL,
+  parent_id UUID REFERENCES categories(id),
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT unique_default_category_name_type_parent UNIQUE NULLS NOT DISTINCT (name, type, parent_id, user_id)
+);
+
+
+-- 3. Accounts Table
+CREATE TABLE accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  type TEXT CHECK(type IN ('bank', 'cash', 'card')) NOT NULL,
+  card_type TEXT CHECK(card_type IN ('credit', 'debit')),
+  credit_limit REAL,
+  balance REAL DEFAULT 0,
+  currency TEXT DEFAULT 'INR',
+  account_number_last_4 TEXT,
+  is_active BOOLEAN DEFAULT true,
+  last_low_balance_alert TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Trips Table
+CREATE TABLE trips (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  budget_amount REAL,
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
+  image_url TEXT,
+  base_currency TEXT DEFAULT 'INR',
+  locations TEXT,
+  trip_mode TEXT CHECK(trip_mode IN ('single', 'multi')) DEFAULT 'single',
+  alert_sent BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Groups Table
+CREATE TABLE groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  icon TEXT,
+  color TEXT,
+  created_by UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  trip_id UUID REFERENCES trips(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Group Members Table
+CREATE TABLE group_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  role TEXT DEFAULT 'member',
+  status TEXT DEFAULT 'joined', -- 'invited', 'joined'
+  joined_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Recurring Configs Table
+CREATE TABLE recurring_configs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  account_id UUID REFERENCES accounts(id) NOT NULL,
+  category_id UUID REFERENCES categories(id),
+  name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  frequency TEXT CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')) NOT NULL,
+  start_date TIMESTAMPTZ NOT NULL,
+  end_date TIMESTAMPTZ,
+  last_executed TIMESTAMPTZ,
+  last_notified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Savings Table
+CREATE TABLE savings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  target_amount REAL NOT NULL,
+  current_amount REAL DEFAULT 0,
+  category_id UUID REFERENCES categories(id),
+  goal_reached_notification_sent BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. Loans Table
+CREATE TABLE loans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  name TEXT,
+  person_name TEXT NOT NULL,
+  type TEXT CHECK(type IN ('lent', 'borrowed')) NOT NULL,
+  total_amount REAL NOT NULL,
+  remaining_amount REAL NOT NULL,
+  interest_rate REAL DEFAULT 0,
+  interest_type TEXT DEFAULT 'yearly',
+  due_date TIMESTAMPTZ,
+  loan_type TEXT,
+  payment_type TEXT,
+  emi_amount REAL,
+  tenure_months INTEGER,
+  next_due_date TIMESTAMPTZ,
+  last_reminder_date TIMESTAMPTZ,
+  paid_notification_sent BOOLEAN DEFAULT false,
+  status TEXT CHECK(status IN ('active', 'closed')) DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 10. Transactions Table
+CREATE TABLE transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  account_id UUID REFERENCES accounts(id) NOT NULL,
+  category_id UUID REFERENCES categories(id),
+  name TEXT NOT NULL,
+  description TEXT,
+  amount REAL NOT NULL,
+  type TEXT CHECK(type IN ('income', 'expense', 'transfer')) NOT NULL,
+  date TIMESTAMPTZ DEFAULT NOW(),
+  receipt_url TEXT,
+  group_id UUID REFERENCES groups(id),
+  trip_id UUID REFERENCES trips(id),
+  recurring_id UUID REFERENCES recurring_configs(id),
+  to_account_id UUID REFERENCES accounts(id),
+  savings_id UUID REFERENCES savings(id),
+  loan_id UUID REFERENCES loans(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. Splits Table
+CREATE TABLE splits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  amount REAL NOT NULL,
+  status TEXT CHECK(status IN ('pending', 'settled')) DEFAULT 'pending',
+  alert_sent BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. Budgets Table
+CREATE TABLE budgets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  category_id UUID REFERENCES categories(id) NOT NULL,
+  amount REAL NOT NULL,
+  period TEXT CHECK(period IN ('monthly', 'yearly')) DEFAULT 'monthly',
+  alert_month TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. Notifications Table
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  data JSONB,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Repayment Schedules Table
+CREATE TABLE repayment_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  loan_id UUID REFERENCES loans(id) ON DELETE CASCADE NOT NULL,
+  due_date TIMESTAMPTZ NOT NULL,
+  amount REAL NOT NULL,
+  status TEXT CHECK(status IN ('pending', 'paid', 'overdue')) DEFAULT 'pending',
+  payment_date TIMESTAMPTZ,
+  installment_number INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS POLICIES (Enabling security)
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recurring_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE savings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE loans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE splits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budgets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE repayment_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Basic policy: Users can only access their own data
+CREATE POLICY "Users can only access their own profile" ON profiles FOR ALL USING (auth.uid() = id);
+CREATE POLICY "Users can access default categories or their own" ON categories FOR SELECT USING (user_id IS NULL OR user_id = auth.uid());
+CREATE POLICY "Users can manage their own categories" ON categories FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own accounts" ON accounts FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own trips" ON trips FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own groups" ON groups FOR ALL USING (created_by = auth.uid());
+CREATE POLICY "Users can see group members of their groups" ON group_members FOR SELECT USING (true); -- Simplified for now
+CREATE POLICY "Users can manage their own recurring configs" ON recurring_configs FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own savings" ON savings FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own loans" ON loans FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own transactions" ON transactions FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own splits" ON splits FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own budgets" ON budgets FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage their own notifications" ON notifications FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can manage repayment schedules of their loans" ON repayment_schedules FOR ALL USING (
+  EXISTS (SELECT 1 FROM loans WHERE loans.id = repayment_schedules.loan_id AND loans.user_id = auth.uid())
+);
+
+-- AUTOMATION: Create profile on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, email)
+  VALUES (new.id, new.raw_user_meta_data->>'username', new.email);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+-- Enable RLS on _migrations table
+DO $$
+BEGIN
+    ALTER TABLE IF EXISTS _migrations ENABLE ROW LEVEL SECURITY;
+END $$;
+-- Fix RLS policies for group_members to allow group creation and management
+
+-- 1. INSERT Policy
+-- Allow adding members if:
+-- a) You are the creator of the group (checked via groups table)
+-- b) You are an existing admin of the group
+CREATE POLICY "Group creators and admins can add members"
+ON group_members FOR INSERT
+WITH CHECK (
+  -- User is the creator of the group
+  EXISTS (
+    SELECT 1 FROM groups
+    WHERE id = group_members.group_id
+    AND created_by = auth.uid()
+  )
+  OR
+  -- User is an admin of the group
+  EXISTS (
+    SELECT 1 FROM group_members gm
+    WHERE gm.group_id = group_members.group_id
+    AND gm.user_id = auth.uid()
+    AND gm.role = 'admin'
+  )
+);
+
+-- 2. UPDATE Policy
+-- Allow updating if:
+-- a) You are an admin of the group
+-- b) You are updating your own record (e.g. accepting invite)
+CREATE POLICY "Admins can update members and users can update themselves"
+ON group_members FOR UPDATE
+USING (
+  -- User is an admin
+  EXISTS (
+    SELECT 1 FROM group_members gm
+    WHERE gm.group_id = group_members.group_id
+    AND gm.user_id = auth.uid()
+    AND gm.role = 'admin'
+  )
+  OR
+  -- User updating themselves
+  user_id = auth.uid()
+);
+
+-- 3. DELETE Policy
+-- Allow deleting if:
+-- a) You are an admin of the group
+-- b) You are removing yourself (leaving)
+CREATE POLICY "Admins can remove members and users can leave"
+ON group_members FOR DELETE
+USING (
+  -- User is an admin
+  EXISTS (
+    SELECT 1 FROM group_members gm
+    WHERE gm.group_id = group_members.group_id
+    AND gm.user_id = auth.uid()
+    AND gm.role = 'admin'
+  )
+  OR
+  -- User removing themselves
+  user_id = auth.uid()
+);
+-- Fix Group Visibility and Loan Deletion
+
+-- 1. FIX GROUP VISIBILITY
+-- Add SELECT policy for groups to allow members to see them
+CREATE POLICY "Group members can view groups"
+ON groups FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_members.group_id = groups.id
+    AND group_members.user_id = auth.uid()
+  )
+);
+
+-- 2. FIX LOAN DELETION
+-- Drop existing Foreign Key on transactions.loan_id
+ALTER TABLE transactions
+DROP CONSTRAINT transactions_loan_id_fkey;
+
+-- Add new Foreign Key with CASCADE DELETE
+ALTER TABLE transactions
+ADD CONSTRAINT transactions_loan_id_fkey
+FOREIGN KEY (loan_id)
+REFERENCES loans(id)
+ON DELETE CASCADE;
+
+-- Also fix repayment_schedules just in case (though usually handled by code, DB enforcement is safer)
+ALTER TABLE repayment_schedules
+DROP CONSTRAINT repayment_schedules_loan_id_fkey;
+
+ALTER TABLE repayment_schedules
+ADD CONSTRAINT repayment_schedules_loan_id_fkey
+FOREIGN KEY (loan_id)
+REFERENCES loans(id)
+ON DELETE CASCADE;
+-- Comprehensive RLS Fixes for Social Features
+
+-- 1. PROFILES
+-- Allow authenticated users to see other profiles (needed for group members, search, etc.)
+DROP POLICY IF EXISTS "Users can only access their own profile" ON profiles;
+CREATE POLICY "Profiles are viewable by everyone" 
+ON profiles FOR SELECT 
+USING (true);
+
+-- 2. GROUPS
+-- Ensure creators can ALWAYS see their groups (redundant with previous fix but explicit is safer)
+-- And ensure members can see groups (previous fix handled this, but we'll refine it)
+DROP POLICY IF EXISTS "Group members can view groups" ON groups;
+DROP POLICY IF EXISTS "Users can manage their own groups" ON groups;
+
+CREATE POLICY "Users can view groups they belong to or created"
+ON groups FOR SELECT
+USING (
+  created_by = auth.uid() OR
+  EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_members.group_id = groups.id
+    AND group_members.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can insert groups"
+ON groups FOR INSERT
+WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Creators can update their groups"
+ON groups FOR UPDATE
+USING (created_by = auth.uid());
+
+CREATE POLICY "Creators can delete their groups"
+ON groups FOR DELETE
+USING (created_by = auth.uid());
+
+
+-- 3. TRANSACTIONS
+-- Allow users to see transactions in groups they are part of
+DROP POLICY IF EXISTS "Users can manage their own transactions" ON transactions;
+
+CREATE POLICY "Users can view their own or group transactions"
+ON transactions FOR SELECT
+USING (
+  user_id = auth.uid() OR
+  (group_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_members.group_id = transactions.group_id
+    AND group_members.user_id = auth.uid()
+  ))
+);
+
+CREATE POLICY "Users can insert their own transactions"
+ON transactions FOR INSERT
+WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can update their own transactions"
+ON transactions FOR UPDATE
+USING (user_id = auth.uid());
+
+CREATE POLICY "Users can delete their own transactions"
+ON transactions FOR DELETE
+USING (user_id = auth.uid());
+
+-- 4. SPLITS
+-- Allow users to see splits for transactions they can see
+DROP POLICY IF EXISTS "Users can manage their own splits" ON splits;
+
+CREATE POLICY "Users can view splits on visible transactions"
+ON splits FOR SELECT
+USING (
+  user_id = auth.uid() OR
+  EXISTS (
+    SELECT 1 FROM transactions
+    WHERE transactions.id = splits.transaction_id
+    AND (
+      transactions.user_id = auth.uid() OR
+      (transactions.group_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM group_members
+        WHERE group_members.group_id = transactions.group_id
+        AND group_members.user_id = auth.uid()
+      ))
+    )
+  )
+);
+
+CREATE POLICY "Users can manage their own splits"
+ON splits FOR ALL
+USING (user_id = auth.uid());
 -- Seed ALL categories (Consolidated)
 
 DO $$

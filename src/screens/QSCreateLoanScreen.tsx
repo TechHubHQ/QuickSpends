@@ -169,7 +169,9 @@ export default function QSAddLoanScreen() {
                 // But we want to avoid overwriting user edits if they just change amount but keep tenure.
                 // Let's only regenerate if the length is different or it's empty.
 
-                if (schedule.length !== count) {
+                const firstDateChanged = schedule.length > 0 && schedule[0].due_date !== currentDueDate.toISOString();
+
+                if (schedule.length !== count || firstDateChanged) {
                     for (let i = 0; i < count; i++) {
                         newSchedule.push({
                             due_date: currentDueDate.toISOString(),

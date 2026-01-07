@@ -153,6 +153,7 @@ export default function QSLandingScreen() {
               variant="secondary"
               textStyle={{ color: theme.text }}
               style={{ borderColor: theme.cardBorder }}
+
             />
           </View>
           <View

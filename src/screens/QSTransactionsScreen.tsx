@@ -251,13 +251,7 @@ export default function QSTransactionsScreen() {
         <View style={styles.container}>
             <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
 
-            {/* Header */}
-            <QSHeader
-                title="History"
-                showBack
-                onBackPress={() => router.back()}
-                rightIcon="cog-outline"
-            />
+            {/* Header moved to ListHeaderComponent */}
 
 
 
@@ -272,6 +266,13 @@ export default function QSTransactionsScreen() {
                 )}
                 ListHeaderComponent={
                     <View>
+                        {/* Header */}
+                        <QSHeader
+                            title="History"
+                            showBack
+                            onBackPress={() => router.back()}
+                            rightIcon="cog-outline"
+                        />
                         {/* Search */}
                         <View style={styles.searchContainer}>
                             <View style={styles.searchWrapper}>

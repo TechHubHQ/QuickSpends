@@ -94,9 +94,8 @@ export default function QSAddSavingScreen() {
 
     return (
         <View style={styles.container}>
-            <QSHeader title={savingId ? "Edit Savings Goal" : "New Savings Goal"} showBack onBackPress={() => router.back()} />
-
             <ScrollView contentContainerStyle={styles.scrollContent}>
+                <QSHeader title={savingId ? "Edit Savings Goal" : "New Savings Goal"} showBack onBackPress={() => router.back()} />
                 <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.inputGroup}>
                     <Text style={styles.label}>Goal Name</Text>
                     <View style={styles.inputWrapper}>

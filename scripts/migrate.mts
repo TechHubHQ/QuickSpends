@@ -40,6 +40,8 @@ async function migrate() {
                     name TEXT UNIQUE NOT NULL,
                     executed_at TIMESTAMPTZ DEFAULT NOW()
                 );
+            `;
+            await sql`
                 ALTER TABLE _migrations ENABLE ROW LEVEL SECURITY;
             `;
 
@@ -57,7 +59,7 @@ async function migrate() {
                 console.log('📝 Existing tables detected. Recording initial schema as executed.');
                 await sql`
                     INSERT INTO _migrations (name)
-                    VALUES ('20240106_initial_schema.sql')
+                    VALUES ('20260107_consolidated_schema.sql')
                     ON CONFLICT (name) DO NOTHING
                 `;
             }
@@ -108,7 +110,7 @@ async function migrate() {
 
         console.log('🏁 All migrations finished successfully!');
     } catch (error) {
-        console.error('❌ Migration failed:', error);
+        console.error('❌ Migration failed:', JSON.stringify(error, null, 2));
         process.exit(1);
     } finally {
         await sql.end();

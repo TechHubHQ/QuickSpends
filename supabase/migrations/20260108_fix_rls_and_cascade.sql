@@ -1,17 +1,42 @@
+-- Fix Group Visibility and Loan Deletion (Safer Version)
+
+-- 1. FIX LOAN DELETION
+-- Drop existing Foreign Key on transactions.loan_id using standard SQL
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_loan_id_fkey;
+
+-- Add new Foreign Key with CASCADE DELETE
+ALTER TABLE transactions
+ADD CONSTRAINT transactions_loan_id_fkey
+FOREIGN KEY (loan_id)
+REFERENCES loans(id)
+ON DELETE CASCADE;
+
+-- Also fix repayment_schedules
+ALTER TABLE repayment_schedules DROP CONSTRAINT IF EXISTS repayment_schedules_loan_id_fkey;
+
+ALTER TABLE repayment_schedules
+ADD CONSTRAINT repayment_schedules_loan_id_fkey
+FOREIGN KEY (loan_id)
+REFERENCES loans(id)
+ON DELETE CASCADE;
+
+
 -- Comprehensive RLS Fixes for Social Features
 
 -- 1. PROFILES
--- Allow authenticated users to see other profiles (needed for group members, search, etc.)
 DROP POLICY IF EXISTS "Users can only access their own profile" ON profiles;
+DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON profiles;
 CREATE POLICY "Profiles are viewable by everyone" 
 ON profiles FOR SELECT 
 USING (true);
 
 -- 2. GROUPS
--- Ensure creators can ALWAYS see their groups (redundant with previous fix but explicit is safer)
--- And ensure members can see groups (previous fix handled this, but we'll refine it)
 DROP POLICY IF EXISTS "Group members can view groups" ON groups;
 DROP POLICY IF EXISTS "Users can manage their own groups" ON groups;
+DROP POLICY IF EXISTS "Users can view groups they belong to or created" ON groups;
+DROP POLICY IF EXISTS "Users can insert groups" ON groups;
+DROP POLICY IF EXISTS "Creators can update their groups" ON groups;
+DROP POLICY IF EXISTS "Creators can delete their groups" ON groups;
 
 CREATE POLICY "Users can view groups they belong to or created"
 ON groups FOR SELECT
@@ -38,8 +63,11 @@ USING (created_by = auth.uid());
 
 
 -- 3. TRANSACTIONS
--- Allow users to see transactions in groups they are part of
 DROP POLICY IF EXISTS "Users can manage their own transactions" ON transactions;
+DROP POLICY IF EXISTS "Users can view their own or group transactions" ON transactions;
+DROP POLICY IF EXISTS "Users can insert their own transactions" ON transactions;
+DROP POLICY IF EXISTS "Users can update their own transactions" ON transactions;
+DROP POLICY IF EXISTS "Users can delete their own transactions" ON transactions;
 
 CREATE POLICY "Users can view their own or group transactions"
 ON transactions FOR SELECT
@@ -65,8 +93,8 @@ ON transactions FOR DELETE
 USING (user_id = auth.uid());
 
 -- 4. SPLITS
--- Allow users to see splits for transactions they can see
 DROP POLICY IF EXISTS "Users can manage their own splits" ON splits;
+DROP POLICY IF EXISTS "Users can view splits on visible transactions" ON splits;
 
 CREATE POLICY "Users can view splits on visible transactions"
 ON splits FOR SELECT

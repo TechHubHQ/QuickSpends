@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { QSHeader } from "../components/QSHeader";
 import { useAuth } from "../context/AuthContext";
 import { useBudgets } from "../hooks/useBudgets";
 import { useCategories } from "../hooks/useCategories";
@@ -73,8 +74,11 @@ export default function QSBudgetCreationScreen() {
         ? ["#0F172A", "#1E293B", "#0F172A"]
         : ["#F8FAFC", "#FFFFFF", "#F1F5F9"];
 
+    const Container: any = Platform.OS === "web" ? View : TouchableWithoutFeedback;
+    const containerProps = Platform.OS === "web" ? { style: { flex: 1 } } : { onPress: Keyboard.dismiss };
+
     return (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <Container {...containerProps}>
             <View style={{ flex: 1, backgroundColor: bgColor }}>
                 <LinearGradient
                     colors={gradColors as [string, string, ...string[]]}
@@ -83,109 +87,102 @@ export default function QSBudgetCreationScreen() {
                     end={{ x: 1, y: 1 }}
                 />
 
-                <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        style={[styles.backButton, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)" }]}
-                    >
-                        <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>New Budget</Text>
-                    <View style={{ width: 44 }} />
-                </View>
-
                 <KeyboardAvoidingView
                     behavior={Platform.OS === "ios" ? "padding" : "height"}
                     style={{ flex: 1 }}
                 >
                     <ScrollView
-                        contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 24 }}
+                        contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 0 }}
                         showsVerticalScrollIndicator={false}
                     >
-                        <Animated.View entering={FadeInDown.delay(100).springify()}>
-                            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                How much do you want to spend?
-                            </Text>
-                            <View style={[styles.amountInputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
-                                <Text style={[styles.currencyPrefix, { color: theme.colors.primary }]}>₹</Text>
-                                <TextInput
-                                    style={[styles.amountInput, { color: theme.colors.text }]}
-                                    value={amount}
-                                    onChangeText={setAmount}
-                                    placeholder="0"
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    keyboardType="numeric"
-                                    autoFocus
-                                />
-                            </View>
-                        </Animated.View>
+                        <QSHeader title="New Budget" showBack onBackPress={() => router.back()} />
 
-                        <Animated.View entering={FadeInDown.delay(200).springify()} style={{ marginTop: 32 }}>
-                            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                Frequency
-                            </Text>
-                            <View style={[styles.periodToggle, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.periodOption,
-                                        period === "monthly" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                    ]}
-                                    onPress={() => setPeriod("monthly")}
-                                >
-                                    <Text style={[styles.periodText, { color: period === "monthly" ? "#FFF" : theme.colors.textSecondary }]}>Monthly</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.periodOption,
-                                        period === "yearly" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                    ]}
-                                    onPress={() => setPeriod("yearly")}
-                                >
-                                    <Text style={[styles.periodText, { color: period === "yearly" ? "#FFF" : theme.colors.textSecondary }]}>Yearly</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </Animated.View>
+                        <View style={{ paddingHorizontal: 24 }}>
+                            <Animated.View entering={FadeInDown.delay(100).springify()}>
+                                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                    How much do you want to spend?
+                                </Text>
+                                <View style={[styles.amountInputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
+                                    <Text style={[styles.currencyPrefix, { color: theme.colors.primary }]}>₹</Text>
+                                    <TextInput
+                                        style={[styles.amountInput, { color: theme.colors.text }]}
+                                        value={amount}
+                                        onChangeText={setAmount}
+                                        placeholder="0"
+                                        placeholderTextColor={theme.colors.textSecondary}
+                                        keyboardType="numeric"
+                                        autoFocus
+                                    />
+                                </View>
+                            </Animated.View>
 
-                        <Animated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 32 }}>
-                            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                Select Category
-                            </Text>
-                            <View style={styles.categoriesGrid}>
-                                {categories.map((cat, index) => {
-                                    const isSelected = selectedCategory?.id === cat.id;
-                                    return (
-                                        <Animated.View key={cat.id} entering={FadeInDown.delay(300 + index * 30).springify()}>
-                                            <TouchableOpacity
-                                                style={[
-                                                    styles.categoryItem,
-                                                    {
-                                                        backgroundColor: isSelected ? cat.color : (isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF"),
-                                                        borderColor: isSelected ? "transparent" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)"),
-                                                    }
-                                                ]}
-                                                onPress={() => setSelectedCategory(cat)}
-                                            >
-                                                <MaterialCommunityIcons
-                                                    // @ts-ignore
-                                                    name={cat.icon || "shape"}
-                                                    size={24}
-                                                    color={isSelected ? "#FFF" : cat.color}
-                                                />
-                                                <Text
+                            <Animated.View entering={FadeInDown.delay(200).springify()} style={{ marginTop: 32 }}>
+                                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                    Frequency
+                                </Text>
+                                <View style={[styles.periodToggle, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.periodOption,
+                                            period === "monthly" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
+                                        ]}
+                                        onPress={() => setPeriod("monthly")}
+                                    >
+                                        <Text style={[styles.periodText, { color: period === "monthly" ? "#FFF" : theme.colors.textSecondary }]}>Monthly</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.periodOption,
+                                            period === "yearly" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
+                                        ]}
+                                        onPress={() => setPeriod("yearly")}
+                                    >
+                                        <Text style={[styles.periodText, { color: period === "yearly" ? "#FFF" : theme.colors.textSecondary }]}>Yearly</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </Animated.View>
+
+                            <Animated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 32 }}>
+                                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                    Select Category
+                                </Text>
+                                <View style={styles.categoriesGrid}>
+                                    {categories.map((cat, index) => {
+                                        const isSelected = selectedCategory?.id === cat.id;
+                                        return (
+                                            <Animated.View key={cat.id} entering={FadeInDown.delay(300 + index * 30).springify()}>
+                                                <TouchableOpacity
                                                     style={[
-                                                        styles.categoryName,
-                                                        { color: isSelected ? "#FFF" : theme.colors.text, fontWeight: isSelected ? "700" : "500" }
+                                                        styles.categoryItem,
+                                                        {
+                                                            backgroundColor: isSelected ? cat.color : (isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF"),
+                                                            borderColor: isSelected ? "transparent" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)"),
+                                                        }
                                                     ]}
-                                                    numberOfLines={1}
+                                                    onPress={() => setSelectedCategory(cat)}
                                                 >
-                                                    {cat.name}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </Animated.View>
-                                    );
-                                })}
-                            </View>
-                        </Animated.View>
+                                                    <MaterialCommunityIcons
+                                                        // @ts-ignore
+                                                        name={cat.icon || "shape"}
+                                                        size={24}
+                                                        color={isSelected ? "#FFF" : cat.color}
+                                                    />
+                                                    <Text
+                                                        style={[
+                                                            styles.categoryName,
+                                                            { color: isSelected ? "#FFF" : theme.colors.text, fontWeight: isSelected ? "700" : "500" }
+                                                        ]}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {cat.name}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </Animated.View>
+                                        );
+                                    })}
+                                </View>
+                            </Animated.View>
+                        </View>
                     </ScrollView>
                 </KeyboardAvoidingView>
 
@@ -209,7 +206,7 @@ export default function QSBudgetCreationScreen() {
                     </TouchableOpacity>
                 </Animated.View>
             </View>
-        </TouchableWithoutFeedback>
+        </Container>
     );
 }
 

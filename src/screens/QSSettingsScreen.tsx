@@ -238,6 +238,21 @@ const QSSettingsScreen = () => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Developer Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Developer</Text>
+                    <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => router.push('/logs')}
+                    >
+                        <View style={styles.menuIcon}>
+                            <MaterialCommunityIcons name="code-tags" size={24} color={theme.colors.textSecondary} />
+                        </View>
+                        <Text style={styles.menuText}>View Logs</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+                </View>
+
                 {/* Account Section */}
                 <View style={styles.section}>
                     <TouchableOpacity

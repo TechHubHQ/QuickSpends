@@ -205,31 +205,36 @@ const QSCategoryManagementScreen = () => {
 
     return (
         <View style={styles.container}>
-            <QSHeader title="Manage Categories" showBack onBackPress={() => router.back()} />
-
-            <View style={styles.tabs}>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'expense' && styles.activeTab]}
-                    onPress={() => setActiveTab('expense')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'expense' && styles.activeTabText]}>Expense</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'income' && styles.activeTab]}
-                    onPress={() => setActiveTab('income')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'income' && styles.activeTabText]}>Income</Text>
-                </TouchableOpacity>
-            </View>
-
             {loading && expenseCategories.length === 0 ? (
-                <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
+                <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+                    <QSHeader title="Manage Categories" showBack onBackPress={() => router.back()} />
+                    <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
+                </View>
             ) : (
                 <FlatList
                     data={activeTab === 'expense' ? expenseCategories : incomeCategories}
                     renderItem={({ item }) => renderCategoryItem(item)}
                     keyExtractor={item => item.id}
                     contentContainerStyle={styles.list}
+                    ListHeaderComponent={
+                        <View>
+                            <QSHeader title="Manage Categories" showBack onBackPress={() => router.back()} />
+                            <View style={styles.tabs}>
+                                <TouchableOpacity
+                                    style={[styles.tab, activeTab === 'expense' && styles.activeTab]}
+                                    onPress={() => setActiveTab('expense')}
+                                >
+                                    <Text style={[styles.tabText, activeTab === 'expense' && styles.activeTabText]}>Expense</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.tab, activeTab === 'income' && styles.activeTab]}
+                                    onPress={() => setActiveTab('income')}
+                                >
+                                    <Text style={[styles.tabText, activeTab === 'income' && styles.activeTabText]}>Income</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    }
                 />
             )}
 

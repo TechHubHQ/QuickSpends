@@ -43,77 +43,76 @@ const QSNotificationSettingsScreen = () => {
 
     return (
         <View style={styles.container}>
-            <QSHeader title="Notification Preferences" showBack onBackPress={() => router.back()} />
-
-            <ScrollView contentContainerStyle={styles.content}>
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Alerts & Reminders</Text>
-                    {renderToggle(
-                        'Budget Alerts',
-                        'Get notified when you exceed 90% of your budget',
-                        'budgetAlerts',
-                        'chart-box-outline',
-                        '#F59E0B' // Amber
-                    )}
-                    {renderToggle(
-                        'Trip Budget Alerts',
-                        'Get notified when trip spending is high',
-                        'tripAlerts',
-                        'airplane',
-                        '#3B82F6' // Blue
-                    )}
-                    {renderToggle(
-                        'Bill Reminders',
-                        'Reminders for upcoming recurring payments',
-                        'billReminders',
-                        'calendar-clock',
-                        '#10B981' // Green
-                    )}
-                    {renderToggle(
-                        'Loan Due Dates',
-                        'Get reminded 3 days before a loan payment is due',
-                        'loanDueReminders',
-                        'calendar-alert',
-                        '#DC2626' // Red
-                    )}
-                    {renderToggle(
-                        'Loan Clearance',
-                        'Get notified when a loan is fully paid off',
-                        'loanPaidAlerts',
-                        'check-decagram',
-                        '#059669' // Emerald Green
-                    )}
-                    {renderToggle(
-                        'Savings Goals',
-                        'Celebrate when you reach your savings target',
-                        'savingsGoalAlerts',
-                        'piggy-bank',
-                        '#EC4899' // Pink
-                    )}
-                    {renderToggle(
-                        'Low Balance & High Dues',
-                        'Alert when balance is low or credit card dues are high',
-                        'lowBalanceAlerts',
-                        'bank-outline',
-                        '#EF4444' // Red
-                    )}
-                    {renderToggle(
-                        'Split Payments',
-                        'Reminders for pending split settlements',
-                        'splitReminders',
-                        'account-cash-outline',
-                        '#8B5CF6' // Purple
-                    )}
-                    {renderToggle(
-                        'Monthly Summary',
-                        'Receive a summary of your spending each month',
-                        'monthlySummary',
-                        'file-document-outline',
-                        theme.colors.text
-                    )}
+            <ScrollView>
+                <QSHeader title="Notification Preferences" showBack onBackPress={() => router.back()} />
+                <View style={styles.content}>
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Alerts & Reminders</Text>
+                        {renderToggle(
+                            'Budget Alerts',
+                            'Get notified when you exceed 90% of your budget',
+                            'budgetAlerts',
+                            'chart-box-outline',
+                            '#F59E0B' // Amber
+                        )}
+                        {renderToggle(
+                            'Trip Budget Alerts',
+                            'Get notified when trip spending is high',
+                            'tripAlerts',
+                            'airplane',
+                            '#3B82F6' // Blue
+                        )}
+                        {renderToggle(
+                            'Bill Reminders',
+                            'Reminders for upcoming recurring payments',
+                            'billReminders',
+                            'calendar-clock',
+                            '#10B981' // Green
+                        )}
+                        {renderToggle(
+                            'Loan Due Dates',
+                            'Get reminded 3 days before a loan payment is due',
+                            'loanDueReminders',
+                            'calendar-alert',
+                            '#DC2626' // Red
+                        )}
+                        {renderToggle(
+                            'Loan Clearance',
+                            'Get notified when a loan is fully paid off',
+                            'loanPaidAlerts',
+                            'check-decagram',
+                            '#059669' // Emerald Green
+                        )}
+                        {renderToggle(
+                            'Savings Goals',
+                            'Celebrate when you reach your savings target',
+                            'savingsGoalAlerts',
+                            'piggy-bank',
+                            '#EC4899' // Pink
+                        )}
+                        {renderToggle(
+                            'Low Balance & High Dues',
+                            'Alert when balance is low or credit card dues are high',
+                            'lowBalanceAlerts',
+                            'bank-outline',
+                            '#EF4444' // Red
+                        )}
+                        {renderToggle(
+                            'Split Payments',
+                            'Reminders for pending split settlements',
+                            'splitReminders',
+                            'account-cash-outline',
+                            '#8B5CF6' // Purple
+                        )}
+                        {renderToggle(
+                            'Monthly Summary',
+                            'Receive a summary of your spending each month',
+                            'monthlySummary',
+                            'file-document-outline',
+                            theme.colors.text
+                        )}
+                    </View>
                 </View>
-
-
             </ScrollView>
         </View>
     );

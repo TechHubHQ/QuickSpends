@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertButton, QSAlertModal } from "../components/QSAlertModal";
 import { QSDatePicker } from "../components/QSDatePicker";
 import { QSGroupPicker } from "../components/QSGroupPicker";
+import { QSHeader } from "../components/QSHeader";
 import { useAuth } from "../context/AuthContext";
 import { useGroups } from "../hooks/useGroups";
 import { useTrips } from "../hooks/useTrips";
@@ -255,8 +256,11 @@ export default function QSTripCreationScreen() {
         ? ["#0F172A", "#1E293B", "#0F172A"]
         : ["#F8FAFC", "#FFFFFF", "#F1F5F9"];
 
+    const Container: any = Platform.OS === "web" ? View : TouchableWithoutFeedback;
+    const containerProps = Platform.OS === "web" ? { style: { flex: 1 } } : { onPress: Keyboard.dismiss };
+
     return (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <Container {...containerProps}>
             <View style={{ flex: 1, backgroundColor: bgColor }}>
                 <LinearGradient
                     colors={gradColors as [string, string, ...string[]]}
@@ -265,217 +269,212 @@ export default function QSTripCreationScreen() {
                     end={{ x: 1, y: 1 }}
                 />
 
-                <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        style={[styles.backButton, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)" }]}
-                    >
-                        <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-                        {tripId ? "Edit Trip" : "Plan New Trip"}
-                    </Text>
-                    <View style={{ width: 44 }} />
-                </View>
-
                 <KeyboardAvoidingView
                     behavior={Platform.OS === "ios" ? "padding" : "height"}
                     style={{ flex: 1 }}
                 >
                     <ScrollView
-                        contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 24 }}
+                        contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 0 }}
                         showsVerticalScrollIndicator={false}
                     >
-                        {/* Trip Name */}
-                        <Animated.View entering={FadeInDown.delay(100).springify()}>
-                            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                Where are you going?
-                            </Text>
-                            <View style={[styles.inputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
-                                <TextInput
-                                    style={[styles.nameInput, { color: theme.colors.text }]}
-                                    value={name}
-                                    onChangeText={setName}
-                                    placeholder="Trip Name (e.g. Goa Vibes)"
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    autoFocus={!tripId}
-                                    multiline={false}
-                                    numberOfLines={1}
-                                />
-                            </View>
-                        </Animated.View>
+                        <QSHeader
+                            title={tripId ? "Edit Trip" : "Plan New Trip"}
+                            showBack
+                            onBackPress={() => router.back()}
+                        />
+                        <View style={{ paddingHorizontal: 24 }}>
 
-                        {/* Trip Type Toggle - Disable if Editing (Complexity: changing group vs solo mid-trip is hard) */}
-                        {/* Actually, let's allow it if user really wants, but warn? Or just disable to keep simple. */}
-                        {/* Let's disable Type switching in Edit mode for now to avoid consistency issues */}
-                        <Animated.View entering={FadeInDown.delay(200).springify()} style={{ marginTop: 32 }}>
-                            <View style={{ opacity: tripId ? 0.6 : 1 }}>
+                            {/* Trip Name */}
+                            <Animated.View entering={FadeInDown.delay(100).springify()}>
                                 <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                    Trip Type {tripId && "(Cannot be changed)"}
+                                    Where are you going?
                                 </Text>
-                                <View style={[styles.toggleContainer, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.toggleOption,
-                                            tripType === "solo" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                        ]}
-                                        onPress={() => !tripId && setTripType("solo")}
-                                        disabled={!!tripId}
-                                    >
-                                        <MaterialCommunityIcons name="account" size={18} color={tripType === "solo" ? "#FFF" : theme.colors.textSecondary} />
-                                        <Text style={[styles.toggleText, { color: tripType === "solo" ? "#FFF" : theme.colors.textSecondary }]}>Solo</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.toggleOption,
-                                            tripType === "group" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                        ]}
-                                        onPress={() => !tripId && setTripType("group")}
-                                        disabled={!!tripId}
-                                    >
-                                        <MaterialCommunityIcons name="account-group" size={18} color={tripType === "group" ? "#FFF" : theme.colors.textSecondary} />
-                                        <Text style={[styles.toggleText, { color: tripType === "group" ? "#FFF" : theme.colors.textSecondary }]}>Group</Text>
-                                    </TouchableOpacity>
+                                <View style={[styles.inputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
+                                    <TextInput
+                                        style={[styles.nameInput, { color: theme.colors.text }]}
+                                        value={name}
+                                        onChangeText={setName}
+                                        placeholder="Trip Name (e.g. Goa Vibes)"
+                                        placeholderTextColor={theme.colors.textSecondary}
+                                        autoFocus={!tripId}
+                                        multiline={false}
+                                        numberOfLines={1}
+                                    />
                                 </View>
-                            </View>
-                        </Animated.View>
+                            </Animated.View>
 
-                        {/* Group Selection (Conditional) */}
-                        {tripType === "group" && (
-                            <Animated.View entering={FadeInDown.springify()} style={{ marginTop: 24 }}>
+                            {/* Trip Type Toggle - Disable if Editing (Complexity: changing group vs solo mid-trip is hard) */}
+                            {/* Actually, let's allow it if user really wants, but warn? Or just disable to keep simple. */}
+                            {/* Let's disable Type switching in Edit mode for now to avoid consistency issues */}
+                            <Animated.View entering={FadeInDown.delay(200).springify()} style={{ marginTop: 32 }}>
                                 <View style={{ opacity: tripId ? 0.6 : 1 }}>
                                     <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                        Select Group {tripId && "(Cannot be changed)"}
+                                        Trip Type {tripId && "(Cannot be changed)"}
                                     </Text>
+                                    <View style={[styles.toggleContainer, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.toggleOption,
+                                                tripType === "solo" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
+                                            ]}
+                                            onPress={() => !tripId && setTripType("solo")}
+                                            disabled={!!tripId}
+                                        >
+                                            <MaterialCommunityIcons name="account" size={18} color={tripType === "solo" ? "#FFF" : theme.colors.textSecondary} />
+                                            <Text style={[styles.toggleText, { color: tripType === "solo" ? "#FFF" : theme.colors.textSecondary }]}>Solo</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.toggleOption,
+                                                tripType === "group" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
+                                            ]}
+                                            onPress={() => !tripId && setTripType("group")}
+                                            disabled={!!tripId}
+                                        >
+                                            <MaterialCommunityIcons name="account-group" size={18} color={tripType === "group" ? "#FFF" : theme.colors.textSecondary} />
+                                            <Text style={[styles.toggleText, { color: tripType === "group" ? "#FFF" : theme.colors.textSecondary }]}>Group</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </Animated.View>
+
+                            {/* Group Selection (Conditional) */}
+                            {tripType === "group" && (
+                                <Animated.View entering={FadeInDown.springify()} style={{ marginTop: 24 }}>
+                                    <View style={{ opacity: tripId ? 0.6 : 1 }}>
+                                        <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                            Select Group {tripId && "(Cannot be changed)"}
+                                        </Text>
+                                        <TouchableOpacity
+                                            style={[styles.selectorButton, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF", borderColor: theme.colors.border }]}
+                                            onPress={() => !tripId && setShowGroupPicker(true)}
+                                            disabled={!!tripId}
+                                        >
+                                            <View style={styles.selectorContent}>
+                                                <MaterialCommunityIcons name="account-group-outline" size={24} color={theme.colors.primary} />
+                                                <Text style={[styles.selectorText, { color: selectedGroup ? theme.colors.text : theme.colors.textSecondary }]}>
+                                                    {selectedGroup ? selectedGroup.name : "Choose a group"}
+                                                </Text>
+                                            </View>
+                                            {!tripId && <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />}
+                                        </TouchableOpacity>
+                                    </View>
+                                </Animated.View>
+                            )}
+
+                            {/* Date Range */}
+                            <Animated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 32 }}>
+                                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                    When is it happening?
+                                </Text>
+                                <View style={styles.dateRow}>
                                     <TouchableOpacity
-                                        style={[styles.selectorButton, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF", borderColor: theme.colors.border }]}
-                                        onPress={() => !tripId && setShowGroupPicker(true)}
-                                        disabled={!!tripId}
+                                        style={[styles.dateButton, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF", borderColor: theme.colors.border }]}
+                                        onPress={() => setShowStartDatePicker(true)}
                                     >
-                                        <View style={styles.selectorContent}>
-                                            <MaterialCommunityIcons name="account-group-outline" size={24} color={theme.colors.primary} />
-                                            <Text style={[styles.selectorText, { color: selectedGroup ? theme.colors.text : theme.colors.textSecondary }]}>
-                                                {selectedGroup ? selectedGroup.name : "Choose a group"}
-                                            </Text>
-                                        </View>
-                                        {!tripId && <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />}
+                                        <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>Start Date</Text>
+                                        <Text style={[styles.dateValue, { color: theme.colors.text }]}>{formatDate(startDate)}</Text>
+                                    </TouchableOpacity>
+
+                                    <View style={styles.dateSeparator}>
+                                        <MaterialCommunityIcons name="arrow-right" size={20} color={theme.colors.textTertiary} />
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={[styles.dateButton, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF", borderColor: theme.colors.border }]}
+                                        onPress={() => setShowEndDatePicker(true)}
+                                    >
+                                        <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>End Date</Text>
+                                        <Text style={[styles.dateValue, { color: theme.colors.text }]}>{formatDate(endDate)}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </Animated.View>
-                        )}
 
-                        {/* Date Range */}
-                        <Animated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 32 }}>
-                            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                When is it happening?
-                            </Text>
-                            <View style={styles.dateRow}>
-                                <TouchableOpacity
-                                    style={[styles.dateButton, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF", borderColor: theme.colors.border }]}
-                                    onPress={() => setShowStartDatePicker(true)}
-                                >
-                                    <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>Start Date</Text>
-                                    <Text style={[styles.dateValue, { color: theme.colors.text }]}>{formatDate(startDate)}</Text>
-                                </TouchableOpacity>
-
-                                <View style={styles.dateSeparator}>
-                                    <MaterialCommunityIcons name="arrow-right" size={20} color={theme.colors.textTertiary} />
-                                </View>
-
-                                <TouchableOpacity
-                                    style={[styles.dateButton, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF", borderColor: theme.colors.border }]}
-                                    onPress={() => setShowEndDatePicker(true)}
-                                >
-                                    <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>End Date</Text>
-                                    <Text style={[styles.dateValue, { color: theme.colors.text }]}>{formatDate(endDate)}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </Animated.View>
-
-                        {/* Budget */}
-                        <Animated.View entering={FadeInDown.delay(400).springify()} style={{ marginTop: 32 }}>
-                            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                Budget (Optional)
-                            </Text>
-                            <View style={[styles.amountInputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
-                                <Text style={[styles.currencyPrefix, { color: theme.colors.primary }]}>₹</Text>
-                                <TextInput
-                                    style={[styles.amountInput, { color: theme.colors.text }]}
-                                    value={budget}
-                                    onChangeText={setBudget}
-                                    placeholder="0"
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    keyboardType="numeric"
-                                    multiline={false}
-                                    numberOfLines={1}
-                                    textAlignVertical="center"
-                                />
-                            </View>
-                        </Animated.View>
-
-                        {/* Location Selection */}
-                        <Animated.View entering={FadeInDown.delay(450).springify()} style={{ marginTop: 32 }}>
-                            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                Where are you heading?
-                            </Text>
-                            <View style={[styles.toggleContainer, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)", marginBottom: 16 }]}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.toggleOption,
-                                        tripMode === "single" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                    ]}
-                                    onPress={() => setTripMode("single")}
-                                >
-                                    <Text style={[styles.toggleText, { color: tripMode === "single" ? "#FFF" : theme.colors.textSecondary }]}>Single</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.toggleOption,
-                                        tripMode === "multi" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                    ]}
-                                    onPress={() => setTripMode("multi")}
-                                >
-                                    <Text style={[styles.toggleText, { color: tripMode === "multi" ? "#FFF" : theme.colors.textSecondary }]}>Multi-city</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {tripMode === "single" ? (
-                                <View style={[styles.inputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
+                            {/* Budget */}
+                            <Animated.View entering={FadeInDown.delay(400).springify()} style={{ marginTop: 32 }}>
+                                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                    Budget (Optional)
+                                </Text>
+                                <View style={[styles.amountInputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
+                                    <Text style={[styles.currencyPrefix, { color: theme.colors.primary }]}>₹</Text>
                                     <TextInput
-                                        style={[styles.nameInput, { color: theme.colors.text, fontSize: 18 }]}
-                                        value={locations[0]}
-                                        onChangeText={(text) => updateLocation(text, 0)}
-                                        placeholder="Enter city or place"
+                                        style={[styles.amountInput, { color: theme.colors.text }]}
+                                        value={budget}
+                                        onChangeText={setBudget}
+                                        placeholder="0"
                                         placeholderTextColor={theme.colors.textSecondary}
+                                        keyboardType="numeric"
+                                        multiline={false}
+                                        numberOfLines={1}
+                                        textAlignVertical="center"
                                     />
                                 </View>
-                            ) : (
-                                <View style={{ gap: 12 }}>
-                                    {locations.map((loc, index) => (
-                                        <View key={index} style={styles.multiLocationRow}>
-                                            <View style={[styles.inputContainer, { flex: 1, borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
-                                                <TextInput
-                                                    style={[styles.nameInput, { color: theme.colors.text, fontSize: 16, height: 40 }]}
-                                                    value={loc}
-                                                    onChangeText={(text) => updateLocation(text, index)}
-                                                    placeholder={`Stop ${index + 1}`}
-                                                    placeholderTextColor={theme.colors.textSecondary}
-                                                />
-                                            </View>
-                                            {locations.length > 1 && (
-                                                <TouchableOpacity onPress={() => removeLocation(index)} style={styles.removeLocButton}>
-                                                    <MaterialCommunityIcons name="close-circle-outline" size={24} color={theme.colors.error} />
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    ))}
-                                    <TouchableOpacity style={styles.addLocButton} onPress={addLocationField}>
-                                        <MaterialCommunityIcons name="plus-circle-outline" size={20} color={theme.colors.primary} />
-                                        <Text style={[styles.addLocText, { color: theme.colors.primary }]}>Add another stop</Text>
+                            </Animated.View>
+
+                            {/* Location Selection */}
+                            <Animated.View entering={FadeInDown.delay(450).springify()} style={{ marginTop: 32 }}>
+                                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                    Where are you heading?
+                                </Text>
+                                <View style={[styles.toggleContainer, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)", marginBottom: 16 }]}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.toggleOption,
+                                            tripMode === "single" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
+                                        ]}
+                                        onPress={() => setTripMode("single")}
+                                    >
+                                        <Text style={[styles.toggleText, { color: tripMode === "single" ? "#FFF" : theme.colors.textSecondary }]}>Single</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.toggleOption,
+                                            tripMode === "multi" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
+                                        ]}
+                                        onPress={() => setTripMode("multi")}
+                                    >
+                                        <Text style={[styles.toggleText, { color: tripMode === "multi" ? "#FFF" : theme.colors.textSecondary }]}>Multi-city</Text>
                                     </TouchableOpacity>
                                 </View>
-                            )}
-                        </Animated.View>
+
+                                {tripMode === "single" ? (
+                                    <View style={[styles.inputContainer, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
+                                        <TextInput
+                                            style={[styles.nameInput, { color: theme.colors.text, fontSize: 18 }]}
+                                            value={locations[0]}
+                                            onChangeText={(text) => updateLocation(text, 0)}
+                                            placeholder="Enter city or place"
+                                            placeholderTextColor={theme.colors.textSecondary}
+                                        />
+                                    </View>
+                                ) : (
+                                    <View style={{ gap: 12 }}>
+                                        {locations.map((loc, index) => (
+                                            <View key={index} style={styles.multiLocationRow}>
+                                                <View style={[styles.inputContainer, { flex: 1, borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
+                                                    <TextInput
+                                                        style={[styles.nameInput, { color: theme.colors.text, fontSize: 16, height: 40 }]}
+                                                        value={loc}
+                                                        onChangeText={(text) => updateLocation(text, index)}
+                                                        placeholder={`Stop ${index + 1}`}
+                                                        placeholderTextColor={theme.colors.textSecondary}
+                                                    />
+                                                </View>
+                                                {locations.length > 1 && (
+                                                    <TouchableOpacity onPress={() => removeLocation(index)} style={styles.removeLocButton}>
+                                                        <MaterialCommunityIcons name="close-circle-outline" size={24} color={theme.colors.error} />
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        ))}
+                                        <TouchableOpacity style={styles.addLocButton} onPress={addLocationField}>
+                                            <MaterialCommunityIcons name="plus-circle-outline" size={20} color={theme.colors.primary} />
+                                            <Text style={[styles.addLocText, { color: theme.colors.primary }]}>Add another stop</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </Animated.View>
+                        </View>
                     </ScrollView>
                 </KeyboardAvoidingView>
 
@@ -534,7 +533,7 @@ export default function QSTripCreationScreen() {
                     buttons={alertConfig.buttons}
                 />
             </View>
-        </TouchableWithoutFeedback>
+        </Container>
     );
 }
 

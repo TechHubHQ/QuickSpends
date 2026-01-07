@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { NotificationPreferencesProvider } from "../src/context/NotificationPreferencesContext";
 import { useNotifications } from "../src/hooks/useNotifications";
 import { useTransactions } from "../src/hooks/useTransactions";
+import { Logger } from "../src/services/logger";
 import { ThemeProvider } from "../src/theme/ThemeContext";
 
 function AppContent() {
@@ -34,6 +35,9 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    Logger.info('App Initialized');
+  }, []);
 
   return (
     <AuthProvider>

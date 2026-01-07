@@ -356,8 +356,7 @@ export const notificationRules: NotificationRule[] = [
                 .from('savings')
                 .select('*')
                 .eq('user_id', userId)
-                .filter('current_amount', 'gte', 'target_amount') // Note: filter might not work directly with two columns in some Supabase versions, but using 'gte' with the value from the record in JS or using .custom() if available. Actually, Supabase .filter('current_amount', 'gte', target_amount) usually compares to a value.
-                // Let's use a more robust check in JS if column-to-column comparison is needed.
+
                 .eq('goal_reached_notification_sent', false);
 
             for (const saving of (achievedSavings || [])) {
