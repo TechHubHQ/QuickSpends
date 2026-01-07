@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
 export interface Trip {
@@ -18,6 +19,7 @@ export interface Trip {
 }
 
 export const useTrips = () => {
+    const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -26,11 +28,15 @@ export const useTrips = () => {
         setError(null);
         try {
             // 1. Fetch trips
-            const { data: tripsData, error: tripsError } = await supabase
-                .from('trips')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false });
+            // We want all trips visible to the user (owned + shared) if fetching for self.
+            // If fetching for another user, we strictly filter by their ownership.
+            let query = supabase.from('trips').select('*');
+
+            if (!user || user.id !== userId) {
+                query = query.eq('user_id', userId);
+            }
+
+            const { data: tripsData, error: tripsError } = await query.order('created_at', { ascending: false });
 
             if (tripsError) throw tripsError;
 
@@ -100,14 +106,39 @@ export const useTrips = () => {
         setLoading(true);
         setError(null);
         try {
-            const { error } = await supabase
+            const { data: newTrip, error } = await supabase
                 .from('trips')
                 .insert({
                     ...trip,
                     locations: trip.locations ? JSON.stringify(trip.locations) : null
-                });
+                })
+                .select()
+                .single();
 
             if (error) throw error;
+
+            // Notify group members if it's a group trip
+            if (trip.group_id && newTrip) {
+                const { data: group } = await supabase.from('groups').select('name').eq('id', trip.group_id).single();
+                const { data: creator } = await supabase.from('profiles').select('username').eq('id', trip.user_id).single();
+                const { data: members } = await supabase.from('group_members').select('user_id').eq('group_id', trip.group_id);
+
+                if (members && members.length > 0) {
+                    const membersToNotify = members.filter(m => m.user_id !== trip.user_id);
+                    const notificationPromises = membersToNotify.map(m =>
+                        supabase.from('notifications').insert({
+                            user_id: m.user_id,
+                            type: 'info',
+                            title: 'New Group Trip',
+                            message: `${creator?.username || 'A member'} added a new trip "${trip.name}" to "${group?.name || 'your group'}".`,
+                            data: { tripId: newTrip.id, groupId: trip.group_id },
+                            is_read: false
+                        })
+                    );
+                    await Promise.all(notificationPromises);
+                }
+            }
+
             return { success: true };
         } catch (err: any) {
             setError(err.message);

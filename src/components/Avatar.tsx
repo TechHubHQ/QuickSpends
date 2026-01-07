@@ -24,6 +24,11 @@ export const Avatar = ({
     const { theme } = useTheme();
 
     const avatarSource = useMemo(() => {
+        // Check if seed is a remote URL (http/https) or local file URI
+        if (seed && (typeof seed === 'string') && (seed.startsWith('http') || seed.startsWith('file:'))) {
+            return { uri: seed };
+        }
+
         // If seed is a number string within range, use it directly (for explicit selection)
         if (/^\d+$/.test(seed)) {
             const index = parseInt(seed, 10);

@@ -75,7 +75,10 @@ export default function QSHomeScreen() {
 
             const balance = assets - liabilities;
             setTotalBalance(balance);
-            getBalanceTrend(user!.id, balance).then(setBalanceTrend);
+
+            if (user?.id) {
+                getBalanceTrend(user.id, balance).then(setBalanceTrend);
+            }
         }
     }, [accounts, loans, excludeCreditCards, user, getBalanceTrend]);
 

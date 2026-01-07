@@ -102,21 +102,29 @@ export const useNotifications = () => {
         }
     }, []);
 
-    const sendInvite = useCallback(async (fromUserName: string, toEmail: string, groupName: string, groupId: string) => {
+    const sendInvite = useCallback(async (fromUserName: string, toEmail: string, groupName: string, groupId: string, toUserId?: string) => {
         setLoading(true);
         try {
-            // 1. Find the user by email (profile)
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('email', toEmail)
-                .maybeSingle();
+            let userId = toUserId;
 
-            if (!profile) {
+            // 1. If no userId provided, find the user by email (profile)
+            if (!userId) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('email', toEmail)
+                    .maybeSingle();
+
+                if (profile) {
+                    userId = profile.id;
+                }
+            }
+
+            if (!userId) {
                 return { success: true, message: `Invite sent to ${toEmail}` };
             }
 
-            if (currentUser && profile.id === currentUser.id) {
+            if (currentUser && userId === currentUser.id) {
                 return { success: false, message: "You cannot invite yourself." };
             }
 
@@ -124,7 +132,7 @@ export const useNotifications = () => {
             await supabase
                 .from('notifications')
                 .insert({
-                    user_id: profile.id,
+                    user_id: userId,
                     type: 'invite',
                     title: 'Group Invitation',
                     message: `${fromUserName} invited you to join "${groupName}"`,

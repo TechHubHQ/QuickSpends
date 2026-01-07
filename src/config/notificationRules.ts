@@ -114,7 +114,7 @@ export const notificationRules: NotificationRule[] = [
         check: async ({ supabase, userId, createNotification }) => {
             const { data: trips } = await supabase
                 .from('trips')
-                .select('*')
+                .select(`*, group:groups(*)`)
                 .eq('user_id', userId)
                 .eq('alert_sent', false)
                 .not('budget_amount', 'is', null);
@@ -129,12 +129,36 @@ export const notificationRules: NotificationRule[] = [
                 const spent = (transactions || []).reduce((sum, t) => sum + t.amount, 0);
 
                 if (spent >= (trip.budget_amount * 0.9)) {
-                    await createNotification(
-                        'Trip Budget Alert',
-                        `You've used 90% of your budget for "${trip.name}" (₹${spent}/${trip.budget_amount}).`,
-                        'alert',
-                        { tripId: trip.id }
-                    );
+                    // Check if group trip
+                    if (trip.group) {
+                        const { data: groupMembers } = await supabase
+                            .from('group_members')
+                            .select('user_id')
+                            .eq('group_id', trip.group.id);
+
+                        if (groupMembers && groupMembers.length > 0) {
+                            const notificationPromises = groupMembers.map(async (member) => {
+                                await supabase.from('notifications').insert({
+                                    user_id: member.user_id,
+                                    type: 'alert',
+                                    title: 'Trip Budget Alert',
+                                    message: `You've used 90% of the budget for "${trip.name}" (₹${spent}/${trip.budget_amount}).`,
+                                    data: { tripId: trip.id },
+                                    is_read: false
+                                });
+                            });
+                            await Promise.all(notificationPromises);
+                        }
+                    } else {
+                        // Solo trip
+                        await createNotification(
+                            'Trip Budget Alert',
+                            `You've used 90% of your budget for "${trip.name}" (₹${spent}/${trip.budget_amount}).`,
+                            'alert',
+                            { tripId: trip.id }
+                        );
+                    }
+
                     await supabase
                         .from('trips')
                         .update({ alert_sent: true })

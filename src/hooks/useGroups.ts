@@ -137,11 +137,15 @@ export const useGroups = () => {
             // 1. Get Group Info
             const { data: group, error: groupError } = await supabase
                 .from('groups')
-                .select('*')
+                .select('*, trip:trips!groups_trip_id_fkey(*)')
                 .eq('id', groupId)
                 .single();
 
-            if (groupError || !group) throw new Error('Group not found');
+            if (groupError) {
+                console.error("fetchGroupDetails groupError:", groupError);
+                throw new Error(groupError.message);
+            }
+            if (!group) throw new Error('Group not found');
 
             // 2. Get Members with Profiles
             const { data: members, error: membersError } = await supabase
@@ -307,6 +311,44 @@ export const useGroups = () => {
                 })));
 
             if (error) throw error;
+
+            // Send Notifications
+            for (const txnId of transactionIds) {
+                const { data: txn } = await supabase
+                    .from('transactions')
+                    .select('*, payer:profiles!transactions_user_id_fkey(username)')
+                    .eq('id', txnId)
+                    .single();
+
+                if (!txn) continue;
+
+                // Identify if Settlement
+                const isSettlement = txn.category_id === 'settlement' || txn.name === 'Settlement';
+                const txSplits = splits.filter(s => s.transactionId === txnId);
+
+                const notifications = txSplits.map(s => {
+                    if (s.userId === txn.user_id) return null; // Don't notify the payer/creator
+
+                    let title = isSettlement ? 'Settlement Received' : 'Expense Split';
+                    let message = isSettlement
+                        ? `${txn.payer?.username || 'Someone'} settled ₹${s.amount} with you.`
+                        : `${txn.payer?.username || 'Someone'} added you to a split for "${txn.name}". You owe ₹${s.amount}.`;
+
+                    return {
+                        user_id: s.userId,
+                        type: isSettlement ? 'success' : 'info',
+                        title,
+                        message,
+                        data: { transactionId: txnId, groupId },
+                        is_read: false
+                    };
+                }).filter(n => n !== null);
+
+                if (notifications.length > 0) {
+                    await supabase.from('notifications').insert(notifications);
+                }
+            }
+
         } catch (err: any) {
             console.error("saveSplits error:", err);
             setError(err.message);
@@ -317,10 +359,12 @@ export const useGroups = () => {
     }, []);
 
     const addMembersToGroup = useCallback(async (groupId: string, members: { name: string, email: string, id?: string }[]) => {
-        if (!members || members.length === 0) return;
+        if (!members || members.length === 0) return [];
 
         setLoading(true);
         setError(null);
+        const addedMembers: { name: string, email: string, id: string }[] = [];
+
         try {
             for (const member of members) {
                 let userId = member.id;
@@ -368,11 +412,14 @@ export const useGroups = () => {
                                 status: 'invited'
                             });
                     }
+                    addedMembers.push({ ...member, id: userId });
                 }
             }
+            return addedMembers;
         } catch (err: any) {
             console.error("addMembersToGroup error:", err);
             setError(err.message);
+            return [];
         } finally {
             setLoading(false);
         }

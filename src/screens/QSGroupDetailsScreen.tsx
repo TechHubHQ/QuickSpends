@@ -30,12 +30,21 @@ interface GroupDetails {
     };
     created_at: string;
     created_by: string;
+    trip?: {
+        id: string;
+        name: string;
+        start_date: string;
+        end_date: string;
+        image_url: string;
+    }
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function QSGroupDetailsScreen() {
-    const { id } = useLocalSearchParams();
+    const { id: rawId } = useLocalSearchParams();
+    const id = Array.isArray(rawId) ? rawId[0] : rawId;
+    console.log("QSGroupDetailsScreen id:", id, "rawId:", rawId);
     const router = useRouter();
     const { theme } = useTheme();
     const { user } = useAuth();
@@ -86,11 +95,13 @@ export default function QSGroupDetailsScreen() {
     const handleMembersAdd = async (newMembers: { name: string, email: string, id?: string }[]) => {
         if (!group || newMembers.length === 0 || !user) return;
 
-        await addMembersToGroup(group.id, newMembers);
+        const addedMembers = await addMembersToGroup(group.id, newMembers);
 
         // Send Invites to each new member
-        for (const member of newMembers) {
-            await sendInvite(user.username, member.email, group.name, group.id);
+        if (addedMembers && addedMembers.length > 0) {
+            for (const member of addedMembers) {
+                await sendInvite(user.username, member.email, group.name, group.id, member.id);
+            }
         }
 
         await fetchDetails(); // Refresh to show new members
@@ -308,8 +319,43 @@ export default function QSGroupDetailsScreen() {
                     onBackPress={() => router.back()}
                     rightIcon="cog"
                     onRightPress={() => { }}
-                    style={{ marginBottom: 8 }}
                 />
+
+                {/* Linked Trip Banner */}
+                {group.trip && (
+                    <TouchableOpacity
+                        style={{
+                            marginHorizontal: theme.spacing.l,
+                            marginBottom: 16,
+                            padding: 12,
+                            backgroundColor: theme.colors.card,
+                            borderRadius: 16,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 12,
+                            borderWidth: 1,
+                            borderColor: theme.colors.border,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.05,
+                            shadowRadius: 4,
+                            elevation: 2,
+                        }}
+                        onPress={() => router.push({ pathname: "/trip/[id]", params: { id: group.trip?.id! } })}
+                    >
+                        <View style={{
+                            width: 40, height: 40, borderRadius: 10, backgroundColor: '#0ea5e920',
+                            alignItems: 'center', justifyContent: 'center'
+                        }}>
+                            <MaterialCommunityIcons name="airplane" size={20} color="#0ea5e9" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 12, color: theme.colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', marginBottom: 2 }}>Linked Trip</Text>
+                            <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.text }}>{group.trip.name}</Text>
+                        </View>
+                        <MaterialIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                )}
 
                 {/* Hero Stats Card */}
                 <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.heroCard}>
