@@ -23,9 +23,14 @@ export const QSAccountCard: React.FC<QSAccountCardProps> = ({ account, monthIn, 
     const isDebit = account.type === 'card' && account.card_type === 'debit';
     const isBank = account.type === 'bank';
     const isCash = account.type === 'cash';
+    const isRuPay = isCredit && account.linked_account_id;
 
     // Design tokens based on account type
     const getCardGradient = () => {
+        if (isRuPay) {
+            // Premium Metallic Silver Gradient for RuPay
+            return ['#1d2126ff', '#8891a3ff', '#38414dff'] as const;
+        }
         if (isCredit || isCash) {
             return ['#1e293b', '#0f172a', '#020617'] as const;
         }
@@ -36,6 +41,10 @@ export const QSAccountCard: React.FC<QSAccountCardProps> = ({ account, monthIn, 
     };
 
     const getDecorationColors = () => {
+        if (isRuPay) return {
+            c1: ['rgba(255, 255, 255, 0.2)', 'transparent'] as const,
+            c2: ['rgba(255, 255, 255, 0.3)', 'transparent'] as const // White shine
+        };
         if (isCash) return {
             c1: ['rgba(52, 211, 153, 0.3)', 'transparent'] as const,
             c2: ['rgba(59, 130, 246, 0.15)', 'transparent'] as const
@@ -53,6 +62,7 @@ export const QSAccountCard: React.FC<QSAccountCardProps> = ({ account, monthIn, 
     const decColors = getDecorationColors();
 
     const getIcon = () => {
+        if (isRuPay) return 'credit-card-chip';
         if (isBank) return 'bank';
         if (isCash) return 'cash';
         return 'credit-card';
@@ -77,7 +87,7 @@ export const QSAccountCard: React.FC<QSAccountCardProps> = ({ account, monthIn, 
     // Credit Card Logic: Primary Display is Available Balance (which is now stored as balance)
     const showAvailable = isCredit;
     const primaryAmount = account.balance;
-    const primaryLabel = showAvailable ? "AVAILABLE BALANCE" : (isCash ? "CASH ON HAND" : "BALANCE");
+    const primaryLabel = showAvailable ? "AVAILABLE LIMIT" : (isCash ? "CASH ON HAND" : "BALANCE");
 
     return (
         <View style={styles.cardContainer}>
@@ -110,10 +120,21 @@ export const QSAccountCard: React.FC<QSAccountCardProps> = ({ account, monthIn, 
                         <View>
                             <Text style={styles.bankName}>{account.name}</Text>
                             {isCash && <Text style={[styles.typeText, { opacity: 0.6, fontSize: 10, marginTop: 2 }]}>Personal Cash</Text>}
+                            {isRuPay && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, marginRight: 4 }}>
+                                        <Text style={{ color: '#FFF', fontSize: 8, fontWeight: '700' }}>SHARED</Text>
+                                    </View>
+                                </View>
+                            )}
                         </View>
                     </View>
                     <View style={styles.typeBadge}>
-                        <Text style={styles.typeText}>{account.currency || 'INR'}</Text>
+                         {isRuPay ? (
+                            <Text style={[styles.typeText, { fontWeight: '900', fontStyle: 'italic', color: '#fff' }]}>RuPay</Text>
+                         ) : (
+                            <Text style={styles.typeText}>{account.currency || 'INR'}</Text>
+                         )}
                     </View>
                 </View>
 
@@ -139,8 +160,8 @@ export const QSAccountCard: React.FC<QSAccountCardProps> = ({ account, monthIn, 
 
                     {!isCash && (
                         <View style={{ marginTop: 15, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34D399' }} />
-                            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>ACTIVE</Text>
+                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isRuPay ? '#FDE047' : '#34D399' }} />
+                            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>{isRuPay ? 'LINKED' : 'ACTIVE'}</Text>
                         </View>
                     )}
 

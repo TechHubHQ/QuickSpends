@@ -19,17 +19,19 @@ import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../hooks/useAccounts";
 import { createStyles } from "../styles/QSSetupAccount.styles";
 
-type AccountType = 'bank' | 'debit' | 'credit' | 'wallet';
+type AccountType = 'bank' | 'debit' | 'credit' | 'wallet' | 'shared_rupay';
 
 interface AccountTypeOption {
     id: AccountType;
     label: string;
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
     color: string;
+    description?: string;
 }
 
 const ACCOUNT_TYPES: AccountTypeOption[] = [
     { id: 'credit', label: 'Credit Card', icon: 'credit-card', color: '#137FEC' },
+    { id: 'shared_rupay', label: 'Shared RuPay', icon: 'credit-card-chip', color: '#9ca3af', description: 'Link to existing card' },
     { id: 'bank', label: 'Debit / Bank', icon: 'bank', color: '#10B981' },
     { id: 'wallet', label: 'Cash Wallet', icon: 'cash', color: '#F59E0B' },
 ];
@@ -59,25 +61,51 @@ export default function QSSetupAccountScreen() {
     const [balance, setBalance] = useState("");
     const [creditLimit, setCreditLimit] = useState("");
     const [last4, setLast4] = useState("");
+    
+    // Shared RuPay State
+    const [parentAccounts, setParentAccounts] = useState<any[]>([]);
+    const [selectedParentId, setSelectedParentId] = useState<string>("");
+    const [isSharedLimit, setIsSharedLimit] = useState(false);
+
     const [errors, setErrors] = useState<{
         name?: string;
         balance?: string;
         creditLimit?: string;
         last4?: string;
+        parent?: string;
     }>({});
 
     React.useEffect(() => {
         if (user) {
             getAccountsByUser(user.id).then(accounts => {
-                setHasAccounts(accounts.length > 0);
+                const existing = accounts.length > 0;
+                setHasAccounts(existing);
+                
+                // Filter for potential parent cards (Credit Cards)
+                // If editing, exclude self
+                const creditCards = accounts.filter(a => 
+                    a.type === 'card' && 
+                    a.card_type === 'credit' && 
+                    (!a.linked_account_id) && // Can't link to a child
+                    (accountId ? a.id !== accountId : true)
+                );
+                setParentAccounts(creditCards);
+
                 if (accountId) {
                     const account = accounts.find(a => a.id === accountId);
                     if (account) {
                         setAccountName(account.name);
                         setBalance(account.balance.toString());
+                        
                         if (account.type === 'cash') setSelectedType('wallet');
                         else if (account.type === 'card' && account.card_type === 'credit') {
-                            setSelectedType('credit');
+                            if (account.linked_account_id) {
+                                setSelectedType('shared_rupay');
+                                setSelectedParentId(account.linked_account_id);
+                                setIsSharedLimit(account.is_shared_limit || false);
+                            } else {
+                                setSelectedType('credit');
+                            }
                             setCreditLimit(account.credit_limit?.toString() || "");
                         }
                         else if (account.type === 'card' && account.card_type === 'debit') setSelectedType('debit');
@@ -93,10 +121,28 @@ export default function QSSetupAccountScreen() {
     const validateForm = () => {
         const newErrors: typeof errors = {};
         if (!accountName.trim()) newErrors.name = "Account name is required";
-        if (!accountId && !balance.trim()) newErrors.balance = "Initial balance is required";
+        
+        // Balance validaton
+        // For shared rupay, assume balance is calculated/synced unless custom limit
+        if (!accountId && !balance.trim() && !(selectedType === 'shared_rupay' && isSharedLimit)) {
+             newErrors.balance = "Initial balance is required";
+        }
+
         if (selectedType === 'credit' && !creditLimit.trim()) {
             newErrors.creditLimit = "Credit limit is required";
         }
+        
+        if (selectedType === 'shared_rupay') {
+            if (!selectedParentId) newErrors.parent = "Parent card is required";
+            if (!isSharedLimit && !creditLimit.trim()) newErrors.creditLimit = "Custom limit is required";
+            if (!isSharedLimit && selectedParentId && creditLimit) {
+                const parent = parentAccounts.find(p => p.id === selectedParentId);
+                if (parent && parseFloat(creditLimit) > (parent.credit_limit || 0)) {
+                    newErrors.creditLimit = `Cannot exceed parent limit (${parent.credit_limit})`;
+                }
+            }
+        }
+
         if (selectedType !== 'wallet' && last4.trim() && !/^\d{4}$/.test(last4)) {
             newErrors.last4 = "Must be exactly 4 digits";
         }
@@ -119,6 +165,7 @@ export default function QSSetupAccountScreen() {
             bank: 'bank',
             debit: 'card',
             credit: 'card',
+            shared_rupay: 'card',
             wallet: 'cash',
         };
 
@@ -126,17 +173,40 @@ export default function QSSetupAccountScreen() {
             bank: 'debit',
             debit: 'debit',
             credit: 'credit',
+            shared_rupay: 'credit',
             wallet: undefined,
         };
 
+        // For Shared Rupay with Shared Limit, inherit values from parent
+        let finalLimit = creditLimit ? parseFloat(creditLimit) : undefined;
+        let finalBalance = balance ? parseFloat(balance) : 0;
+
+        if (selectedType === 'shared_rupay') {
+            const parent = parentAccounts.find(p => p.id === selectedParentId);
+            if (parent) {
+                if (isSharedLimit) {
+                    finalLimit = parent.credit_limit;
+                    finalBalance = parent.balance; // Sync balance initially
+                } else if (!accountId) {
+                    // Custom limit: Balance should start as Custom Limit (assuming no debt yet)
+                    // Or user sets it manually. The UI asks for it. 
+                    // Let's trust the user input for balance unless shared.
+                }
+            }
+        }
+
+        const accountData = {
+            name: accountName,
+            type: typeMap[selectedType],
+            card_type: cardTypeMap[selectedType],
+            credit_limit: finalLimit,
+            account_number_last_4: selectedType !== 'wallet' ? last4 : undefined,
+            linked_account_id: selectedType === 'shared_rupay' ? selectedParentId : undefined,
+            is_shared_limit: selectedType === 'shared_rupay' ? isSharedLimit : false,
+        };
+
         if (accountId) {
-            const success = await updateAccount(accountId, {
-                name: accountName,
-                type: typeMap[selectedType],
-                card_type: cardTypeMap[selectedType],
-                credit_limit: selectedType === 'credit' ? parseFloat(creditLimit) : undefined,
-                account_number_last_4: selectedType !== 'wallet' ? last4 : undefined,
-            });
+            const success = await updateAccount(accountId, accountData);
 
             if (success) {
                 Toast.show({
@@ -148,13 +218,9 @@ export default function QSSetupAccountScreen() {
             }
         } else {
             const success = await createAccount({
+                ...accountData,
                 user_id: user.id,
-                name: accountName,
-                type: typeMap[selectedType],
-                card_type: cardTypeMap[selectedType],
-                credit_limit: selectedType === 'credit' ? parseFloat(creditLimit) : undefined,
-                balance: parseFloat(balance),
-                account_number_last_4: selectedType !== 'wallet' ? last4 : undefined,
+                balance: finalBalance,
                 currency: 'INR',
             });
 
@@ -242,21 +308,31 @@ export default function QSSetupAccountScreen() {
                                         key={type.id}
                                         style={[
                                             styles.typeCard,
-                                            selectedType === type.id && styles.typeCardSelected
+                                            selectedType === type.id && styles.typeCardSelected,
+                                            type.id === 'shared_rupay' && { width: '100%' } // Make this full width
                                         ]}
                                         onPress={() => setSelectedType(type.id)}
                                     >
-                                        <View style={[
-                                            styles.typeIconWrapper,
-                                            { backgroundColor: selectedType === type.id ? type.color : `${type.color}15` }
-                                        ]}>
-                                            <MaterialCommunityIcons
-                                                name={type.icon}
-                                                size={24}
-                                                color={selectedType === type.id ? "#FFF" : type.color}
-                                            />
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                                            <View style={[
+                                                styles.typeIconWrapper,
+                                                { backgroundColor: selectedType === type.id ? type.color : `${type.color}15` }
+                                            ]}>
+                                                <MaterialCommunityIcons
+                                                    name={type.icon}
+                                                    size={24}
+                                                    color={selectedType === type.id ? "#FFF" : type.color}
+                                                />
+                                            </View>
+                                            <View style={{ marginLeft: 12 }}>
+                                                <Text style={styles.typeLabel}>{type.label}</Text>
+                                                {type.description && (
+                                                    <Text style={{ fontSize: 11, color: selectedType === type.id ? '#FFFFFF90' : '#888' }}>
+                                                        {type.description}
+                                                    </Text>
+                                                )}
+                                            </View>
                                         </View>
-                                        <Text style={styles.typeLabel}>{type.label}</Text>
                                         {selectedType === type.id && (
                                             <MaterialCommunityIcons
                                                 name="check-circle"
@@ -270,10 +346,80 @@ export default function QSSetupAccountScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Credit Limit (if Credit Card) */}
-                        {selectedType === 'credit' && (
+                        {/* Shared RuPay Parent Selection */}
+                        {selectedType === 'shared_rupay' && (
+                            <Animated.View entering={FadeInDown.delay(350).springify()} style={styles.inputContainer}>
+                                <Text style={styles.label}>Link to Parent Credit Card</Text>
+                                <View style={{ gap: 8 }}>
+                                    {parentAccounts.map(account => (
+                                        <TouchableOpacity
+                                            key={account.id}
+                                            onPress={() => setSelectedParentId(account.id)}
+                                            style={{
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                padding: 12,
+                                                borderRadius: 12,
+                                                borderWidth: 1,
+                                                borderColor: selectedParentId === account.id ? theme.primary : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                                                backgroundColor: selectedParentId === account.id ? (isDark ? 'rgba(19, 127, 236, 0.1)' : 'rgba(19, 127, 236, 0.05)') : 'transparent'
+                                            }}
+                                        >
+                                            <MaterialCommunityIcons name="credit-card" size={24} color={theme.primary} />
+                                            <View style={{ flex: 1, marginLeft: 12 }}>
+                                                <Text style={{ color: theme.text, fontWeight: '600' }}>{account.name}</Text>
+                                                <Text style={{ color: theme.text, opacity: 0.6, fontSize: 12 }}>
+                                                    Limit: ₹{account.credit_limit?.toLocaleString() || 0} • Bal: ₹{account.balance?.toLocaleString() || 0}
+                                                </Text>
+                                            </View>
+                                            {selectedParentId === account.id && (
+                                                <MaterialCommunityIcons name="check-circle" size={20} color={theme.primary} />
+                                            )}
+                                        </TouchableOpacity>
+                                    ))}
+                                    {parentAccounts.length === 0 && (
+                                        <Text style={styles.errorText}>No available credit cards to link.</Text>
+                                    )}
+                                </View>
+                                {errors.parent && <Text style={styles.errorText}>{errors.parent}</Text>}
+
+                                {/* Shared Limit Toggle */}
+                                {!!selectedParentId && (
+                                    <TouchableOpacity
+                                        onPress={() => setIsSharedLimit(!isSharedLimit)}
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            marginTop: 12,
+                                            padding: 12,
+                                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                                            borderRadius: 8
+                                        }}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={isSharedLimit ? "checkbox-marked" : "checkbox-blank-outline"}
+                                            size={24}
+                                            color={theme.primary}
+                                        />
+                                        <View style={{ marginLeft: 12 }}>
+                                            <Text style={{ color: theme.text, fontWeight: '500' }}>Share Parent's Limit</Text>
+                                            <Text style={{ color: theme.text, opacity: 0.6, fontSize: 12 }}>
+                                                {isSharedLimit 
+                                                    ? "Use full available limit from parent card" 
+                                                    : "Set a custom (lower) limit for this card"}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                )}
+                            </Animated.View>
+                        )}
+
+                        {/* Credit Limit (Credit Card OR Custom Limit Shared RuPay) */}
+                        {((selectedType === 'credit') || (selectedType === 'shared_rupay' && !isSharedLimit)) && (
                             <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.inputContainer}>
-                                <Text style={styles.label}>Credit Limit</Text>
+                                <Text style={styles.label}>
+                                    {selectedType === 'shared_rupay' ? 'Custom Limit' : 'Credit Limit'}
+                                </Text>
                                 <View style={styles.inputWrapper}>
                                     <MaterialCommunityIcons name="currency-inr" size={20} color="#94A3B8" style={styles.inputIcon} />
                                     <TextInput
@@ -289,11 +435,11 @@ export default function QSSetupAccountScreen() {
                             </Animated.View>
                         )}
 
-                        {/* Initial Balance - Only show when creating */}
-                        {!accountId && (
+                        {/* Initial Balance - Only show when creating AND (Not shared limit) */}
+                        {!accountId && !(selectedType === 'shared_rupay' && isSharedLimit) && (
                             <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputContainer}>
                                 <Text style={styles.label}>
-                                    {selectedType === 'credit' ? 'Available Limit' : 'Initial Balance'}
+                                    {(selectedType === 'credit' || selectedType === 'shared_rupay') ? 'Available Limit' : 'Initial Balance'}
                                 </Text>
                                 <View style={styles.balanceCard}>
                                     <View style={styles.currencyBadge}>

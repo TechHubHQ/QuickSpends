@@ -256,9 +256,17 @@ export const useTransactions = () => {
 
             // 5. Update account balances
             const updateAccountBalance = async (accId: string, amount: number) => {
-                const { data: acc } = await supabase.from('accounts').select('balance').eq('id', accId).single();
+                const { data: acc } = await supabase.from('accounts').select('balance, linked_account_id').eq('id', accId).single();
                 if (acc) {
                     await supabase.from('accounts').update({ balance: acc.balance + amount }).eq('id', accId);
+                    
+                    // If linked to a parent (Shared RuPay), update parent too
+                    if (acc.linked_account_id) {
+                        const { data: parent } = await supabase.from('accounts').select('balance').eq('id', acc.linked_account_id).single();
+                        if (parent) {
+                            await supabase.from('accounts').update({ balance: parent.balance + amount }).eq('id', acc.linked_account_id);
+                        }
+                    }
                 }
             };
 
@@ -352,9 +360,17 @@ export const useTransactions = () => {
 
             // 2. Revert Balance Changes (Helper inverse of add)
             const updateAccountBalance = async (accId: string, amount: number) => {
-                const { data: acc } = await supabase.from('accounts').select('balance').eq('id', accId).single();
+                const { data: acc } = await supabase.from('accounts').select('balance, linked_account_id').eq('id', accId).single();
                 if (acc) {
                     await supabase.from('accounts').update({ balance: acc.balance + amount }).eq('id', accId);
+
+                    // If linked to a parent (Shared RuPay), update parent too
+                    if (acc.linked_account_id) {
+                        const { data: parent } = await supabase.from('accounts').select('balance').eq('id', acc.linked_account_id).single();
+                        if (parent) {
+                            await supabase.from('accounts').update({ balance: parent.balance + amount }).eq('id', acc.linked_account_id);
+                        }
+                    }
                 }
             };
 

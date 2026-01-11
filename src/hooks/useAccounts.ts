@@ -12,6 +12,8 @@ export interface Account {
     currency: string;
     account_number_last_4?: string;
     is_active: boolean;
+    linked_account_id?: string;
+    is_shared_limit?: boolean;
 }
 
 export const useAccounts = () => {
@@ -34,6 +36,8 @@ export const useAccounts = () => {
                     balance: account.balance,
                     currency: account.currency,
                     account_number_last_4: account.account_number_last_4 || null,
+                    linked_account_id: account.linked_account_id || null,
+                    is_shared_limit: account.is_shared_limit || false,
                 })
                 .select()
                 .single();
@@ -106,7 +110,32 @@ export const useAccounts = () => {
                 .eq('is_active', true);
 
             if (error) throw error;
-            return data as Account[];
+            
+            const accounts = data as Account[];
+            
+            // Post-process to calculate effective balances for linked accounts
+            // 1. Create a map for O(1) lookup
+            const accountMap = new Map<string, Account>();
+            accounts.forEach(acc => accountMap.set(acc.id, acc));
+
+            // 2. Update balances
+            const processedAccounts = accounts.map(acc => {
+                if (acc.linked_account_id) {
+                    const parent = accountMap.get(acc.linked_account_id);
+                    if (parent) {
+                        // For shared limit, it's exactly the parent's balance
+                        if (acc.is_shared_limit) {
+                            return { ...acc, balance: parent.balance, credit_limit: parent.credit_limit };
+                        }
+                        // For custom limit, it's min(ChildAvailable, ParentAvailable)
+                        const effectiveBalance = Math.min(acc.balance, parent.balance);
+                        return { ...acc, balance: effectiveBalance };
+                    }
+                }
+                return acc;
+            });
+
+            return processedAccounts;
         } catch (err: any) {
             setError(err.message);
             return [];

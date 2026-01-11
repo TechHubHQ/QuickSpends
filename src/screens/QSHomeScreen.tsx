@@ -55,6 +55,9 @@ export default function QSHomeScreen() {
             let liabilities = 0;
 
             accounts.forEach((acc: any) => {
+                // Skip linked accounts (children of shared cards) to avoid double counting
+                if (acc.linked_account_id) return;
+
                 const isCredit = acc.type === 'card' && acc.card_type === 'credit';
                 if (isCredit) {
                     if (!excludeCreditCards) {
@@ -105,6 +108,9 @@ export default function QSHomeScreen() {
             let liabilities = 0;
 
             accountsData.forEach((acc: any) => {
+                // Skip linked accounts (children of shared cards) to avoid double counting
+                if (acc.linked_account_id) return;
+
                 const isCredit = acc.type === 'card' && acc.card_type === 'credit';
                 if (isCredit) {
                     if (!excludeCreditCards) {

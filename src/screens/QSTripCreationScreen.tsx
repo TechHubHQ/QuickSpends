@@ -189,7 +189,12 @@ export default function QSTripCreationScreen() {
             // Safest: If editing, keep existingImageUrl. If new, fetch.
 
             let imageUrl = existingImageUrl;
-            if (!tripId || !imageUrl) {
+            
+            // Check for local file paths which are not shareable
+            const isLocalImage = imageUrl && (imageUrl.startsWith('file://') || imageUrl.startsWith('/') || imageUrl.startsWith('content://'));
+            
+            if (!tripId || !imageUrl || isLocalImage) {
+                // Fetch new image if none exists or if it's a local file
                 imageUrl = await fetchAndCacheImage(primaryLocation);
             }
 

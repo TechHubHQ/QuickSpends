@@ -1,10 +1,6 @@
-import * as FileSystem from 'expo-file-system/legacy';
-import { Platform } from 'react-native';
 
-const IMAGE_DIR_NAME = 'trip_images';
-// Use explicit casting if types are missing in the legacy export, or rely on it being present at runtime.
-// logger.ts used (FileSystem as any).cacheDirectory. We'll try standard access first, if it fails lint again we cast.
-const imgDir = (FileSystem.documentDirectory || (FileSystem as any).documentDirectory) + IMAGE_DIR_NAME + '/';
+const IMGDB_KEY = "3ce715935bd767c19ccd03d57bf0ea5b";
+const IMGDB_URL = "https://api.imgbb.com/1/upload";
 
 const slugify = (text: string) => {
     return text
@@ -16,14 +12,27 @@ const slugify = (text: string) => {
         .replace(/--+/g, '-');    // Replace multiple - with single -
 };
 
-/**
- * Ensures the trip_images directory exists
- */
-const ensureDirExists = async () => {
-    if (Platform.OS === 'web') return;
-    const dirInfo = await FileSystem.getInfoAsync(imgDir);
-    if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(imgDir, { intermediates: true });
+
+const uploadToImgBB = async (imageUrl: string): Promise<string | null> => {
+    try {
+        const formData = new FormData();
+        formData.append('image', imageUrl);
+
+        const response = await fetch(`${IMGDB_URL}?key=${IMGDB_KEY}`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            return data.data.url;
+        } else {
+            console.error("ImgBB upload failed:", data.error);
+            return null;
+        }
+    } catch (error) {
+        console.error("ImgBB upload error:", error);
+        return null;
     }
 };
 
@@ -71,51 +80,30 @@ const fetchFromPexels = async (query: string): Promise<string | null> => {
 export const fetchAndCacheImage = async (location: string): Promise<string> => {
     if (!location) return "https://loremflickr.com/800/600/travel,landscape";
 
-    const filename = `${slugify(location)}.jpg`;
-    const imageUri = imgDir + filename;
+
 
     try {
-        // Skip caching on web
-        if (Platform.OS === 'web') {
-            // 1. Fetch from Unsplash
-            let remoteUrl = await fetchFromUnsplash(location);
-
-            // 2. Fallback to Pexels
-            if (!remoteUrl) {
-                remoteUrl = await fetchFromPexels(location);
-            }
-
-            // 3. Final fallback
-            if (!remoteUrl) {
-                return `https://loremflickr.com/800/600/${encodeURIComponent(location)},travel/all`;
-            }
-            return remoteUrl;
-        }
-
-        await ensureDirExists();
-
-        // 1. Check if cached
-        const fileInfo = await FileSystem.getInfoAsync(imageUri);
-        if (fileInfo.exists) {
-            return imageUri;
-        }
-
-        // 2. Fetch from Unsplash
+        // 1. Fetch from Unsplash
         let remoteUrl = await fetchFromUnsplash(location);
 
-        // 3. Fallback to Pexels
+        // 2. Fallback to Pexels
         if (!remoteUrl) {
             remoteUrl = await fetchFromPexels(location);
         }
 
-        // 4. Final fallback to LoremFlickr
+        // 3. Fallback to LoremFlickr if no source found
         if (!remoteUrl) {
             return `https://loremflickr.com/800/600/${encodeURIComponent(location)},travel/all`;
         }
 
-        // 5. Download and cache
-        await FileSystem.downloadAsync(remoteUrl, imageUri);
-        return imageUri;
+        // 4. Upload to ImgBB to get a persistent public URL
+        const imgBbUrl = await uploadToImgBB(remoteUrl);
+        if (imgBbUrl) {
+            return imgBbUrl;
+        }
+
+        // 5. If upload fails, return the original remote URL (better than nothing, though hotlinking might fail)
+        return remoteUrl;
 
     } catch (error) {
         console.error("Image service error:", error);
