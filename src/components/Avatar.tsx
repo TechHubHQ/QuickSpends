@@ -4,7 +4,13 @@ import { View, ViewStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 const avatarContext = require.context('../../assets/avatars', false, /\.png$/);
-const AVATAR_IMAGES = avatarContext.keys().map((key) => avatarContext(key));
+const AVATAR_IMAGES = avatarContext.keys()
+    .sort((a, b) => {
+        const numA = parseInt(a.match(/avatar(\d+)\.png$/)?.[1] || '0', 10);
+        const numB = parseInt(b.match(/avatar(\d+)\.png$/)?.[1] || '0', 10);
+        return numA - numB;
+    })
+    .map((key) => avatarContext(key));
 
 export const TOTAL_AVATARS = AVATAR_IMAGES.length;
 

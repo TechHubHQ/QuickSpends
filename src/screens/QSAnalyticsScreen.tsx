@@ -345,7 +345,9 @@ export default function QSAnalyticsScreen() {
                                                         ? 'Today'
                                                         : isYesterday(new Date(insights.largestTransaction.date))
                                                             ? 'Yesterday'
-                                                            : format(new Date(insights.largestTransaction.date), 'EEE, d MMM')}
+                                                            : !isNaN(new Date(insights.largestTransaction.date).getTime()) 
+                                                                ? format(new Date(insights.largestTransaction.date), 'EEE, d MMM')
+                                                                : 'Unknown Date'}
                                                 </Text>
                                             </View>
                                             <Text style={{ fontSize: 18, fontWeight: '800', color: theme.colors.error }}>
@@ -373,7 +375,7 @@ export default function QSAnalyticsScreen() {
                                                 style={[
                                                     styles.progressBarFill,
                                                     {
-                                                        width: `${Math.min(budget.percentage, 100)}%`,
+                                                        width: `${Math.min(Number.isFinite(budget.percentage) ? budget.percentage : 0, 100)}%`,
                                                         backgroundColor: budget.percentage > 100 ? theme.colors.error : theme.colors.primary
                                                     }
                                                 ]}

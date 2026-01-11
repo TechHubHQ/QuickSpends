@@ -139,8 +139,12 @@ export const useAnalytics = () => {
             let changePercentage = 0;
             if (previousNetWorth !== 0) {
                 changePercentage = (netChange / Math.abs(previousNetWorth)) * 100;
-            } else if (netChange !== 0) {
+            } else if (netChange > 0) {
                 changePercentage = 100;
+            } else if (netChange < 0) {
+                changePercentage = -100;
+            } else {
+                changePercentage = 0;
             }
 
             return {
@@ -284,7 +288,7 @@ export const useAnalytics = () => {
                     budget_amount: b.amount,
                     spent_amount: spent,
                     remaining: Math.max(0, b.amount - spent),
-                    percentage: (spent / b.amount) * 100
+                    percentage: b.amount > 0 ? (spent / b.amount) * 100 : spent > 0 ? 100 : 0
                 };
             })) as BudgetPerformance[];
 
@@ -404,6 +408,8 @@ export const useAnalytics = () => {
                 percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
             } else if (currentTotal > 0) {
                 percentageChange = 100;
+            } else {
+                percentageChange = 0;
             }
 
             // 4. Top Category
