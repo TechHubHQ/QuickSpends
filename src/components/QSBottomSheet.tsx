@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { ReactNode } from "react";
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { ReactNode, useEffect, useState } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { createStyles } from "../styles/components/QSBottomSheet.styles";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -15,6 +16,7 @@ interface QSBottomSheetProps {
     onSearchChange?: (text: string) => void;
     showDoneButton?: boolean;
     onDone?: () => void;
+    variant?: 'bottom' | 'floating';
 }
 
 export function QSBottomSheet({
@@ -28,27 +30,78 @@ export function QSBottomSheet({
     onSearchChange,
     showDoneButton = false,
     onDone,
+    variant = 'floating' // Default to floating
 }: QSBottomSheetProps) {
     const { theme } = useTheme();
     const styles = createStyles(theme.colors, theme.isDark);
+    const [showModal, setShowModal] = useState(visible);
+
+    const opacity = useSharedValue(0);
+    const scale = useSharedValue(variant === 'floating' ? 0.8 : 1);
+    const translateY = useSharedValue(variant === 'bottom' ? 600 : 0);
+
+    useEffect(() => {
+        if (visible) {
+            setShowModal(true);
+            opacity.value = withTiming(1, { duration: 250 });
+            if (variant === 'floating') {
+                scale.value = withSpring(1, { damping: 15 });
+            } else {
+                translateY.value = withSpring(0, { damping: 20, stiffness: 90 });
+            }
+        } else {
+            opacity.value = withTiming(0, { duration: 200 }, (finished) => {
+                if (finished) runOnJS(setShowModal)(false);
+            });
+            if (variant === 'floating') {
+                scale.value = withTiming(0.8, { duration: 200 });
+            } else {
+                translateY.value = withTiming(600, { duration: 200 });
+            }
+        }
+    }, [visible, variant]);
+
+    const animatedBackdropStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+    }));
+
+    const animatedContentStyle = useAnimatedStyle(() => {
+        if (variant === 'floating') {
+            return {
+                opacity: opacity.value,
+                transform: [{ scale: scale.value }],
+            };
+        }
+        return {
+            transform: [{ translateY: translateY.value }],
+        };
+    });
 
     return (
         <Modal
-            visible={visible}
+            visible={showModal}
             transparent
-            animationType="slide"
+            animationType="none"
             onRequestClose={onClose}
         >
-            <View style={styles.overlay}>
-                <View style={styles.container}>
+            <View style={[styles.overlay, variant === 'floating' && styles.floatingOverlay]}>
+                <Animated.View style={[StyleSheet.absoluteFill, animatedBackdropStyle, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                </Animated.View>
+
+                <Animated.View style={[
+                    styles.container,
+                    variant === 'floating' && styles.floatingContainer,
+                    animatedContentStyle
+                ]}>
                     {/* Drag Handle & Header */}
                     <View style={styles.header}>
-                        <View style={styles.dragHandle} />
+                        {variant === 'bottom' && <View style={styles.dragHandle} />}
                         <View style={styles.headerContent}>
                             <Text style={styles.title}>{title}</Text>
-                            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                            <Pressable onPress={onClose} style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.7 : 1 }]}>
                                 <MaterialCommunityIcons name="close" size={24} color={theme.isDark ? '#94A3B8' : '#64748B'} />
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     </View>
 
@@ -76,18 +129,17 @@ export function QSBottomSheet({
                         {children}
                     </ScrollView>
 
-                    {/* Done Button */}
                     {showDoneButton && (
                         <View style={styles.footer}>
-                            <TouchableOpacity
-                                style={styles.doneButton}
+                            <Pressable
+                                style={({ pressed }) => [styles.doneButton, { opacity: pressed ? 0.8 : 1 }]}
                                 onPress={onDone || onClose}
                             >
                                 <Text style={styles.doneButtonText}>Done</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     )}
-                </View>
+                </Animated.View>
             </View>
         </Modal>
     );

@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 
 export const createStyles = (theme: any, isDark: boolean) => StyleSheet.create({
     container: {
@@ -157,10 +157,17 @@ export const createStyles = (theme: any, isDark: boolean) => StyleSheet.create({
         justifyContent: "center",
         gap: 12,
         elevation: 4,
-        shadowColor: theme.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
+        ...Platform.select({
+            web: {
+                boxShadow: `0px 8px 16px ${theme.primary}4D`,
+            },
+            default: {
+                shadowColor: theme.primary,
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.3,
+                shadowRadius: 16,
+            }
+        }),
     },
     addButtonText: {
         fontSize: 16,

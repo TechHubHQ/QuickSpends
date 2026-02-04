@@ -160,7 +160,7 @@ export const useTrips = () => {
 
             if (tripError || !trip) return null;
 
-            // Fetch total spending for this trip
+            // Fetch total spending for this trip (Strictly Expenses)
             const { data: spendingData, error: spendingError } = await supabase
                 .from('transactions')
                 .select('amount')
@@ -168,7 +168,7 @@ export const useTrips = () => {
                 .eq('type', 'expense');
 
             if (spendingError) throw spendingError;
-            const totalSpent = (spendingData || []).reduce((sum, t) => sum + t.amount, 0);
+            const totalSpent = (spendingData || []).reduce((sum, t) => sum + (t.amount || 0), 0);
 
             const now = new Date();
             now.setHours(0, 0, 0, 0);

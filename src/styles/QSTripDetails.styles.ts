@@ -1,4 +1,4 @@
-import { Dimensions, StyleSheet } from "react-native";
+import { Dimensions, Platform, StyleSheet } from "react-native";
 import { Theme } from "../theme/theme";
 
 const { width } = Dimensions.get("window");
@@ -30,30 +30,8 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         padding: theme.spacing.l,
         paddingBottom: theme.spacing.xl,
     },
-    backButton: {
-        position: 'absolute',
-        top: 50,
-        left: theme.spacing.m,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10,
-    },
-    editButton: {
-        position: 'absolute',
-        top: 50,
-        right: theme.spacing.m,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10,
-    },
+
+
     tripTypeBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -210,17 +188,19 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         color: theme.colors.text,
     },
     transactionList: {
-        gap: theme.spacing.m,
+        backgroundColor: theme.colors.card,
+        borderRadius: theme.borderRadius.xl,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        overflow: 'hidden',
     },
     transactionItem: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: theme.colors.card,
         padding: theme.spacing.m,
-        borderRadius: theme.borderRadius.l,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
     },
     transactionLeft: {
         flex: 1,
@@ -264,7 +244,14 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         ...theme.shadows.large,
-        shadowColor: theme.colors.primary,
+        ...Platform.select({
+            web: {
+                boxShadow: `0px 10px 20px ${theme.colors.primary}4D`, // Approx large with color
+            },
+            default: {
+                shadowColor: theme.colors.primary,
+            }
+        }),
     },
     emptyContainer: {
         alignItems: 'center',

@@ -6,6 +6,7 @@ export interface NotificationPreferences {
     budgetAlerts: boolean;
     tripAlerts: boolean;
     billReminders: boolean; // recurring
+    upcomingBillReminders: boolean; // upcoming bills
     lowBalanceAlerts: boolean;
     splitReminders: boolean;
     monthlySummary: boolean;
@@ -18,6 +19,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
     budgetAlerts: true,
     tripAlerts: true,
     billReminders: true,
+    upcomingBillReminders: true,
     lowBalanceAlerts: true,
     splitReminders: true,
     monthlySummary: true,

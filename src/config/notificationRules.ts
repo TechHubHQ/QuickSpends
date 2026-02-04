@@ -398,5 +398,47 @@ export const notificationRules: NotificationRule[] = [
                 }
             }
         }
+    },
+    {
+        id: 'upcoming-bill-reminders',
+        name: 'Upcoming Bill Reminders',
+        description: 'Notify when bills are due today or tomorrow',
+        preferenceKey: 'upcomingBillReminders',
+        check: async ({ supabase, userId, createNotification }) => {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const todayStr = today.toISOString().split('T')[0];
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+            const { data: bills } = await supabase
+                .from('upcoming_bills')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('is_active', true)
+                .or(`due_date.eq.${todayStr},due_date.eq.${tomorrowStr}`)
+                .or('last_reminder_sent.is.null,last_reminder_sent.lt.' + todayStr);
+
+            for (const bill of (bills || [])) {
+                const dueDate = new Date(bill.due_date);
+                const isToday = dueDate.toDateString() === today.toDateString();
+                const isTomorrow = dueDate.toDateString() === tomorrow.toDateString();
+
+                if (isToday || isTomorrow) {
+                    await createNotification(
+                        isToday ? 'Bill Due Today!' : 'Bill Due Tomorrow',
+                        `${bill.name} - ₹${bill.amount} is due ${isToday ? 'today' : 'tomorrow'}`,
+                        'alert',
+                        { billId: bill.id, dueDate: bill.due_date }
+                    );
+
+                    await supabase
+                        .from('upcoming_bills')
+                        .update({ last_reminder_sent: today.toISOString() })
+                        .eq('id', bill.id);
+                }
+            }
+        }
     }
 ];

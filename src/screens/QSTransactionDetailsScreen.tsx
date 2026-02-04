@@ -241,7 +241,7 @@ export default function QSTransactionDetailsScreen() {
                 </Animated.View>
 
                 {/* Tags Card - Only show if we have trip info, group info or recurring info */}
-                {!!(data.trip_id || data.group_id || data.recurring_id) && (
+                {!!(data.trip_id || data.group_id || data.recurring_id || data.savings_id) && (
                     <Animated.View entering={FadeInUp.delay(400).springify()} style={[
                         styles.card,
                         {
@@ -255,7 +255,7 @@ export default function QSTransactionDetailsScreen() {
                         {!!data.trip_id && (
                             <TouchableOpacity style={[
                                 styles.tagRow,
-                                { borderBottomColor: theme.colors.border, borderBottomWidth: (data.group_id || data.recurring_id) ? 1 : 0 }
+                                { borderBottomColor: theme.colors.border, borderBottomWidth: (data.group_id || data.savings_id || data.recurring_id) ? 1 : 0 }
                             ]}>
                                 <View style={styles.tagLeft}>
                                     <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)' }]}>
@@ -274,7 +274,7 @@ export default function QSTransactionDetailsScreen() {
                         {!!data.group_id && (
                             <TouchableOpacity style={[
                                 styles.tagRow,
-                                { borderBottomColor: theme.colors.border, borderBottomWidth: data.recurring_id ? 1 : 0 }
+                                { borderBottomColor: theme.colors.border, borderBottomWidth: (data.savings_id || data.recurring_id) ? 1 : 0 }
                             ]}>
                                 <View style={styles.tagLeft}>
                                     <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }]}>
@@ -283,6 +283,25 @@ export default function QSTransactionDetailsScreen() {
                                     <View>
                                         <Text style={[styles.tagName, { color: theme.colors.text }]}>{data.group_name || 'Group'}</Text>
                                         <Text style={[styles.tagType, { color: theme.colors.textSecondary }]}>Group</Text>
+                                    </View>
+                                </View>
+                                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textTertiary} />
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Savings Tag */}
+                        {!!data.savings_id && (
+                            <TouchableOpacity style={[
+                                styles.tagRow,
+                                { borderBottomColor: theme.colors.border, borderBottomWidth: data.recurring_id ? 1 : 0 }
+                            ]}>
+                                <View style={styles.tagLeft}>
+                                    <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(233, 30, 99, 0.2)' : 'rgba(233, 30, 99, 0.1)' }]}>
+                                        <MaterialCommunityIcons name="piggy-bank" size={16} color="#E91E63" />
+                                    </View>
+                                    <View>
+                                        <Text style={[styles.tagName, { color: theme.colors.text }]}>{data.savings_name || 'Savings'}</Text>
+                                        <Text style={[styles.tagType, { color: theme.colors.textSecondary }]}>Savings Goal</Text>
                                     </View>
                                 </View>
                                 <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textTertiary} />

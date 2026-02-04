@@ -1,21 +1,56 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 
 export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-end', // Default for bottom sheet
+    },
+    floatingOverlay: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
     },
     container: {
         backgroundColor: colors.background,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         maxHeight: '90%',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
+        width: '100%',
         elevation: 10,
+        ...Platform.select({
+            web: {
+                boxShadow: "0px -4px 12px rgba(0, 0, 0, 0.25)",
+            },
+            default: {
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: -4 },
+                shadowOpacity: 0.25,
+                shadowRadius: 12,
+            }
+        }),
+        overflow: 'hidden', // Ensure children don't overlap rounded corners
+    },
+    floatingContainer: {
+        borderRadius: 24,
+        maxHeight: '80%',
+        width: '100%',
+        maxWidth: 400,
+        borderWidth: 1.5,
+        borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+        elevation: 12,
+        ...Platform.select({
+            web: {
+                boxShadow: "0px 8px 16px rgba(0, 0, 0, 0.3)",
+            },
+            default: {
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.3,
+                shadowRadius: 16,
+            }
+        }),
+        overflow: 'hidden', // Essential for floating card rounded corners
     },
     header: {
         paddingTop: 12,
@@ -86,11 +121,18 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
         paddingVertical: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
         elevation: 4,
+        ...Platform.select({
+            web: {
+                boxShadow: `0px 4px 8px ${colors.primary}33`,
+            },
+            default: {
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+            }
+        }),
     },
     doneButtonText: {
         color: '#FFFFFF',

@@ -1,9 +1,9 @@
 import React from "react";
 import {
     ActivityIndicator,
+    Pressable,
     Text,
     TextStyle,
-    TouchableOpacity,
     ViewStyle
 } from "react-native";
 import { createStyles } from "../styles/components/QSButton.styles";
@@ -28,18 +28,18 @@ export const QSButton: React.FC<QSButtonProps> = ({
     disabled = false,
     style,
     textStyle,
-
 }) => {
     const { theme } = useTheme();
     const isDark = theme.isDark;
     const styles = createStyles(theme);
 
-    const containerStyles = [
+    const getContainerStyles = (pressed: boolean) => [
         variant === "primary" ? styles.primaryButton : styles.secondaryButton,
         variant === "secondary" && isDark && styles.secondaryButtonDark,
         variant === "secondary" && !isDark && styles.secondaryButtonLight,
         disabled && styles.disabledButton,
         style,
+        pressed && { opacity: 0.9 }
     ];
 
     const labelStyles = [
@@ -48,20 +48,16 @@ export const QSButton: React.FC<QSButtonProps> = ({
     ];
 
     return (
-        <TouchableOpacity
-            style={containerStyles}
+        <Pressable
+            style={({ pressed }) => getContainerStyles(pressed)}
             onPress={onPress}
-            activeOpacity={0.9}
             disabled={disabled || loading}
-
         >
             {loading ? (
                 <ActivityIndicator color={variant === "primary" ? theme.colors.onPrimary : theme.colors.primary} />
             ) : (
                 <Text style={labelStyles}>{title}</Text>
             )}
-        </TouchableOpacity>
+        </Pressable>
     );
 };
-
-

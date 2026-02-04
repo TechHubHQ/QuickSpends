@@ -4,12 +4,12 @@ import React, { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -97,12 +97,12 @@ export default function QSRegistrationScreen() {
       >
         {/* Header */}
         <View style={styles.headerSection}>
-          <TouchableOpacity
-            style={styles.backButton}
+          <Pressable
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => router.back()}
           >
             <MaterialCommunityIcons name="chevron-left" size={20} color={theme.text} style={styles.backIcon} />
-          </TouchableOpacity>
+          </Pressable>
           <Text style={styles.headerTitle}>QuickSpends</Text>
           <View style={styles.headerSpacer} />
         </View>
@@ -180,9 +180,9 @@ export default function QSRegistrationScreen() {
                   value={password}
                   onChangeText={setPassword}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                   <MaterialCommunityIcons name={showPassword ? "eye" : "eye-off"} size={20} color={theme.textSecondary} />
-                </TouchableOpacity>
+                </Pressable>
               </View>
               {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
             </View>
@@ -196,9 +196,9 @@ export default function QSRegistrationScreen() {
             {/* Footer */}
             <View style={styles.footerSection}>
               <Text style={styles.footerText}>Already have an account?</Text>
-              <TouchableOpacity onPress={() => router.push("/login")}>
+              <Pressable onPress={() => router.push("/login")}>
                 <Text style={styles.footerLinkText}>Log In</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
             <View style={styles.bottomSpacer} />
           </View>

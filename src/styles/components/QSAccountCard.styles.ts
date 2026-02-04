@@ -1,4 +1,4 @@
-import { Dimensions, StyleSheet } from 'react-native';
+import { Dimensions, Platform, StyleSheet } from 'react-native';
 import { Theme } from '../../theme/theme';
 
 const { width } = Dimensions.get('window');
@@ -13,7 +13,14 @@ export const createStyles = (theme: Theme, hasStats?: boolean) => StyleSheet.cre
         borderRadius: theme.borderRadius.xl,
         overflow: 'hidden',
         ...theme.shadows.medium,
-        shadowColor: '#000',
+        ...Platform.select({
+            web: {
+                boxShadow: "0px 4px 6px rgba(0, 0, 0, 0.1)",
+            },
+            default: {
+                shadowColor: '#000',
+            }
+        }),
         marginVertical: 10,
         alignSelf: 'center',
     },

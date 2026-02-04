@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { format } from "date-fns";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -205,6 +206,26 @@ export default function QSSavingDetailsScreen() {
                                 </Text>
                             </View>
                         </View>
+                        {goal.target_date && (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons name="calendar-clock" size={20} color={theme.colors.primary} />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>End Date</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        {format(new Date(goal.target_date), "PP")}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                        <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                            <MaterialCommunityIcons name="calculator" size={20} color={theme.colors.primary} />
+                            <View>
+                                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Net Worth</Text>
+                                <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                    {goal.include_in_net_worth ? 'Included' : 'Excluded'}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
                 </Animated.View>
 
@@ -388,11 +409,12 @@ const styles = StyleSheet.create({
     },
     detailsGrid: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 12,
         width: '100%',
     },
     detailItem: {
-        flex: 1,
+        width: (width - 52) / 2, // 2 items per row with gap and padding
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,

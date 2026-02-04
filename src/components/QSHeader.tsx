@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Text, TouchableOpacity, View, ViewStyle } from "react-native";
+import { Pressable, Text, View, ViewStyle } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../hooks/useNotifications";
 import { createStyles } from "../styles/components/QSHeader.styles";
@@ -73,9 +73,12 @@ export const QSHeader: React.FC<QSHeaderProps> = ({
         <View style={[styles.header, style]}>
             <View style={styles.leftSection}>
                 {showBack ? (
-                    <TouchableOpacity style={styles.iconButton} onPress={onBackPress}>
+                    <Pressable
+                        style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.7 }]}
+                        onPress={onBackPress}
+                    >
                         <MaterialCommunityIcons name="chevron-left" size={28} color={theme.colors.text} />
-                    </TouchableOpacity>
+                    </Pressable>
                 ) : (
                     <View style={styles.profileSection}>
                         <View style={styles.profileImage}>
@@ -93,18 +96,7 @@ export const QSHeader: React.FC<QSHeaderProps> = ({
                 )}
             </View>
 
-            {/* Centered Title (Only if showBack is true and we want a centered title effect - 
-                but based on user request "showing text which is not making sense", 
-                we might just want a simple left-aligned title or standard header.
-                Code below was overlaying title. Let's simplify. 
-                If showBack is true, we usually want the title next to back button or centered.
-                The previous implementation had a centered absolute view. 
-                Let's keep it but ensure it doesn't conflict if title is meant to be on the left.
-                Actually, standard iOS/Android headers often have title in the middle or left.
-                Let's stick to the LEFT aligned title next to back button for non-home screens if explicit title provided?
-                OR keep the center logic but fix the "Welcome Back" confusion.
-            */}
-
+            {/* Centered Title (Only if showBack is true and we want a centered title effect) */}
             {showBack && title && (
                 <View style={styles.centerTitleContainer}>
                     <Text style={[styles.userName, { fontSize: 18, textAlign: 'center' }]} numberOfLines={1}>{title}</Text>
@@ -115,27 +107,29 @@ export const QSHeader: React.FC<QSHeaderProps> = ({
                 {rightElement ? (
                     rightElement
                 ) : rightIcon ? (
-                    <TouchableOpacity style={styles.iconButton} onPress={onRightPress}>
+                    <Pressable
+                        style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.7 }]}
+                        onPress={onRightPress}
+                    >
                         <View>
                             <MaterialCommunityIcons name={rightIcon} size={24} color={theme.colors.text} />
                             {String(rightIcon).includes('bell') && unreadCount > 0 && (
                                 <View style={styles.badge} />
                             )}
                         </View>
-                    </TouchableOpacity>
+                    </Pressable>
                 ) : (
-                    // Default to Bell Icon if nothing else is provided ONLY if it's the home styled header (no back button)
-                    // If it's a sub-screen (showBack=true), we usually don't want a bell unless asked.
-                    // But legacy code showed bell. Let's keep it but maybe restricted?
-                    // User didn't complain about bell, just "narrowed icons".
-                    <TouchableOpacity style={styles.iconButton} onPress={handleNotificationPress}>
+                    <Pressable
+                        style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.7 }]}
+                        onPress={handleNotificationPress}
+                    >
                         <View>
                             <MaterialCommunityIcons name="bell-outline" size={24} color={theme.colors.text} />
                             {unreadCount > 0 && (
                                 <View style={styles.badge} />
                             )}
                         </View>
-                    </TouchableOpacity>
+                    </Pressable>
                 )}
             </View>
         </View>

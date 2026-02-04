@@ -4,12 +4,12 @@ import React, { useMemo, useState } from "react";
 import {
     KeyboardAvoidingView,
     Platform,
+    Pressable,
     ScrollView,
     Text,
     TextInput,
-    TouchableOpacity,
     View,
-    useColorScheme,
+    useColorScheme
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -129,7 +129,7 @@ export default function QSLoginScreen() {
                                 onChangeText={setPassword}
 
                             />
-                            <TouchableOpacity
+                            <Pressable
                                 onPress={() => setShowPassword(!showPassword)}
                                 style={styles.eyeIconContainer}
                             >
@@ -138,16 +138,16 @@ export default function QSLoginScreen() {
                                     size={20}
                                     color={theme.textSecondary}
                                 />
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
 
                         {/* Forgot Password */}
                         <View style={styles.forgotPasswordContainer}>
-                            <TouchableOpacity>
+                            <Pressable>
                                 <Text style={styles.forgotPasswordText}>
                                     Forgot Password?
                                 </Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
 
                         {/* Login Button */}

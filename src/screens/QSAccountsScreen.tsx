@@ -3,393 +3,856 @@ import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { RefreshControl, ScrollView, StatusBar, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import {
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { QSBottomSheet } from "../components/QSBottomSheet";
 import { QSHeader } from "../components/QSHeader";
+import { QSInfoSheet } from "../components/QSInfoSheet";
 import { useAuth } from "../context/AuthContext";
 import { Account, useAccounts } from "../hooks/useAccounts";
 import { useLoans } from "../hooks/useLoans";
+import { useSavings } from "../hooks/useSavings";
 import { useTransactions } from "../hooks/useTransactions";
 import { createStyles } from "../styles/QSAccounts.styles";
 import { useTheme } from "../theme/ThemeContext";
 
 export default function QSAccountsScreen() {
-    const { theme } = useTheme();
-    const router = useRouter();
-    const isDark = theme.isDark;
-    const styles = createStyles(theme.colors, isDark);
-    const { user } = useAuth();
-    const { getAccountsByUser } = useAccounts();
-    const { getLoans } = useLoans();
-    const { getBalanceTrend } = useTransactions();
+  const { theme } = useTheme();
+  const router = useRouter();
+  const isDark = theme.isDark;
+  const styles = createStyles(theme.colors, isDark);
+  const { user } = useAuth();
+  const { getAccountsByUser } = useAccounts();
+  const { getLoans } = useLoans();
+  const { getSavingsGoals } = useSavings();
+  const { getBalanceTrend } = useTransactions();
 
-    const [refreshing, setRefreshing] = useState(false);
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [totalNetWorth, setTotalNetWorth] = useState(0);
-    const [balanceTrend, setBalanceTrend] = useState({ percentage: 0, trend: 'up' as 'up' | 'down' });
-    const [isBalanceVisible, setIsBalanceVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [totalNetWorth, setTotalNetWorth] = useState(0);
+  const [balanceTrend, setBalanceTrend] = useState({
+    percentage: 0,
+    trend: "up" as "up" | "down",
+  });
+  const [isBalanceVisible, setIsBalanceVisible] = useState(false);
+  const [showNetWorthInfo, setShowNetWorthInfo] = useState(false);
 
-    // Tabs: 'all' | 'banks' | 'cash' | 'cards'
-    const [selectedTab, setSelectedTab] = useState<'all' | 'banks' | 'cash' | 'cards'>('all');
-    const [filterVisible, setFilterVisible] = useState(false);
-    const [balanceFilters, setBalanceFilters] = useState({
-        banks: true,
-        cash: true,
-        credit: true,
-        loans: true,
-    });
+  // Tabs: 'all' | 'banks' | 'cash' | 'cards'
+  const [selectedTab, setSelectedTab] = useState<
+    "all" | "banks" | "cash" | "cards"
+  >("all");
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [balanceFilters, setBalanceFilters] = useState({
+    banks: true,
+    cash: true,
+    credit: true,
+    loans: true,
+    savings: true,
+  });
 
-    const fetchData = useCallback(async () => {
-        if (!user) return;
+  const fetchData = useCallback(async () => {
+    if (!user) return;
 
-        setRefreshing(true);
-        try {
-            const accountsData = await getAccountsByUser(user.id);
-            const loansData = await getLoans(user.id);
-            setAccounts(accountsData);
+    setRefreshing(true);
+    try {
+      const accountsData = await getAccountsByUser(user.id);
+      const loansData = await getLoans(user.id);
+      const savingsData = await getSavingsGoals(user.id);
+      setAccounts(accountsData);
 
-            // Calculate total net worth with filters (Assets - Liabilities)
-            let assets = 0;
-            let liabilities = 0;
+      // Calculate total net worth with filters (Assets - Liabilities)
+      let assets = 0;
+      let liabilities = 0;
 
-            accountsData.forEach(acc => {
-                const isBank = acc.type === 'bank' || (acc.type === 'card' && acc.card_type === 'debit');
-                const isCash = acc.type === 'cash';
-                const isCredit = acc.type === 'card' && acc.card_type === 'credit';
+      accountsData.forEach((acc) => {
+        const isBank =
+          acc.type === "bank" ||
+          (acc.type === "card" && acc.card_type === "debit");
+        const isCash = acc.type === "cash";
+        const isCredit = acc.type === "card" && acc.card_type === "credit";
 
-                if (isBank && balanceFilters.banks) assets += acc.balance;
-                if (isCash && balanceFilters.cash) assets += acc.balance;
-                if (isCredit && balanceFilters.credit) {
-                    const debt = (acc.credit_limit || 0) - acc.balance;
-                    liabilities += Math.max(0, debt);
-                }
-            });
-
-            // Add Loans
-            if (balanceFilters.loans) {
-                loansData.forEach(loan => {
-                    if (loan.status === 'active') {
-                        if (loan.type === 'lent') assets += loan.remaining_amount;
-                        else liabilities += loan.remaining_amount;
-                    }
-                });
-            }
-
-            const netWorth = assets - liabilities;
-            setTotalNetWorth(netWorth);
-
-            const trendData = await getBalanceTrend(user.id, netWorth);
-            setBalanceTrend(trendData);
-        } catch (error) {
-
-        } finally {
-            setRefreshing(false);
+        if (isBank && balanceFilters.banks) assets += acc.balance;
+        if (isCash && balanceFilters.cash) assets += acc.balance;
+        if (isCredit && balanceFilters.credit) {
+          const debt = (acc.credit_limit || 0) - acc.balance;
+          liabilities += Math.max(0, debt);
         }
-    }, [user, getAccountsByUser, getBalanceTrend, balanceFilters]);
+      });
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+      // Add Savings
+      if (balanceFilters.savings) {
+        savingsData.forEach((saving) => {
+          if (saving.include_in_net_worth) {
+            assets += saving.current_amount;
+          }
+        });
+      }
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchData();
-        }, [fetchData])
-    );
+      // Add Loans
+      if (balanceFilters.loans) {
+        loansData.forEach((loan) => {
+          if (loan.status === "active") {
+            if (loan.type === "lent") assets += loan.remaining_amount;
+            else liabilities += loan.remaining_amount;
+          }
+        });
+      }
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+      const netWorth = assets - liabilities;
+      setTotalNetWorth(netWorth);
 
-    // Filter accounts based on selected tab
-    const filteredAccounts = accounts.filter(acc => {
-        if (selectedTab === 'all') return true;
-        if (selectedTab === 'banks') return acc.type === 'bank' || (acc.type === 'card' && acc.card_type === 'debit');
-        if (selectedTab === 'cash') return acc.type === 'cash';
-        if (selectedTab === 'cards') return acc.type === 'card' && acc.card_type === 'credit';
-        return false;
-    });
+      const trendData = await getBalanceTrend(user.id, netWorth);
+      setBalanceTrend(trendData);
+    } catch (error) {
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user, getAccountsByUser, getLoans, getSavingsGoals, getBalanceTrend, balanceFilters]);
 
-    const getAccountIcon = (type: string, cardType?: string) => {
-        if (type === 'bank') return 'bank';
-        if (type === 'cash') return 'cash';
-        if (type === 'card') return 'credit-card';
-        return 'wallet';
-    };
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-    // Modern colors for icons
-    const getAccountColor = (type: string, cardType?: string) => {
-        if (type === 'bank') return '#3B82F6'; // Blue
-        if (type === 'cash') return '#14B8A6'; // Teal
-        if (type === 'card' && cardType === 'credit') return '#A855F7'; // Purple
-        return theme.colors.primary;
-    };
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData]),
+  );
 
-    return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" />
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
 
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={theme.colors.primary} />
-                }
+  // Filter accounts based on selected tab
+  const filteredAccounts = accounts.filter((acc) => {
+    if (selectedTab === "all") return true;
+    if (selectedTab === "banks")
+      return (
+        acc.type === "bank" ||
+        (acc.type === "card" && acc.card_type === "debit")
+      );
+    if (selectedTab === "cash") return acc.type === "cash";
+    if (selectedTab === "cards")
+      return acc.type === "card" && acc.card_type === "credit";
+    return false;
+  });
+
+  const getAccountIcon = (type: string, cardType?: string) => {
+    if (type === "bank") return "bank";
+    if (type === "cash") return "cash";
+    if (type === "card") return "credit-card";
+    return "wallet";
+  };
+
+  // Modern colors for icons
+  const getAccountColor = (type: string, cardType?: string) => {
+    if (type === "bank") return "#3B82F6"; // Blue
+    if (type === "cash") return "#14B8A6"; // Teal
+    if (type === "card" && cardType === "credit") return "#A855F7"; // Purple
+    return theme.colors.primary;
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={fetchData}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        <QSHeader
+          title="Accounts"
+          subtitle="My Wallet"
+          rightIcon="cog"
+          onRightPress={() => router.push("/settings")}
+        />
+
+        {/* Net Worth Card */}
+        <Animated.View
+          entering={FadeInDown.delay(100).springify()}
+          style={styles.netWorthCard}
+        >
+          <LinearGradient
+            colors={["#1e3a8a", "#3b82f6"]} // Dark Blue to Blue
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+
+          {/* Decorative Blur Circles using absolute positioning */}
+          <View
+            style={[
+              styles.nwDecoration,
+              {
+                backgroundColor: "rgba(255,255,255,0.2)",
+                width: 160,
+                height: 160,
+                right: -40,
+                top: -40,
+                opacity: 0.6,
+              },
+            ]}
+          />
+
+          <View style={styles.netWorthContent}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 4,
+              }}
             >
-                <QSHeader
-                    title="Accounts"
-                    subtitle="My Wallet"
-                    rightIcon="cog"
-                    onRightPress={() => router.push('/settings')}
+              <Text
+                style={{ color: "#E0E7FF", fontSize: 14, fontWeight: "600" }}
+              >
+                Total Net Worth
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsBalanceVisible(!isBalanceVisible)}
+                style={{ marginLeft: 8 }}
+              >
+                <MaterialCommunityIcons
+                  name={isBalanceVisible ? "eye" : "eye-off"}
+                  size={16}
+                  color="rgba(255,255,255,0.7)"
                 />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowNetWorthInfo(true)}
+                style={{ marginLeft: 8 }}
+              >
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={16}
+                  color="rgba(255,255,255,0.7)"
+                />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.netWorthAmount}>
+              {isBalanceVisible ? formatCurrency(totalNetWorth) : "••••••••"}
+            </Text>
 
-                {/* Net Worth Card */}
-                <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.netWorthCard}>
-                    <LinearGradient
-                        colors={['#1e3a8a', '#3b82f6']} // Dark Blue to Blue
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={StyleSheet.absoluteFillObject}
-                    />
-
-                    {/* Decorative Blur Circles using absolute positioning */}
-                    <View style={[styles.nwDecoration, { backgroundColor: 'rgba(255,255,255,0.2)', width: 160, height: 160, right: -40, top: -40, opacity: 0.6 }]} />
-
-                    <View style={styles.netWorthContent}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                            <Text style={{ color: '#E0E7FF', fontSize: 14, fontWeight: '600' }}>Total Net Worth</Text>
-                            <TouchableOpacity onPress={() => setIsBalanceVisible(!isBalanceVisible)} style={{ marginLeft: 8 }}>
-                                <MaterialCommunityIcons
-                                    name={isBalanceVisible ? "eye" : "eye-off"}
-                                    size={16}
-                                    color="rgba(255,255,255,0.7)"
-                                />
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={styles.netWorthAmount}>
-                            {isBalanceVisible ? formatCurrency(totalNetWorth) : "••••••••"}
-                        </Text>
-
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            <View style={[
-                                styles.trendBadge,
-                                balanceTrend.percentage === 0 && { backgroundColor: 'rgba(148, 163, 184, 0.2)' } // Grey bg if 0%
-                            ]}>
-                                <MaterialCommunityIcons
-                                    name={balanceTrend.percentage === 0 ? "minus" : (balanceTrend.trend === 'up' ? "trending-up" : "trending-down")}
-                                    size={16}
-                                    color={balanceTrend.percentage === 0 ? "#94A3B8" : (balanceTrend.trend === 'up' ? "#86EFAC" : "#FCA5A5")}
-                                />
-                                <Text style={[
-                                    styles.trendText,
-                                    balanceTrend.percentage === 0 && { color: "#94A3B8" },
-                                    balanceTrend.trend === 'down' && { color: "#FCA5A5" } // Explicit Red for down
-                                ]}>
-                                    {balanceTrend.percentage === 0 ? '' : (balanceTrend.trend === 'up' ? '+' : '-')}{balanceTrend.percentage}%
-                                </Text>
-                            </View>
-
-                            <TouchableOpacity
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}
-                                onPress={() => setFilterVisible(true)}
-                            >
-                                <MaterialCommunityIcons name="tune" size={14} color="#FFFFFF" />
-                                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>Filter</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Animated.View>
-
-                {/* Filter Bottom Sheet */}
-                <QSBottomSheet
-                    visible={filterVisible}
-                    onClose={() => setFilterVisible(false)}
-                    title="Filter Balance"
-                    showDoneButton
-                    onDone={() => setFilterVisible(false)}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
+              <View
+                style={[
+                  styles.trendBadge,
+                  balanceTrend.percentage === 0 && {
+                    backgroundColor: "rgba(148, 163, 184, 0.2)",
+                  }, // Grey bg if 0%
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={
+                    balanceTrend.percentage === 0
+                      ? "minus"
+                      : balanceTrend.trend === "up"
+                        ? "trending-up"
+                        : "trending-down"
+                  }
+                  size={16}
+                  color={
+                    balanceTrend.percentage === 0
+                      ? "#94A3B8"
+                      : balanceTrend.trend === "up"
+                        ? "#86EFAC"
+                        : "#FCA5A5"
+                  }
+                />
+                <Text
+                  style={[
+                    styles.trendText,
+                    balanceTrend.percentage === 0 && { color: "#94A3B8" },
+                    balanceTrend.trend === "down" && { color: "#FCA5A5" }, // Explicit Red for down
+                  ]}
                 >
-                    <View style={{ padding: 20, gap: 20 }}>
-                        <Text style={{ color: theme.colors.textSecondary, marginBottom: 10 }}>
-                            Select which accounts to include in your Total Balance calculation.
-                        </Text>
+                  {balanceTrend.percentage === 0
+                    ? ""
+                    : balanceTrend.trend === "up"
+                      ? "+"
+                      : "-"}
+                  {balanceTrend.percentage}%
+                </Text>
+              </View>
 
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(59, 130, 246, 0.1)', justifyContent: 'center', alignItems: 'center' }}>
-                                    <MaterialCommunityIcons name="bank" size={24} color="#3B82F6" />
-                                </View>
-                                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.text }}>Banks & Debit</Text>
-                            </View>
-                            <Switch
-                                value={balanceFilters.banks}
-                                onValueChange={(val) => setBalanceFilters(prev => ({ ...prev, banks: val }))}
-                                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                                thumbColor="#FFFFFF"
-                            />
-                        </View>
-
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(20, 184, 166, 0.1)', justifyContent: 'center', alignItems: 'center' }}>
-                                    <MaterialCommunityIcons name="cash" size={24} color="#14B8A6" />
-                                </View>
-                                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.text }}>Cash Wallets</Text>
-                            </View>
-                            <Switch
-                                value={balanceFilters.cash}
-                                onValueChange={(val) => setBalanceFilters(prev => ({ ...prev, cash: val }))}
-                                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                                thumbColor="#FFFFFF"
-                            />
-                        </View>
-
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(168, 85, 247, 0.1)', justifyContent: 'center', alignItems: 'center' }}>
-                                    <MaterialCommunityIcons name="credit-card" size={24} color="#A855F7" />
-                                </View>
-                                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.text }}>Credit Cards</Text>
-                            </View>
-                            <Switch
-                                value={balanceFilters.credit}
-                                onValueChange={(val) => setBalanceFilters(prev => ({ ...prev, credit: val }))}
-                                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                                thumbColor="#FFFFFF"
-                            />
-                        </View>
-
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(249, 115, 22, 0.1)', justifyContent: 'center', alignItems: 'center' }}>
-                                    <MaterialCommunityIcons name="handshake" size={24} color="#F97316" />
-                                </View>
-                                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.text }}>Loans (Lent/Borrowed)</Text>
-                            </View>
-                            <Switch
-                                value={balanceFilters.loans}
-                                onValueChange={(val) => setBalanceFilters(prev => ({ ...prev, loans: val }))}
-                                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                                thumbColor="#FFFFFF"
-                            />
-                        </View>
-                    </View>
-                </QSBottomSheet>
-
-                {/* Account Type Tabs */}
-                <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        style={[styles.tabItem, selectedTab === 'all' && styles.tabItemActive]}
-                        onPress={() => setSelectedTab('all')}
-                    >
-                        <Text style={[styles.tabText, selectedTab === 'all' && styles.tabTextActive]} numberOfLines={1}>All</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.tabItem, selectedTab === 'banks' && styles.tabItemActive]}
-                        onPress={() => setSelectedTab('banks')}
-                    >
-                        <Text style={[styles.tabText, selectedTab === 'banks' && styles.tabTextActive]} numberOfLines={1}>Banks</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.tabItem, selectedTab === 'cash' && styles.tabItemActive]}
-                        onPress={() => setSelectedTab('cash')}
-                    >
-                        <Text style={[styles.tabText, selectedTab === 'cash' && styles.tabTextActive]} numberOfLines={1}>Cash</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.tabItem, selectedTab === 'cards' && styles.tabItemActive]}
-                        onPress={() => setSelectedTab('cards')}
-                    >
-                        <Text style={[styles.tabText, selectedTab === 'cards' && styles.tabTextActive]} numberOfLines={1}>Cards</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Accounts List */}
-                <View style={styles.accountList}>
-                    {filteredAccounts.map((account, index) => {
-                        const icon = getAccountIcon(account.type, account.card_type);
-                        const accentColor = getAccountColor(account.type, account.card_type);
-                        const isCredit = account.type === 'card' && account.card_type === 'credit';
-
-                        return (
-                            <Animated.View key={account.id} entering={FadeInUp.delay(200 + index * 50).springify()}>
-                                <TouchableOpacity
-                                    style={styles.accountCard}
-                                    onPress={() => router.push(`/account-details/${account.id}` as any)}
-                                >
-                                    <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-                                        <View style={[
-                                            styles.accountIconContainer,
-                                            {
-                                                backgroundColor: `${accentColor}15`, // 10% opacity
-                                                borderColor: `${accentColor}30`     // 20% opacity
-                                            }
-                                        ]}>
-                                            <MaterialCommunityIcons
-                                                name={icon as any}
-                                                size={24}
-                                                color={accentColor}
-                                            />
-                                        </View>
-                                        <View style={styles.accountInfo}>
-                                            <Text style={styles.accountName}>
-                                                {(() => {
-                                                    const words = account.name.split(' ');
-                                                    if (words.length > 2) {
-                                                        return words.slice(0, 2).join(' ') + '\n' + words.slice(2).join(' ');
-                                                    }
-                                                    return account.name;
-                                                })()}
-                                            </Text>
-                                            <Text style={styles.accountSubtext}>
-                                                {account.account_number_last_4 ? `**** ${account.account_number_last_4} • ` : ""}
-                                                {account.type === 'bank' ? 'Debit' : (account.type === 'cash' ? 'Cash on hand' : 'Visa')}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                    <View style={styles.accountBalanceContainer}>
-                                        <Text style={[
-                                            styles.accountBalance,
-                                            isCredit
-                                                ? { color: account.balance < 0 ? "#F87171" : theme.colors.text }
-                                                : { color: theme.colors.text }
-                                        ]}>
-                                            {formatCurrency(account.balance)}
-                                        </Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                            <Text style={[
-                                                styles.detailsButton,
-                                                isCredit && account.balance <= 0 ? { color: "#F87171" } : {}
-                                            ]}>
-                                                {isCredit
-                                                    ? (account.balance <= 0 ? 'PAY NOW' : 'DETAILS')
-                                                    : (account.type === 'cash' ? 'MANAGE' : 'DETAILS')
-                                                }
-                                            </Text>
-                                        </View>
-                                    </View>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        );
-                    })}
-                </View>
-
-                {/* Add Button */}
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => router.push("/setup-account")}
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                }}
+                onPress={() => setFilterVisible(true)}
+              >
+                <MaterialCommunityIcons name="tune" size={14} color="#FFFFFF" />
+                <Text
+                  style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "600" }}
                 >
-                    <MaterialCommunityIcons name="plus-circle" size={24} color="#FFFFFF" />
-                    <Text style={styles.addButtonText}>Add New Account</Text>
-                </TouchableOpacity>
-            </ScrollView>
+                  Filter
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Filter Bottom Sheet */}
+        <QSBottomSheet
+          visible={filterVisible}
+          onClose={() => setFilterVisible(false)}
+          title="Filter Balance"
+          showDoneButton
+          onDone={() => setFilterVisible(false)}
+        >
+          <View style={{ padding: 20, gap: 20 }}>
+            <Text
+              style={{ color: theme.colors.textSecondary, marginBottom: 10 }}
+            >
+              Select which accounts to include in your Total Balance
+              calculation.
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(59, 130, 246, 0.1)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="bank"
+                    size={24}
+                    color="#3B82F6"
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.colors.text,
+                  }}
+                >
+                  Banks & Debit
+                </Text>
+              </View>
+              <Switch
+                value={balanceFilters.banks}
+                onValueChange={(val) =>
+                  setBalanceFilters((prev) => ({ ...prev, banks: val }))
+                }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(20, 184, 166, 0.1)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="cash"
+                    size={24}
+                    color="#14B8A6"
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.colors.text,
+                  }}
+                >
+                  Cash Wallets
+                </Text>
+              </View>
+              <Switch
+                value={balanceFilters.cash}
+                onValueChange={(val) =>
+                  setBalanceFilters((prev) => ({ ...prev, cash: val }))
+                }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(168, 85, 247, 0.1)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="credit-card"
+                    size={24}
+                    color="#A855F7"
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.colors.text,
+                  }}
+                >
+                  Credit Cards
+                </Text>
+              </View>
+              <Switch
+                value={balanceFilters.credit}
+                onValueChange={(val) =>
+                  setBalanceFilters((prev) => ({ ...prev, credit: val }))
+                }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(249, 115, 22, 0.1)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="handshake"
+                    size={24}
+                    color="#F97316"
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.colors.text,
+                  }}
+                >
+                  Loans (Lent/Borrowed)
+                </Text>
+              </View>
+              <Switch
+                value={balanceFilters.loans}
+                onValueChange={(val) =>
+                  setBalanceFilters((prev) => ({ ...prev, loans: val }))
+                }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(16, 185, 129, 0.1)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="piggy-bank"
+                    size={24}
+                    color="#10B981"
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.colors.text,
+                  }}
+                >
+                  Savings Goals
+                </Text>
+              </View>
+              <Switch
+                value={balanceFilters.savings}
+                onValueChange={(val) =>
+                  setBalanceFilters((prev) => ({ ...prev, savings: val }))
+                }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+        </QSBottomSheet>
+
+        {/* Account Type Tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              selectedTab === "all" && styles.tabItemActive,
+            ]}
+            onPress={() => setSelectedTab("all")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                selectedTab === "all" && styles.tabTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              All
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              selectedTab === "banks" && styles.tabItemActive,
+            ]}
+            onPress={() => setSelectedTab("banks")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                selectedTab === "banks" && styles.tabTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Banks
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              selectedTab === "cash" && styles.tabItemActive,
+            ]}
+            onPress={() => setSelectedTab("cash")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                selectedTab === "cash" && styles.tabTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Cash
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              selectedTab === "cards" && styles.tabItemActive,
+            ]}
+            onPress={() => setSelectedTab("cards")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                selectedTab === "cards" && styles.tabTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Cards
+            </Text>
+          </TouchableOpacity>
         </View>
-    );
+
+        {/* Accounts List */}
+        <View style={styles.accountList}>
+          {filteredAccounts.map((account, index) => {
+            const icon = getAccountIcon(account.type, account.card_type);
+            const accentColor = getAccountColor(
+              account.type,
+              account.card_type,
+            );
+            const isCredit =
+              account.type === "card" && account.card_type === "credit";
+
+            return (
+              <Animated.View
+                key={account.id}
+                entering={FadeInUp.delay(200 + index * 50).springify()}
+              >
+                <TouchableOpacity
+                  style={styles.accountCard}
+                  onPress={() =>
+                    router.push(`/account-details/${account.id}` as any)
+                  }
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      flex: 1,
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.accountIconContainer,
+                        {
+                          backgroundColor: `${accentColor}15`, // 10% opacity
+                          borderColor: `${accentColor}30`, // 20% opacity
+                        },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={icon as any}
+                        size={24}
+                        color={accentColor}
+                      />
+                    </View>
+                    <View style={styles.accountInfo}>
+                      <Text style={styles.accountName}>
+                        {(() => {
+                          const words = account.name.split(" ");
+                          if (words.length > 2) {
+                            return (
+                              words.slice(0, 2).join(" ") +
+                              "\n" +
+                              words.slice(2).join(" ")
+                            );
+                          }
+                          return account.name;
+                        })()}
+                      </Text>
+                      <Text style={styles.accountSubtext}>
+                        {account.account_number_last_4
+                          ? `**** ${account.account_number_last_4} • `
+                          : ""}
+                        {account.type === "bank"
+                          ? "Debit"
+                          : account.type === "cash"
+                            ? "Cash on hand"
+                            : "Visa"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.accountBalanceContainer}>
+                    <Text
+                      style={[
+                        styles.accountBalance,
+                        isCredit
+                          ? {
+                            color:
+                              account.balance < 0
+                                ? "#F87171"
+                                : theme.colors.text,
+                          }
+                          : { color: theme.colors.text },
+                      ]}
+                    >
+                      {formatCurrency(account.balance)}
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.detailsButton,
+                          isCredit && account.balance <= 0
+                            ? { color: "#F87171" }
+                            : {},
+                        ]}
+                      >
+                        {isCredit
+                          ? account.balance <= 0
+                            ? "PAY NOW"
+                            : "DETAILS"
+                          : account.type === "cash"
+                            ? "MANAGE"
+                            : "DETAILS"}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
+        </View>
+
+        {/* Add Button */}
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => router.push("/setup-account")}
+        >
+          <MaterialCommunityIcons
+            name="plus-circle"
+            size={24}
+            color="#FFFFFF"
+          />
+          <Text style={styles.addButtonText}>Add New Account</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <QSInfoSheet
+        visible={showNetWorthInfo}
+        onClose={() => setShowNetWorthInfo(false)}
+        title="Net Worth Analysis"
+      >
+        <View>
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "600",
+              color: theme.colors.text,
+              marginBottom: 4,
+            }}
+          >
+            Total Net Worth
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: theme.colors.textSecondary,
+              lineHeight: 20,
+            }}
+          >
+            This figure represents your overall financial health by subtracting
+            what you owe from what you own.
+          </Text>
+          <View
+            style={{
+              marginTop: 12,
+              padding: 12,
+              backgroundColor: theme.colors.card,
+              borderRadius: 12,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <MaterialCommunityIcons
+                name="wallet-plus"
+                size={16}
+                color={theme.colors.success}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={{ color: theme.colors.text, fontWeight: "500" }}>
+                Assets: Bank, Cash, Savings, Money Lent
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <MaterialCommunityIcons
+                name="wallet-outline"
+                size={16}
+                color={theme.colors.error}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={{ color: theme.colors.text, fontWeight: "500" }}>
+                Liabilities: Credit Card Debt, Money Borrowed
+              </Text>
+            </View>
+          </View>
+        </View>
+      </QSInfoSheet>
+    </View>
+  );
 }

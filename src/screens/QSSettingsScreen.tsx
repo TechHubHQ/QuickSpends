@@ -11,9 +11,13 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { Avatar, TOTAL_AVATARS } from '../components/Avatar';
+import { QSClearDataModal } from '../components/QSClearDataModal';
 import { QSHeader } from '../components/QSHeader';
+import { WidgetPreview } from '../components/WidgetPreview';
 import { useAuth } from '../context/AuthContext';
+import { useDataManagement } from '../hooks/useDataManagement';
 import { useTheme } from '../theme/ThemeContext';
 import { PREMIUM_THEMES, Theme } from '../theme/theme';
 
@@ -28,8 +32,11 @@ const QSSettingsScreen = () => {
     const router = useRouter();
 
     const [isProfileModalVisible, setProfileModalVisible] = useState(false);
+    const [isClearDataModalVisible, setClearDataModalVisible] = useState(false); // New State
     const [editName, setEditName] = useState(user?.username || '');
     const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar || AVATAR_OPTIONS[0]);
+
+    const { clearData, loading: clearingData } = useDataManagement(); // New Hook
 
     const handleSaveProfile = async () => {
         try {
@@ -45,6 +52,29 @@ const QSSettingsScreen = () => {
 
     const handleAvatarSelect = (url: string) => {
         setSelectedAvatar(url);
+    };
+
+    const handleClearConfirm = async (selections: any) => {
+        if (!user) return;
+        const success = await clearData(user.id, selections);
+        if (success) {
+            Toast.show({
+                type: 'success',
+                text1: 'Data Cleared',
+                text2: 'The selected data has been removed successfully.'
+            });
+            // If preferences were cleared, we might need a reload or theme update
+            if (selections.preferences) {
+                // Theme will update via its own listener if implemented with AsyncStorage 
+                // but let's assume a fresh start or simple notification is enough for now.
+            }
+        } else {
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Failed to clear some data.'
+            });
+        }
     };
 
     const renderThemeOption = (preset: typeof PREMIUM_THEMES[0]) => {
@@ -228,12 +258,45 @@ const QSSettingsScreen = () => {
 
                     <TouchableOpacity
                         style={styles.menuItem}
+                        onPress={() => router.push('/upcoming-bills')}
+                    >
+                        <View style={styles.menuIcon}>
+                            <MaterialCommunityIcons name="calendar-clock" size={24} color={theme.colors.warning} />
+                        </View>
+                        <Text style={styles.menuText}>Upcoming Bills</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => router.push('/recurring-transactions')}
+                    >
+                        <View style={styles.menuIcon}>
+                            <MaterialCommunityIcons name="repeat" size={24} color={theme.colors.primary} />
+                        </View>
+                        <Text style={styles.menuText}>Recurring Transactions</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.menuItem}
                         onPress={() => router.push('/notification-settings')}
                     >
                         <View style={styles.menuIcon}>
                             <MaterialCommunityIcons name="bell-outline" size={24} color={theme.colors.info} />
                         </View>
                         <Text style={styles.menuText}>Manage Notifications</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => setClearDataModalVisible(true)}
+                    >
+                        <View style={styles.menuIcon}>
+                            <MaterialCommunityIcons name="database-remove-outline" size={24} color={theme.colors.error} />
+                        </View>
+                        <Text style={[styles.menuText, { color: theme.colors.error }]}>Clear Data</Text>
                         <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
@@ -251,6 +314,12 @@ const QSSettingsScreen = () => {
                         <Text style={styles.menuText}>View Logs</Text>
                         <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
+                </View>
+
+                {/* Widget Preview Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Widget Preview</Text>
+                    <WidgetPreview />
                 </View>
 
                 {/* Account Section */}
@@ -325,6 +394,15 @@ const QSSettingsScreen = () => {
                     </View>
                 </View>
             </Modal>
+
+            {/* Clear Data Modal */}
+            <QSClearDataModal
+                visible={isClearDataModalVisible}
+                onClose={() => setClearDataModalVisible(false)}
+                onConfirm={handleClearConfirm}
+                theme={theme}
+                loading={clearingData}
+            />
         </View>
     );
 };

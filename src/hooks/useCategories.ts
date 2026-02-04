@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 export interface Category {
     id: string;
@@ -12,8 +13,32 @@ export interface Category {
 }
 
 export const useCategories = () => {
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { user } = useAuth();
+
+    const fetchCategories = useCallback(async (type?: 'income' | 'expense') => {
+        setLoading(true);
+        setError(null);
+        try {
+            let query = supabase.from('categories').select('*');
+
+            if (type) {
+                query = query.eq('type', type);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            setCategories(data as Category[]);
+            return data as Category[];
+        } catch (err: any) {
+            setError(err.message);
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     const getCategories = useCallback(async (type?: 'income' | 'expense') => {
         setLoading(true);
@@ -35,6 +60,12 @@ export const useCategories = () => {
             setLoading(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (user) {
+            fetchCategories();
+        }
+    }, [user, fetchCategories]);
 
     const addCategory = useCallback(async (name: string, icon: string, color: string, type: 'income' | 'expense', parentId?: string, isDefault: boolean = false) => {
         setLoading(true);
@@ -95,6 +126,8 @@ export const useCategories = () => {
     }, []);
 
     return {
+        categories,
+        fetchCategories,
         getCategories,
         addCategory,
         deleteCategory,

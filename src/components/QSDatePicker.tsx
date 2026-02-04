@@ -1,9 +1,16 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
 import { useTheme } from "../theme/ThemeContext";
 import { QSBottomSheet } from "./QSBottomSheet";
+
+type ViewMode = 'calendar' | 'month' | 'year';
+
+const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 interface QSDatePickerProps {
     visible: boolean;
@@ -19,11 +26,13 @@ export function QSDatePicker({
     onSelect,
 }: QSDatePickerProps) {
     const { theme } = useTheme();
+    const [viewMode, setViewMode] = useState<ViewMode>('calendar');
     const [tempDate, setTempDate] = useState(selectedDate);
     const [markedDates, setMarkedDates] = useState<{ [key: string]: any }>({});
 
     useEffect(() => {
         setTempDate(selectedDate);
+        setViewMode('calendar');
     }, [selectedDate, visible]);
 
     const getLocalDateString = (date: Date) => {
@@ -71,6 +80,66 @@ export function QSDatePicker({
         setTempDate(date);
     };
 
+    const renderMonthPicker = () => (
+        <View style={styles.gridContainer}>
+            {MONTHS.map((month, index) => (
+                <Pressable
+                    key={month}
+                    style={({ pressed }) => [
+                        styles.gridItem,
+                        tempDate.getMonth() === index && { backgroundColor: theme.colors.primary },
+                        { opacity: pressed ? 0.7 : 1 }
+                    ]}
+                    onPress={() => {
+                        const newDate = new Date(tempDate);
+                        newDate.setMonth(index);
+                        setTempDate(newDate);
+                        setViewMode('calendar');
+                    }}
+                >
+                    <Text style={[
+                        styles.gridItemText,
+                        { color: tempDate.getMonth() === index ? '#FFFFFF' : theme.colors.text }
+                    ]}>
+                        {month.substring(0, 3)}
+                    </Text>
+                </Pressable>
+            ))}
+        </View>
+    );
+
+    const renderYearPicker = () => {
+        const currentYear = new Date().getFullYear();
+        const years = Array.from({ length: 41 }, (_, i) => currentYear - 20 + i);
+        return (
+            <View style={styles.gridContainer}>
+                {years.map((year) => (
+                    <Pressable
+                        key={year}
+                        style={({ pressed }) => [
+                            styles.gridItem,
+                            tempDate.getFullYear() === year && { backgroundColor: theme.colors.primary },
+                            { opacity: pressed ? 0.7 : 1 }
+                        ]}
+                        onPress={() => {
+                            const newDate = new Date(tempDate);
+                            newDate.setFullYear(year);
+                            setTempDate(newDate);
+                            setViewMode('month');
+                        }}
+                    >
+                        <Text style={[
+                            styles.gridItemText,
+                            { color: tempDate.getFullYear() === year ? '#FFFFFF' : theme.colors.text }
+                        ]}>
+                            {year}
+                        </Text>
+                    </Pressable>
+                ))}
+            </View>
+        );
+    };
+
     return (
         <QSBottomSheet
             visible={visible}
@@ -87,60 +156,85 @@ export function QSDatePicker({
                     </Text>
                 </View>
 
-                <Calendar
-                    current={getLocalDateString(tempDate)}
-                    onDayPress={handleDayPress}
-                    markedDates={markedDates}
-                    theme={{
-                        backgroundColor: 'transparent',
-                        calendarBackground: 'transparent',
-                        textSectionTitleColor: theme.isDark ? '#94A3B8' : '#64748B',
-                        selectedDayBackgroundColor: theme.colors.primary,
-                        selectedDayTextColor: '#ffffff',
-                        todayTextColor: theme.colors.primary,
-                        dayTextColor: theme.colors.text,
-                        textDisabledColor: theme.isDark ? '#334155' : '#CBD5E1',
-                        dotColor: theme.colors.primary,
-                        selectedDotColor: '#ffffff',
-                        arrowColor: theme.colors.primary,
-                        monthTextColor: theme.colors.text,
-                        indicatorColor: theme.colors.primary,
-                        textDayFontWeight: '500',
-                        textMonthFontWeight: 'bold',
-                        textDayHeaderFontWeight: '500',
-                        textDayFontSize: 16,
-                        textMonthFontSize: 18,
-                        textDayHeaderFontSize: 14
-                    }}
-                    style={styles.calendar}
-                />
+                {viewMode === 'calendar' ? (
+                    <Calendar
+                        current={getLocalDateString(tempDate)}
+                        onDayPress={handleDayPress}
+                        markedDates={markedDates}
+                        renderHeader={(date: any) => {
+                            const d = new Date(date);
+                            return (
+                                <View style={styles.calendarHeader}>
+                                    <Pressable onPress={() => setViewMode('month')} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+                                        <Text style={[styles.headerText, { color: theme.colors.text }]}>
+                                            {MONTHS[d.getMonth()]}
+                                        </Text>
+                                    </Pressable>
+                                    <Pressable onPress={() => setViewMode('year')} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+                                        <Text style={[styles.headerText, { color: theme.colors.text }]}>
+                                            {d.getFullYear()}
+                                        </Text>
+                                    </Pressable>
+                                </View>
+                            );
+                        }}
+                        theme={{
+                            backgroundColor: 'transparent',
+                            calendarBackground: 'transparent',
+                            textSectionTitleColor: theme.isDark ? '#94A3B8' : '#64748B',
+                            selectedDayBackgroundColor: theme.colors.primary,
+                            selectedDayTextColor: '#ffffff',
+                            todayTextColor: theme.colors.primary,
+                            dayTextColor: theme.colors.text,
+                            textDisabledColor: theme.isDark ? '#334155' : '#CBD5E1',
+                            dotColor: theme.colors.primary,
+                            selectedDotColor: '#ffffff',
+                            arrowColor: theme.colors.primary,
+                            monthTextColor: theme.colors.text,
+                            indicatorColor: theme.colors.primary,
+                            textDayFontWeight: '500',
+                            textMonthFontWeight: 'bold',
+                            textDayHeaderFontWeight: '500',
+                            textDayFontSize: 16,
+                            textMonthFontSize: 18,
+                            textDayHeaderFontSize: 14
+                        }}
+                        style={styles.calendar}
+                    />
+                ) : viewMode === 'month' ? (
+                    renderMonthPicker()
+                ) : (
+                    renderYearPicker()
+                )}
 
                 {/* Quick Date Selection */}
-                <View style={styles.quickSelectContainer}>
-                    <Text style={[styles.quickSelectLabel, { color: theme.isDark ? '#94A3B8' : '#64748B' }]}>
-                        Quick Select
-                    </Text>
-                    <View style={styles.quickSelectButtons}>
-                        <TouchableOpacity
-                            style={[styles.quickButton, { backgroundColor: theme.colors.surface }]}
-                            onPress={() => setQuickDate(0)}
-                        >
-                            <Text style={[styles.quickButtonText, { color: theme.colors.text }]}>Today</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.quickButton, { backgroundColor: theme.colors.surface }]}
-                            onPress={() => setQuickDate(-1)}
-                        >
-                            <Text style={[styles.quickButtonText, { color: theme.colors.text }]}>Yesterday</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.quickButton, { backgroundColor: theme.colors.surface }]}
-                            onPress={() => setQuickDate(-7)}
-                        >
-                            <Text style={[styles.quickButtonText, { color: theme.colors.text }]}>Last Week</Text>
-                        </TouchableOpacity>
+                {viewMode === 'calendar' && (
+                    <View style={styles.quickSelectContainer}>
+                        <Text style={[styles.quickSelectLabel, { color: theme.isDark ? '#94A3B8' : '#64748B' }]}>
+                            Quick Select
+                        </Text>
+                        <View style={styles.quickSelectButtons}>
+                            <Pressable
+                                style={({ pressed }) => [styles.quickButton, { backgroundColor: theme.colors.surface }, { opacity: pressed ? 0.7 : 1 }]}
+                                onPress={() => setQuickDate(0)}
+                            >
+                                <Text style={[styles.quickButtonText, { color: theme.colors.text }]}>Today</Text>
+                            </Pressable>
+                            <Pressable
+                                style={({ pressed }) => [styles.quickButton, { backgroundColor: theme.colors.surface }, { opacity: pressed ? 0.7 : 1 }]}
+                                onPress={() => setQuickDate(-1)}
+                            >
+                                <Text style={[styles.quickButtonText, { color: theme.colors.text }]}>Yesterday</Text>
+                            </Pressable>
+                            <Pressable
+                                style={({ pressed }) => [styles.quickButton, { backgroundColor: theme.colors.surface }, { opacity: pressed ? 0.7 : 1 }]}
+                                onPress={() => setQuickDate(-7)}
+                            >
+                                <Text style={[styles.quickButtonText, { color: theme.colors.text }]}>Last Week</Text>
+                            </Pressable>
+                        </View>
                     </View>
-                </View>
+                )}
             </View>
         </QSBottomSheet>
     );
@@ -190,6 +284,35 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(0,0,0,0.05)',
     },
     quickButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    calendarHeader: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 10,
+    },
+    headerText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    gridContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        paddingBottom: 24,
+    },
+    gridItem: {
+        width: '22%',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    gridItemText: {
         fontSize: 14,
         fontWeight: '600',
     },

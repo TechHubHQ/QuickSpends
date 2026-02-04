@@ -27,7 +27,7 @@ import { createStyles } from "../styles/QSAddTransaction.styles";
 import { useTheme } from "../theme/ThemeContext";
 
 type TransactionType = 'income' | 'expense' | 'transfer';
-type RecurringType = 'one-time' | 'weekly' | 'monthly';
+type RecurringType = 'one-time' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 export default function QSAddTransactionScreen() {
     const { theme } = useTheme();
@@ -49,22 +49,29 @@ export default function QSAddTransactionScreen() {
     // Parse edit transaction if available
     const editTransaction = params.editTransaction ? JSON.parse(params.editTransaction as string) : null;
 
-    const [type, setType] = useState<TransactionType>((params.initialType as TransactionType) || 'expense');
-    const [isRecurring, setIsRecurring] = useState(false);
-    const [name, setName] = useState('');
-    const [amount, setAmount] = useState('');
-    const [description, setDescription] = useState('');
-    const [date, setDate] = useState(new Date());
+    const [type, setType] = useState<TransactionType>(editTransaction?.type || (params.initialType as TransactionType) || 'expense');
+    const [isRecurring, setIsRecurring] = useState(!!editTransaction?.recurring_id);
+    const [name, setName] = useState(editTransaction?.name || '');
+    const [amount, setAmount] = useState(editTransaction?.amount?.toString() || '');
+    const [description, setDescription] = useState(editTransaction?.description || '');
+    const [date, setDate] = useState(editTransaction ? new Date(editTransaction.date) : new Date());
     const [recurringType, setRecurringType] = useState<RecurringType>('one-time');
+    // Custom recurring state
+    const [customInterval, setCustomInterval] = useState('1');
+    const [customFrequency, setCustomFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+    const [endCondition, setEndCondition] = useState<'never' | 'after_occurrences' | 'on_date'>('never');
+    const [totalOccurrences, setTotalOccurrences] = useState('5');
+    const [endDate, setEndDate] = useState(new Date());
+    const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
-    const [accountId, setAccountId] = useState('');
-    const [toAccountId, setToAccountId] = useState('');
-    const [categoryId, setCategoryId] = useState('');
+    const [accountId, setAccountId] = useState(editTransaction?.account_id || '');
+    const [toAccountId, setToAccountId] = useState(editTransaction?.to_account_id || '');
+    const [categoryId, setCategoryId] = useState(editTransaction?.category_id || '');
     const [subCategoryId, setSubCategoryId] = useState(''); // New State
-    const [isGroup, setIsGroup] = useState(false);
-    const [isTrip, setIsTrip] = useState(false);
-    const [selectedGroupId, setSelectedGroupId] = useState('');
-    const [selectedTripId, setSelectedTripId] = useState('');
+    const [isGroup, setIsGroup] = useState(!!editTransaction?.group_id);
+    const [isTrip, setIsTrip] = useState(!!editTransaction?.trip_id);
+    const [selectedGroupId, setSelectedGroupId] = useState(editTransaction?.group_id || '');
+    const [selectedTripId, setSelectedTripId] = useState(editTransaction?.trip_id || '');
 
     // Bottom sheet visibility states
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -88,69 +95,47 @@ export default function QSAddTransactionScreen() {
     const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
     const [loans, setLoans] = useState<any[]>([]);
 
-    const [savingsId, setSavingsId] = useState('');
-    const [loanId, setLoanId] = useState('');
-    const [isSavings, setIsSavings] = useState(false);
-    const [isLoan, setIsLoan] = useState(false);
+    const [savingsId, setSavingsId] = useState(editTransaction?.savings_id || '');
+    const [loanId, setLoanId] = useState(editTransaction?.loan_id || '');
+    const [isSavings, setIsSavings] = useState(!!editTransaction?.savings_id);
+    const [savingsAction, setSavingsAction] = useState<'contribute' | 'withdraw'>('contribute'); // New State
+    const [isLoan, setIsLoan] = useState(!!editTransaction?.loan_id);
 
-    // Pre-fill data if editing
+    // Pre-fill data if editing - cleanup redundant useEffect
     useEffect(() => {
         if (editTransaction) {
-            setType(editTransaction.type);
-            setName(editTransaction.name);
-            setAmount(editTransaction.amount.toString());
-            setDescription(editTransaction.description || '');
-            setDate(new Date(editTransaction.date));
-            setAccountId(editTransaction.account_id);
-            setCategoryId(editTransaction.category_id || '');
-
-            // Set Subcategory logic if implemented (checking if category has parent)
-            // simplified for now as we don't have full category tree in context initially
-
-            if (editTransaction.group_id) {
-                setIsGroup(true);
-                setSelectedGroupId(editTransaction.group_id);
-            }
-            if (editTransaction.trip_id) {
-                setIsTrip(true);
-                setSelectedTripId(editTransaction.trip_id);
-            }
-            if (editTransaction.to_account_id) {
-                setToAccountId(editTransaction.to_account_id);
-            }
-
-            // Recurring pre-fill
-            if (editTransaction.recurring_id) {
-                // We'd ideally need to fetch the recurring config to know frequency
-                // For now, let's just assume if it has recurring_id it was recurring, 
-                // but since we don't have the frequency easily without another fetch, 
-                // we might skip pre-filling frequency or default to monthly.
-                setIsRecurring(true);
-            }
-
-            if (editTransaction.savings_id) {
-                setIsSavings(true);
-                setSavingsId(editTransaction.savings_id);
-            }
-
-            if (editTransaction.loan_id) {
-                setIsLoan(true);
-                setLoanId(editTransaction.loan_id);
-            }
+            // If already initialized, we might still need to handle complex cases like subcategories
+            // but we can do that in fetchData after categories are loaded.
         }
     }, [params.editTransaction]);
+
 
     // Handle initial savingsId param
     useEffect(() => {
         if (params.savingsId) {
             setIsSavings(true);
             setSavingsId(params.savingsId as string);
-            // Default to transfer if adding funds to savings
+            // Default to transfer if adding funds to savings (Contribute)
             if (params.initialType === 'transfer') {
                 setType('transfer');
+                setSavingsAction('contribute');
+            } else if (params.initialType === 'expense') {
+                setType('expense');
+                setSavingsAction('withdraw');
             }
         }
     }, [params.savingsId, params.initialType]);
+
+    // Update Type based on Savings Action
+    useEffect(() => {
+        if (isSavings) {
+            if (savingsAction === 'contribute') {
+                setType('transfer');
+            } else {
+                setType('expense');
+            }
+        }
+    }, [isSavings, savingsAction]);
 
     // Handle initial params for trip/group
     useEffect(() => {
@@ -196,6 +181,20 @@ export default function QSAddTransactionScreen() {
         }
     }, [isLoan, loanId, categories, type, categoryId]);
 
+    // Auto-link Trip when a Group is selected (Fix for group-trip discrepancy)
+    useEffect(() => {
+        if (isGroup && selectedGroupId && groups.length > 0) {
+            const group = groups.find((g: any) => g.id === selectedGroupId);
+            if (group?.trip_id) {
+                // If group is linked to a trip, auto-select that trip
+                if (!isTrip || selectedTripId !== group.trip_id) {
+                    setIsTrip(true);
+                    setSelectedTripId(group.trip_id);
+                }
+            }
+        }
+    }, [isGroup, selectedGroupId, groups, isTrip, selectedTripId]);
+
     useEffect(() => {
         if (user) {
             fetchData();
@@ -221,11 +220,23 @@ export default function QSAddTransactionScreen() {
 
         if (accs.length > 0 && !accountId) setAccountId(accs[0].id);
 
-        // Reset category when type changes or if invalid
-        const isValidIdx = cats.findIndex(c => c.id === categoryId);
-        if (isValidIdx === -1) {
-            setCategoryId('');
-            setSubCategoryId('');
+        if (editTransaction && editTransaction.category_id) {
+            // Find if existing category has a parent (meaning it's a subcategory)
+            const existingCat = cats.find(c => c.id === editTransaction.category_id);
+            if (existingCat?.parent_id) {
+                setCategoryId(existingCat.parent_id);
+                setSubCategoryId(existingCat.id);
+            } else {
+                setCategoryId(editTransaction.category_id);
+                setSubCategoryId('');
+            }
+        } else {
+            // Reset category when type changes or if invalid
+            const isValidIdx = cats.findIndex(c => c.id === categoryId);
+            if (isValidIdx === -1) {
+                setCategoryId('');
+                setSubCategoryId('');
+            }
         }
     };
 
@@ -266,16 +277,21 @@ export default function QSAddTransactionScreen() {
         }
 
         if (type === 'transfer' && !toAccountId) {
-            Toast.show({
-                type: 'error',
-                text1: 'Error',
-                text2: 'Please select a destination account for transfer'
-            });
-            return;
+            // Allow if it's a savings contribution
+            if (isSavings && savingsAction === 'contribute') {
+                // This is valid
+            } else {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Please select a destination account for transfer'
+                });
+                return;
+            }
         }
 
         if (type === 'transfer' && accountId === toAccountId) {
-            // Allow same account transfer ONLY if it's for a savings goal (earmarking funds)
+            // Allow same account transfer ONLY if it's for a savings goal (earmarking funds) - though currently we hide ToAccount for Savings
             if (!isSavings) {
                 Toast.show({
                     type: 'error',
@@ -289,7 +305,7 @@ export default function QSAddTransactionScreen() {
         if (editTransaction) {
             const success = await updateTransaction(editTransaction.id, {
                 account_id: accountId,
-                category_id: categoryId || undefined,
+                category_id: (subCategoryId || categoryId) || undefined,
                 name: name || (type === 'transfer' ? 'Transfer' : 'Transaction'),
                 description: description || undefined,
                 amount: parseFloat(amount),
@@ -312,11 +328,34 @@ export default function QSAddTransactionScreen() {
                 router.back(); // Smooth navigation back, transactions screen will auto-refresh
             }
         } else {
+            const savingsGoalName = getSelectedSavingsGoal()?.name;
+            const defaultName = type === 'transfer'
+                ? (isSavings && savingsAction === 'contribute' ? `Transfer to ${savingsGoalName || 'Savings'}` : 'Transfer')
+                : 'Transaction';
+
+            let recurringOptions: any = undefined;
+
+            if (isRecurring) {
+                if (recurringType === 'custom') {
+                    recurringOptions = {
+                        frequency: customFrequency,
+                        interval: parseInt(customInterval) || 1,
+                        totalOccurrences: endCondition === 'after_occurrences' ? (parseInt(totalOccurrences) || null) : undefined,
+                        endDate: endCondition === 'on_date' ? endDate.toISOString() : undefined
+                    };
+                } else {
+                    // Default fallback if somehow 'one-time' is selected but isRecurring is true
+                    recurringOptions = {
+                        frequency: recurringType === 'one-time' ? 'monthly' : recurringType
+                    };
+                }
+            }
+
             const success = await addTransaction({
                 user_id: user.id,
                 account_id: accountId,
-                category_id: categoryId || undefined,
-                name: name || (type === 'transfer' ? 'Transfer' : 'Transaction'),
+                category_id: (subCategoryId || categoryId) || undefined,
+                name: name || defaultName,
                 description,
                 amount: parseFloat(amount),
                 type,
@@ -326,7 +365,7 @@ export default function QSAddTransactionScreen() {
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
-            }, isRecurring ? { frequency: recurringType === 'one-time' ? 'monthly' : recurringType as 'weekly' | 'monthly' } : undefined);
+            }, recurringOptions);
 
             if (success) {
                 Toast.show({
@@ -435,7 +474,39 @@ export default function QSAddTransactionScreen() {
                         {/* Description - Now available for all types */}
                         <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Description</Text>
-                            <View style={styles.inputWrapper}>
+                            <View style={styles.toolbar}>
+                                <TouchableOpacity
+                                    style={styles.toolbarButton}
+                                    onPress={() => {
+                                        const lines = description.split('\n');
+                                        const newDescription = description ? (description.endsWith('\n') ? description + '• ' : description + '\n• ') : '• ';
+                                        setDescription(newDescription);
+                                    }}
+                                >
+                                    <MaterialCommunityIcons name="format-list-bulleted" size={16} color={theme.colors.primary} />
+                                    <Text style={styles.toolbarButtonText}>Bullet</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.toolbarButton}
+                                    onPress={() => {
+                                        const lines = description.split('\n');
+                                        let nextNum = 1;
+                                        for (let i = lines.length - 1; i >= 0; i--) {
+                                            const match = lines[i].match(/^(\d+)\.\s/);
+                                            if (match) {
+                                                nextNum = parseInt(match[1]) + 1;
+                                                break;
+                                            }
+                                        }
+                                        const newDescription = description ? (description.endsWith('\n') ? `${description}${nextNum}. ` : `${description}\n${nextNum}. `) : '1. ';
+                                        setDescription(newDescription);
+                                    }}
+                                >
+                                    <MaterialCommunityIcons name="format-list-numbered" size={16} color={theme.colors.primary} />
+                                    <Text style={styles.toolbarButtonText}>Number</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={[styles.inputWrapper, styles.multilineInput]}>
                                 <View style={styles.iconContainer}>
                                     <MaterialCommunityIcons name="note-edit" size={20} color="#A78BFA" />
                                 </View>
@@ -445,6 +516,8 @@ export default function QSAddTransactionScreen() {
                                     placeholderTextColor={theme.isDark ? '#475569' : '#94A3B8'}
                                     value={description}
                                     onChangeText={setDescription}
+                                    multiline
+                                    numberOfLines={4}
                                 />
                             </View>
                         </Animated.View>
@@ -472,7 +545,7 @@ export default function QSAddTransactionScreen() {
                             <>
                                 {/* From Account */}
                                 <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
-                                    <Text style={styles.label}>From Account</Text>
+                                    <Text style={styles.label}>{isSavings && savingsAction === 'contribute' ? 'From Account' : 'From Account'}</Text>
                                     <View style={styles.inputWrapper}>
                                         <View style={styles.iconContainer}>
                                             <MaterialCommunityIcons name="bank-transfer-out" size={20} color="#EF4444" />
@@ -489,24 +562,26 @@ export default function QSAddTransactionScreen() {
                                     </View>
                                 </Animated.View>
 
-                                {/* To Account */}
-                                <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.inputGroup}>
-                                    <Text style={styles.label}>To Account</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <View style={styles.iconContainer}>
-                                            <MaterialCommunityIcons name="bank-transfer-in" size={20} color="#10B981" />
+                                {/* To Account - Hide if it's a savings contribution */}
+                                {(!isSavings || savingsAction !== 'contribute') && (
+                                    <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.inputGroup}>
+                                        <Text style={styles.label}>To Account</Text>
+                                        <View style={styles.inputWrapper}>
+                                            <View style={styles.iconContainer}>
+                                                <MaterialCommunityIcons name="bank-transfer-in" size={20} color="#10B981" />
+                                            </View>
+                                            <TouchableOpacity
+                                                style={styles.selectButton}
+                                                onPress={() => setShowToAccountPicker(true)}
+                                            >
+                                                <Text style={getSelectedToAccount() ? styles.selectText : styles.selectPlaceholder}>
+                                                    {getSelectedToAccount()?.name || 'To Account'}
+                                                </Text>
+                                                <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                            </TouchableOpacity>
                                         </View>
-                                        <TouchableOpacity
-                                            style={styles.selectButton}
-                                            onPress={() => setShowToAccountPicker(true)}
-                                        >
-                                            <Text style={getSelectedToAccount() ? styles.selectText : styles.selectPlaceholder}>
-                                                {getSelectedToAccount()?.name || 'To Account'}
-                                            </Text>
-                                            <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                        </TouchableOpacity>
-                                    </View>
-                                </Animated.View>
+                                    </Animated.View>
+                                )}
                             </>
                         )}
 
@@ -597,21 +672,47 @@ export default function QSAddTransactionScreen() {
 
                         {/* Savings Selection (if enabled) */}
                         {isSavings && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Select Savings Goal</Text>
-                                <View style={styles.inputWrapper}>
-                                    <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
+                            <View>
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Savings Action</Text>
+                                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.typeButton,
+                                                { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'contribute' ? '#10B981' : theme.colors.border }
+                                            ]}
+                                            onPress={() => setSavingsAction('contribute')}
+                                        >
+                                            <Text style={[styles.typeText, { color: savingsAction === 'contribute' ? '#10B981' : theme.colors.textSecondary }]}>Contribute</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.typeButton,
+                                                { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.border }
+                                            ]}
+                                            onPress={() => setSavingsAction('withdraw')}
+                                        >
+                                            <Text style={[styles.typeText, { color: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.textSecondary }]}>Withdraw/Spend</Text>
+                                        </TouchableOpacity>
                                     </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowSavingsPicker(true)}
-                                    >
-                                        <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedSavingsGoal()?.name || 'Select Goal'}
-                                        </Text>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Select Savings Goal</Text>
+                                    <View style={styles.inputWrapper}>
+                                        <View style={styles.iconContainer}>
+                                            <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.selectButton}
+                                            onPress={() => setShowSavingsPicker(true)}
+                                        >
+                                            <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
+                                                {getSelectedSavingsGoal()?.name || 'Select Goal'}
+                                            </Text>
+                                            <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             </View>
                         )}
@@ -696,13 +797,14 @@ export default function QSAddTransactionScreen() {
                         {isRecurring && (
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Frequency</Text>
-                                <View style={styles.recurringContainer}>
-                                    {(['weekly', 'monthly'] as RecurringType[]).map((r) => (
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                                    {(['daily', 'weekly', 'monthly', 'yearly', 'custom'] as RecurringType[]).map((r) => (
                                         <TouchableOpacity
                                             key={r}
                                             style={[
                                                 styles.recurringButton,
-                                                recurringType === r && styles.activeRecurringButton
+                                                recurringType === r && styles.activeRecurringButton,
+                                                { paddingHorizontal: 12 }
                                             ]}
                                             onPress={() => setRecurringType(r)}
                                         >
@@ -714,7 +816,101 @@ export default function QSAddTransactionScreen() {
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
-                                </View>
+                                </ScrollView>
+
+                                {recurringType === 'custom' && (
+                                    <Animated.View entering={FadeInDown} style={{ marginTop: 16, gap: 16 }}>
+                                        {/* Custom Interval */}
+                                        <View>
+                                            <Text style={[styles.label, { fontSize: 13, marginBottom: 8 }]}>Repeat every</Text>
+                                            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                                                <TextInput
+                                                    style={[styles.input, { width: 80, textAlign: 'center' }]}
+                                                    value={customInterval}
+                                                    onChangeText={setCustomInterval}
+                                                    keyboardType="number-pad"
+                                                />
+                                                <TouchableOpacity
+                                                    style={styles.selectButton}
+                                                    onPress={() => {
+                                                        const freqs: any[] = ['daily', 'weekly', 'monthly', 'yearly'];
+                                                        const currentIndex = freqs.indexOf(customFrequency);
+                                                        const nextIndex = (currentIndex + 1) % freqs.length;
+                                                        setCustomFrequency(freqs[nextIndex]);
+                                                    }}
+                                                >
+                                                    <Text style={styles.selectText}>
+                                                        {customFrequency.charAt(0).toUpperCase() + customFrequency.slice(1)}{parseInt(customInterval) > 1 ? 's' : ''}
+                                                    </Text>
+                                                    <MaterialCommunityIcons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+
+                                        {/* End Condition */}
+                                        <View>
+                                            <Text style={[styles.label, { fontSize: 13, marginBottom: 8 }]}>Ends</Text>
+                                            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.recurringButton,
+                                                        endCondition === 'never' && styles.activeRecurringButton
+                                                    ]}
+                                                    onPress={() => setEndCondition('never')}
+                                                >
+                                                    <Text style={[styles.recurringText, endCondition === 'never' && styles.activeRecurringText]}>Never</Text>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.recurringButton,
+                                                        endCondition === 'after_occurrences' && styles.activeRecurringButton
+                                                    ]}
+                                                    onPress={() => setEndCondition('after_occurrences')}
+                                                >
+                                                    <Text style={[styles.recurringText, endCondition === 'after_occurrences' && styles.activeRecurringText]}>After...</Text>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.recurringButton,
+                                                        endCondition === 'on_date' && styles.activeRecurringButton
+                                                    ]}
+                                                    onPress={() => setEndCondition('on_date')}
+                                                >
+                                                    <Text style={[styles.recurringText, endCondition === 'on_date' && styles.activeRecurringText]}>On Date</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            {endCondition === 'after_occurrences' && (
+                                                <Animated.View entering={FadeInDown} style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                    <TextInput
+                                                        style={[styles.input, { width: 80, textAlign: 'center' }]}
+                                                        value={totalOccurrences}
+                                                        onChangeText={setTotalOccurrences}
+                                                        keyboardType="number-pad"
+                                                    />
+                                                    <Text style={[styles.label, { marginBottom: 0 }]}>occurrences</Text>
+                                                </Animated.View>
+                                            )}
+
+                                            {endCondition === 'on_date' && (
+                                                <Animated.View entering={FadeInDown} style={{ marginTop: 8 }}>
+                                                    <TouchableOpacity
+                                                        style={styles.selectButton}
+                                                        onPress={() => setShowEndDatePicker(true)}
+                                                    >
+                                                        <Text style={styles.selectText}>
+                                                            {endDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                        </Text>
+                                                        <MaterialCommunityIcons name="calendar" size={20} color={theme.colors.textSecondary} />
+                                                    </TouchableOpacity>
+                                                </Animated.View>
+                                            )}
+
+                                        </View>
+                                    </Animated.View>
+                                )}
                             </View>
                         )}
                     </View>
@@ -734,6 +930,15 @@ export default function QSAddTransactionScreen() {
             </View>
 
             {/* Bottom Sheet Pickers */}
+            <QSDatePicker
+                visible={showEndDatePicker}
+                onClose={() => setShowEndDatePicker(false)}
+                selectedDate={endDate}
+                onSelect={(d) => {
+                    setEndDate(d);
+                    setShowEndDatePicker(false);
+                }}
+            />
             <QSCategoryPicker
                 visible={showCategoryPicker}
                 onClose={() => setShowCategoryPicker(false)}

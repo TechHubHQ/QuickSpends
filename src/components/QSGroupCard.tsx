@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
 import { Avatar } from "./Avatar";
 
@@ -14,6 +14,8 @@ interface Group {
     name: string;
     members: GroupMember[];
     owedAmount?: number; // Positive = you are owed, Negative = you owe
+    totalTransactions?: number;
+    totalSplits?: number;
 }
 
 interface QSGroupCardProps {
@@ -44,14 +46,29 @@ export const QSGroupCard: React.FC<QSGroupCardProps> = ({ group, onPress }) => {
     const isSettled = Math.abs(amount) < 1; // Tolerance for float errors
     const isOwed = amount > 0;
 
+    const hasTransactions = (group.totalTransactions || 0) > 0;
+    const hasSplits = (group.totalSplits || 0) > 0;
+
+    const getStatusText = () => {
+        if (!hasTransactions) return "No expenses yet";
+        if (!hasSplits) return "No shared expenses";
+        if (isSettled) return "Settled up";
+        return isOwed ? `You are owed ₹${Math.abs(amount).toFixed(0)}` : `You owe ₹${Math.abs(amount).toFixed(0)}`;
+    };
+
+    const getStatusColor = () => {
+        if (!hasTransactions || !hasSplits || isSettled) return theme.colors.textSecondary;
+        return isOwed ? theme.colors.primary : theme.colors.error;
+    };
+
     return (
-        <TouchableOpacity
-            style={[styles.container, {
+        <Pressable
+            style={({ pressed }) => [styles.container, {
                 backgroundColor: theme.colors.card, // surface-light / surface-dark
                 borderColor: theme.colors.border, // slate-200 / slate-700
+                opacity: pressed ? 0.7 : 1
             }]}
             onPress={onPress}
-            activeOpacity={0.7}
         >
             {/* Avatar Stack */}
             <View style={styles.avatarStack}>
@@ -102,20 +119,15 @@ export const QSGroupCard: React.FC<QSGroupCardProps> = ({ group, onPress }) => {
                     style={[
                         styles.statusText,
                         {
-                            color: isSettled
-                                ? theme.colors.textSecondary
-                                : (isOwed ? theme.colors.primary : theme.colors.error)
+                            color: getStatusColor()
                         }
                     ]}
                     numberOfLines={1}
                 >
-                    {isSettled
-                        ? "Settled up"
-                        : (isOwed ? `You are owed ₹${Math.abs(amount).toFixed(0)}` : `You owe ₹${Math.abs(amount).toFixed(0)}`)
-                    }
+                    {getStatusText()}
                 </Text>
             </View>
-        </TouchableOpacity>
+        </Pressable>
     );
 };
 
@@ -138,6 +150,9 @@ const styles = StyleSheet.create({
             android: {
                 elevation: 2,
             },
+            web: {
+                boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.05)",
+            }
         }),
     } as ViewStyle,
     avatarStack: {

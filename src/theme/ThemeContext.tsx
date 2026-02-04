@@ -100,3 +100,5 @@ export function useTheme(): ThemeContextType {
 }
 
 
+
+export { Theme };

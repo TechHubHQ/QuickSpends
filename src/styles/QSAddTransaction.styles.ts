@@ -113,8 +113,34 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         fontWeight: '500',
         color: theme.colors.text,
         padding: 0,
-        textAlign: 'left', // Ensure left alignment
-        textAlignVertical: 'center', // Ensure vertical center
+        textAlign: 'left',
+        textAlignVertical: 'top', // Changed for multiline
+    },
+    multilineInput: {
+        minHeight: 100,
+        paddingTop: 12,
+    },
+    toolbar: {
+        flexDirection: 'row',
+        gap: theme.spacing.s,
+        marginBottom: theme.spacing.s,
+        paddingHorizontal: 4,
+    },
+    toolbarButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: theme.colors.backgroundSecondary,
+        borderRadius: theme.borderRadius.s,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    toolbarButtonText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
     },
     selectButton: {
         flex: 1,

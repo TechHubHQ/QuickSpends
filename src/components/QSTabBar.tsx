@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Dimensions, Modal, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
+import { Dimensions, Modal, Pressable, StyleSheet, Text, TouchableWithoutFeedback, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Path, Svg } from "react-native-svg";
 import { createStyles } from "../styles/components/QSTabBar.styles";
@@ -87,6 +87,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                     const getIcon = (name: string, focused: boolean) => {
                         switch (name.toLowerCase()) {
                             case 'home': return "home";
+
                             case 'analytics': return "chart-bar";
                             case 'accounts': return "credit-card";
                             case 'settings': return "cog";
@@ -98,12 +99,13 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                     const isRightSide = index >= 2;
 
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={route.key}
                             onPress={onPress}
-                            style={[
+                            style={({ pressed }) => [
                                 styles.tabItem,
-                                isRightSide ? { marginLeft: index === 2 ? 40 : 0 } : { marginRight: index === 1 ? 40 : 0 }
+                                isRightSide ? { marginLeft: index === 2 ? 40 : 0 } : { marginRight: index === 1 ? 40 : 0 },
+                                pressed && { opacity: 0.7 }
                             ]}
                         >
                             <MaterialCommunityIcons
@@ -117,19 +119,22 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                             ]}>
                                 {label as string}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     );
                 })}
             </View>
 
             {/* FAB Button */}
-            <TouchableOpacity
-                style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+            <Pressable
+                style={({ pressed }) => [
+                    styles.fab,
+                    { backgroundColor: theme.colors.primary },
+                    pressed && { opacity: 0.9 }
+                ]}
                 onPress={toggleMenu}
-                activeOpacity={0.9}
             >
                 <MaterialCommunityIcons name="plus" size={32} color={theme.colors.onPrimary} />
-            </TouchableOpacity>
+            </Pressable>
 
             {/* FAB Menu Overlay */}
             <Modal
@@ -181,6 +186,16 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                                 }}
                                 styles={styles}
                             />
+                            <MenuOption
+                                icon="calendar-clock"
+                                label="Add Upcoming Bill"
+                                color="#F59E0B"
+                                onPress={() => {
+                                    setIsMenuVisible(false);
+                                    router.push("/add-upcoming-bill");
+                                }}
+                                styles={styles}
+                            />
                         </View>
                     </View>
                 </TouchableWithoutFeedback>
@@ -192,12 +207,18 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
 function MenuOption({ icon, label, color, onPress, styles }: { icon: string, label: string, color: string, onPress: () => void, styles: any }) {
     const { theme } = useTheme();
     return (
-        <TouchableOpacity style={styles.menuOption} onPress={onPress}>
+        <Pressable
+            style={({ pressed }) => [
+                styles.menuOption,
+                pressed && { opacity: 0.7 }
+            ]}
+            onPress={onPress}
+        >
             <View style={[styles.optionIcon, { backgroundColor: color + "15" }]}>
                 <MaterialCommunityIcons name={icon as any} size={24} color={color} />
             </View>
             <Text style={[styles.optionLabel, { color: theme.colors.text }]}>{label}</Text>
-        </TouchableOpacity>
+        </Pressable>
     );
 }
 

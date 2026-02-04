@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -65,7 +65,7 @@ export const QSAlertModal: React.FC<QSAlertModalProps> = ({
         <Modal transparent visible={showModal} animationType="none" onRequestClose={onClose}>
             <View style={styles.container}>
                 <Animated.View style={[styles.backdrop, { backgroundColor: 'rgba(0,0,0,0.5)' }, animatedBackdropStyle]}>
-                    <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+                    <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
                 </Animated.View>
 
                 <Animated.View
@@ -96,11 +96,12 @@ export const QSAlertModal: React.FC<QSAlertModalProps> = ({
                             if (isDestructive) textColor = theme.colors.error;
 
                             return (
-                                <TouchableOpacity
+                                <Pressable
                                     key={index}
-                                    style={[
+                                    style={({ pressed }) => [
                                         styles.button,
                                         !isLast && { borderRightColor: theme.colors.border, borderRightWidth: 1 },
+                                        pressed && { opacity: 0.7, backgroundColor: theme.colors.border + '40' }
                                     ]}
                                     onPress={() => {
                                         if (btn.onPress) btn.onPress();
@@ -110,7 +111,7 @@ export const QSAlertModal: React.FC<QSAlertModalProps> = ({
                                     <Text style={[styles.buttonText, { color: textColor, fontWeight: '600' }]}>
                                         {btn.text}
                                     </Text>
-                                </TouchableOpacity>
+                                </Pressable>
                             );
                         })}
                     </View>

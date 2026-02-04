@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { QSBottomSheet } from './QSBottomSheet';
 
@@ -26,17 +26,20 @@ export function QSSelectSheet({ visible, onClose, title, options, selectedValue,
                 {options.map((option) => {
                     const isSelected = option.value === selectedValue;
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={option.value}
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                padding: 16,
-                                borderRadius: 12,
-                                backgroundColor: isSelected ? theme.colors.primary + '10' : theme.colors.card,
-                                borderWidth: 1,
-                                borderColor: isSelected ? theme.colors.primary : 'transparent'
-                            }}
+                            style={({ pressed }) => [
+                                {
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    padding: 16,
+                                    borderRadius: 12,
+                                    backgroundColor: isSelected ? theme.colors.primary + '10' : theme.colors.card,
+                                    borderWidth: 1,
+                                    borderColor: isSelected ? theme.colors.primary : 'transparent'
+                                },
+                                { opacity: pressed ? 0.7 : 1 }
+                            ]}
                             onPress={() => {
                                 onSelect(option.value);
                                 onClose();
@@ -61,7 +64,7 @@ export function QSSelectSheet({ visible, onClose, title, options, selectedValue,
                             {isSelected && (
                                 <MaterialCommunityIcons name="check" size={20} color={theme.colors.primary} />
                             )}
-                        </TouchableOpacity>
+                        </Pressable>
                     );
                 })}
             </View>

@@ -4,7 +4,10 @@ import CustomTabBar from "../../src/components/QSTabBar"; // Trigger reload
 export default function RootLayout() {
   return (
     <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props) => {
+        const { key, ...rest } = props;
+        return <CustomTabBar key={key} {...rest} />;
+      }}
       screenOptions={{
         headerShown: false,
       }}
@@ -13,28 +16,30 @@ export default function RootLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarLabel: "Home"
+          tabBarLabel: "Home",
         }}
       />
+
       <Tabs.Screen
         name="analytics"
         options={{
           title: "Analytics",
-          tabBarLabel: "Analytics"
+          tabBarLabel: "Analytics",
         }}
       />
+
       <Tabs.Screen
         name="accounts"
         options={{
           title: "Accounts",
-          tabBarLabel: "Accounts"
+          tabBarLabel: "Accounts",
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
-          tabBarLabel: "Settings"
+          tabBarLabel: "Settings",
         }}
       />
     </Tabs>

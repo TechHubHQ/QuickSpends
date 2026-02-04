@@ -12,6 +12,8 @@ export interface SavingsGoal {
     category_name?: string;
     category_icon?: string;
     category_color?: string;
+    target_date?: string;
+    include_in_net_worth?: boolean;
 }
 
 export const useSavings = () => {
@@ -37,7 +39,9 @@ export const useSavings = () => {
                 ...s,
                 category_name: s.category?.name,
                 category_icon: s.category?.icon,
-                category_color: s.category?.color
+                category_color: s.category?.color,
+                target_date: s.target_date,
+                include_in_net_worth: s.include_in_net_worth
             })) as SavingsGoal[];
         } catch (err: any) {
             setError(err.message);
@@ -141,7 +145,9 @@ export const useSavings = () => {
                 ...data,
                 category_name: data.category?.name,
                 category_icon: data.category?.icon,
-                category_color: data.category?.color
+                category_color: data.category?.color,
+                target_date: data.target_date,
+                include_in_net_worth: data.include_in_net_worth
             } as SavingsGoal;
         } catch (err: any) {
             setError(err.message);

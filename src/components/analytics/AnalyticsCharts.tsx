@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
-import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
-import { CashFlowData, CategorySpending } from '../../hooks/useAnalytics';
+import { BarChart, PieChart } from 'react-native-gifted-charts';
+import { CategorySpending } from '../../hooks/useAnalytics';
 import { Theme } from '../../theme/theme';
 
 const { width } = Dimensions.get('window');
@@ -51,69 +51,6 @@ export const CategoryDonutChart = ({ data, theme }: CategoryDonutChartProps) => 
     );
 };
 
-interface CashFlowChartProps {
-    data: CashFlowData[];
-    theme: Theme;
-}
-
-export const CashFlowChart = ({ data, theme }: CashFlowChartProps) => {
-    if (!data || data.length === 0) return null;
-
-    const allValues = data.flatMap(item => [item.income, item.expense]);
-    const maxVal = Math.max(...allValues);
-
-    const lineDataIncome = data.map(item => ({
-        value: item.income,
-        label: item.date,
-        dataPointColor: theme.colors.success,
-    }));
-
-    const lineDataExpense = data.map(item => ({
-        value: item.expense,
-        label: item.date,
-        dataPointColor: theme.colors.error,
-    }));
-
-    return (
-        <View style={styles.chartWrapper}>
-            <LineChart
-                data={lineDataIncome}
-                data2={lineDataExpense}
-                height={220}
-                width={width - 50}
-                initialSpacing={20}
-                spacing={50}
-                thickness={3}
-                hideRules
-                hideYAxisText
-                yAxisColor="transparent"
-                xAxisColor={theme.colors.border}
-                color1={theme.colors.success}
-                color2={theme.colors.error}
-                dataPointsColor1={theme.colors.success}
-                dataPointsColor2={theme.colors.error}
-                curved
-                animateOnDataChange
-                animationDuration={1000}
-                onDataChangeAnimationDuration={300}
-                xAxisLabelTextStyle={{ color: theme.colors.textSecondary, fontSize: 11 }}
-                scrollToEnd
-                scrollAnimation
-                maxValue={maxVal * 1.2}
-            />
-            <View style={styles.legendContainer}>
-                <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: theme.colors.success }]} />
-                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Income</Text>
-                </View>
-                <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: theme.colors.error }]} />
-                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Expense</Text>
-                </View>
-            </View>
-        </View>
-    );
-};
 
 interface BudgetBarChartProps {
     data: any[];
@@ -137,7 +74,7 @@ export const BudgetBarChart = ({ data, theme }: BudgetBarChartProps) => {
     }));
 
     return (
-        <View style={styles.chartWrapper}>
+        <View style={[styles.chartWrapper, { height: 300 }]}>
             <BarChart
                 data={barData}
                 barWidth={30}
@@ -145,10 +82,10 @@ export const BudgetBarChart = ({ data, theme }: BudgetBarChartProps) => {
                 maxValue={maxVal * 1.2}
                 barBorderRadius={4}
                 height={200}
-                width={width - 80}
                 initialSpacing={10}
                 spacing={30}
                 yAxisThickness={0}
+                yAxisLabelWidth={0}
                 xAxisThickness={1}
                 xAxisColor={theme.colors.border}
                 hideRules
@@ -183,9 +120,8 @@ export const SpendingBarChart = ({ data, theme }: SpendingBarChartProps) => {
             </Text>
         ),
     }));
-
     return (
-        <View style={styles.chartWrapper}>
+        <View style={[styles.chartWrapper, { height: 320 }]}>
             <BarChart
                 data={barData}
                 barWidth={32}
@@ -193,8 +129,8 @@ export const SpendingBarChart = ({ data, theme }: SpendingBarChartProps) => {
                 maxValue={maxVal * 1.2}
                 barBorderRadius={4}
                 height={220}
-                width={width - 60}
-                initialSpacing={20}
+
+                initialSpacing={10}
                 spacing={24}
                 yAxisThickness={0}
                 xAxisThickness={1}
@@ -214,6 +150,8 @@ const styles = StyleSheet.create({
     chartWrapper: {
         alignItems: 'center',
         paddingVertical: 10,
+        width: '100%',
+        marginLeft: -10,
     },
     emptyContainer: {
         height: 180,

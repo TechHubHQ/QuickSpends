@@ -54,7 +54,6 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         borderRadius: 24,
         backgroundColor: theme.colors.card,
         ...theme.shadows.small,
-        overflow: 'hidden',
     },
     sectionTitle: {
         fontSize: 18,
@@ -64,11 +63,12 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     },
     // Filter Styles
     filterContainer: {
+        flexGrow: 1,
         flexDirection: 'row',
         justifyContent: 'center',
         marginTop: theme.spacing.l,
         marginBottom: theme.spacing.s,
-        marginHorizontal: theme.spacing.l,
+        paddingHorizontal: theme.spacing.l,
         gap: 10,
     },
     filterChip: {
@@ -199,5 +199,53 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     progressBarFill: {
         height: "100%",
         borderRadius: 4,
+    },
+    historyIcon: {
+        marginTop: 4,
+        opacity: 0.8,
+    },
+    transactionList: {
+        gap: 0,
+    },
+    transactionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border + '40',
+        gap: 12,
+    },
+    transactionIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    transactionDetails: {
+        flex: 1,
+        gap: 2,
+    },
+    transactionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: theme.colors.text,
+    },
+    transactionSubtitle: {
+        fontSize: 13,
+        color: theme.colors.textSecondary,
+    },
+    transactionAccount: {
+        fontSize: 11,
+        color: theme.colors.textTertiary,
+        marginTop: 1,
+    },
+    amountContainer: {
+        alignItems: 'flex-end',
+    },
+    transactionAmount: {
+        fontSize: 17,
+        fontWeight: '800',
     },
 });

@@ -48,4 +48,48 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     buttonContainer: {
         marginTop: 20,
     },
+    switchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+    },
+    switchLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    infoContent: {
+        padding: 20,
+        gap: 16,
+    },
+    infoSection: {
+        gap: 8,
+    },
+    infoTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: theme.colors.text,
+    },
+    infoText: {
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+        lineHeight: 20,
+    },
+    assetList: {
+        backgroundColor: theme.colors.surface,
+        borderRadius: 12,
+        padding: 12,
+        gap: 8,
+    },
+    assetItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    assetItemText: {
+        fontSize: 14,
+        color: theme.colors.text,
+        fontWeight: '500',
+    },
 });

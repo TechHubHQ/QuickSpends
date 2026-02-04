@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { Theme } from "../theme/theme";
 
 export const createStyles = (theme: Theme) => StyleSheet.create({
@@ -110,7 +110,14 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         justifyContent: "center",
         gap: 8,
         ...theme.shadows.small,
-        shadowColor: theme.colors.primary,
+        ...Platform.select({
+            web: {
+                boxShadow: `0px 2px 3px ${theme.colors.primary}33`,
+            },
+            default: {
+                shadowColor: theme.colors.primary,
+            }
+        }),
     },
     addMoneyText: {
         color: theme.colors.onPrimary,

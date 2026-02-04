@@ -1,4 +1,4 @@
-import { Dimensions, StyleSheet } from "react-native";
+import { Dimensions, Platform, StyleSheet } from "react-native";
 
 const { width } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 70;
@@ -38,10 +38,17 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
         alignItems: "center",
         justifyContent: "center",
         elevation: 8,
-        shadowColor: "#137fec",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        ...Platform.select({
+            web: {
+                boxShadow: "0px 4px 8px rgba(19, 127, 236, 0.3)",
+            },
+            default: {
+                shadowColor: "#137fec",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+            }
+        }),
     },
     modalOverlay: {
         flex: 1,
@@ -56,10 +63,17 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
         padding: 24,
         gap: 16,
         elevation: 10,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
+        ...Platform.select({
+            web: {
+                boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+            },
+            default: {
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 12,
+            }
+        }),
     },
     menuOption: {
         flexDirection: "row",

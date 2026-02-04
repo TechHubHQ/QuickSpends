@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { Theme } from "../../theme/theme";
 
 export const createStyles = (theme: Theme) => StyleSheet.create({
@@ -10,7 +10,14 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         ...theme.shadows.medium,
-        shadowColor: theme.colors.primary,
+        ...Platform.select({
+            web: {
+                boxShadow: `0px 4px 6px ${theme.colors.primary}33`,
+            },
+            default: {
+                shadowColor: theme.colors.primary,
+            }
+        }),
     },
     secondaryButton: {
         width: "100%",

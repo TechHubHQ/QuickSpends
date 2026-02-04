@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 
 export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     container: {
@@ -10,9 +10,16 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
         width: "100%",
         height: "100%",
         // Glow effect matching Landing Screen
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 20,
+        ...Platform.select({
+            web: {
+                boxShadow: `0px 0px 20px ${colors.primary}`,
+            },
+            default: {
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.8,
+                shadowRadius: 20,
+            }
+        }),
     },
 });
