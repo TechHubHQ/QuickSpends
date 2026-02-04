@@ -8,7 +8,6 @@ import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { NotificationPreferencesProvider } from "../src/context/NotificationPreferencesContext";
 import { useNotifications } from "../src/hooks/useNotifications";
 import { useTransactions } from "../src/hooks/useTransactions";
-import { useWidgetDeepLink } from "../src/hooks/useWidgetDeepLink";
 import { Logger } from "../src/services/logger";
 import { ThemeProvider } from "../src/theme/ThemeContext";
 
@@ -50,9 +49,6 @@ function AppContent() {
   const { user } = useAuth();
   const { processRecurringTransactions } = useTransactions();
   const { checkAllNotifications } = useNotifications();
-  
-  // Handle widget deep links
-  useWidgetDeepLink();
 
   useEffect(() => {
     if (user) {
