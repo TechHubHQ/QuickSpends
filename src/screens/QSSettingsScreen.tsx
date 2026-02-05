@@ -15,7 +15,6 @@ import Toast from 'react-native-toast-message';
 import { Avatar, TOTAL_AVATARS } from '../components/Avatar';
 import { QSClearDataModal } from '../components/QSClearDataModal';
 import { QSHeader } from '../components/QSHeader';
-import { WidgetPreview } from '../components/WidgetPreview';
 import { useAuth } from '../context/AuthContext';
 import { useDataManagement } from '../hooks/useDataManagement';
 import { useTheme } from '../theme/ThemeContext';
@@ -314,12 +313,6 @@ const QSSettingsScreen = () => {
                         <Text style={styles.menuText}>View Logs</Text>
                         <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
-                </View>
-
-                {/* Widget Preview Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Widget Preview</Text>
-                    <WidgetPreview />
                 </View>
 
                 {/* Account Section */}

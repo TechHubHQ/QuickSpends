@@ -16,6 +16,7 @@ interface QSBottomSheetProps {
     onSearchChange?: (text: string) => void;
     showDoneButton?: boolean;
     onDone?: () => void;
+    showCloseButton?: boolean;
     variant?: 'bottom' | 'floating';
 }
 
@@ -30,6 +31,7 @@ export function QSBottomSheet({
     onSearchChange,
     showDoneButton = false,
     onDone,
+    showCloseButton = true,
     variant = 'floating' // Default to floating
 }: QSBottomSheetProps) {
     const { theme } = useTheme();
@@ -99,9 +101,21 @@ export function QSBottomSheet({
                         {variant === 'bottom' && <View style={styles.dragHandle} />}
                         <View style={styles.headerContent}>
                             <Text style={styles.title}>{title}</Text>
-                            <Pressable onPress={onClose} style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.7 : 1 }]}>
-                                <MaterialCommunityIcons name="close" size={24} color={theme.isDark ? '#94A3B8' : '#64748B'} />
-                            </Pressable>
+                            {showCloseButton && (
+                                <Pressable
+                                    onPress={onClose}
+                                    style={({ pressed }) => [
+                                        styles.closeButton,
+                                        { opacity: pressed ? 0.7 : 1 },
+                                    ]}
+                                >
+                                    <MaterialCommunityIcons
+                                        name="close"
+                                        size={24}
+                                        color={theme.isDark ? '#94A3B8' : '#64748B'}
+                                    />
+                                </Pressable>
+                            )}
                         </View>
                     </View>
 

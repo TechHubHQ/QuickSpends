@@ -5,16 +5,16 @@ import { supabase } from "../lib/supabase";
 import { useTheme } from "../theme/ThemeContext";
 import { QSBottomSheet } from "./QSBottomSheet";
 
+import { useAuth } from "../context/AuthContext";
+
+import * as Contacts from 'expo-contacts';
+
 interface QSMemberSheetProps {
     visible: boolean;
     onClose: () => void;
     onMembersSelected: (members: { name: string; email: string; id?: string }[]) => void;
     existingMembers?: string[]; // to avoid adding duplicates
 }
-
-import { useAuth } from "../context/AuthContext";
-
-import * as Contacts from 'expo-contacts';
 
 export const QSMemberSheet: React.FC<QSMemberSheetProps> = ({
     visible,

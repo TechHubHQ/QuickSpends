@@ -1,14 +1,524 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { QSHeader } from '../components/QSHeader';
 import { useAuth } from '../context/AuthContext';
 import { useGroups } from '../hooks/useGroups';
 import { Notification, useNotifications } from '../hooks/useNotifications';
 import { useTheme } from '../theme/ThemeContext';
 import { Theme } from '../theme/theme';
+
+const DUST_PIECES = [
+    { x: 0.1, y: 0.18, size: 8, driftX: -22, driftY: -14, rotate: -26 },
+    { x: 0.2, y: 0.28, size: 7, driftX: -18, driftY: -20, rotate: 18 },
+    { x: 0.34, y: 0.2, size: 9, driftX: 12, driftY: -24, rotate: 12 },
+    { x: 0.48, y: 0.28, size: 7, driftX: 22, driftY: -14, rotate: 24 },
+    { x: 0.62, y: 0.22, size: 8, driftX: 28, driftY: -22, rotate: 20 },
+    { x: 0.76, y: 0.3, size: 7, driftX: 30, driftY: -10, rotate: -18 },
+    { x: 0.22, y: 0.5, size: 9, driftX: -20, driftY: 10, rotate: -12 },
+    { x: 0.36, y: 0.58, size: 7, driftX: -12, driftY: 18, rotate: 10 },
+    { x: 0.5, y: 0.54, size: 10, driftX: 10, driftY: 16, rotate: -8 },
+    { x: 0.64, y: 0.6, size: 7, driftX: 18, driftY: 14, rotate: 16 },
+    { x: 0.78, y: 0.64, size: 8, driftX: 26, driftY: 20, rotate: -20 },
+    { x: 0.88, y: 0.48, size: 6, driftX: 32, driftY: 8, rotate: 22 },
+    { x: 0.16, y: 0.4, size: 6, driftX: -30, driftY: -2, rotate: -30 },
+    { x: 0.3, y: 0.72, size: 6, driftX: -14, driftY: 28, rotate: 14 },
+    { x: 0.58, y: 0.7, size: 6, driftX: 18, driftY: 26, rotate: -10 },
+    { x: 0.7, y: 0.4, size: 7, driftX: 26, driftY: -6, rotate: 12 },
+    { x: 0.42, y: 0.78, size: 5, driftX: -4, driftY: 30, rotate: 8 },
+    { x: 0.9, y: 0.7, size: 5, driftX: 34, driftY: 24, rotate: -24 },
+];
+
+const SNAP_SHARDS = [
+    { x: 0.02, y: 0.02, w: 0.22, h: 0.28, driftX: 46, driftY: -10, rotate: -8 },
+    { x: 0.24, y: 0.0, w: 0.22, h: 0.3, driftX: 54, driftY: -18, rotate: 10 },
+    { x: 0.46, y: 0.04, w: 0.2, h: 0.28, driftX: 62, driftY: -8, rotate: -6 },
+    { x: 0.66, y: 0.02, w: 0.2, h: 0.3, driftX: 70, driftY: -12, rotate: 14 },
+    { x: 0.84, y: 0.06, w: 0.14, h: 0.24, driftX: 80, driftY: -6, rotate: 18 },
+    { x: 0.06, y: 0.32, w: 0.24, h: 0.26, driftX: 42, driftY: 6, rotate: -12 },
+    { x: 0.3, y: 0.34, w: 0.22, h: 0.26, driftX: 52, driftY: 10, rotate: 8 },
+    { x: 0.52, y: 0.32, w: 0.2, h: 0.28, driftX: 64, driftY: 6, rotate: -10 },
+    { x: 0.72, y: 0.34, w: 0.22, h: 0.26, driftX: 76, driftY: 12, rotate: 12 },
+    { x: 0.08, y: 0.62, w: 0.24, h: 0.28, driftX: 36, driftY: 20, rotate: -16 },
+    { x: 0.34, y: 0.62, w: 0.24, h: 0.28, driftX: 52, driftY: 24, rotate: 10 },
+    { x: 0.6, y: 0.62, w: 0.24, h: 0.28, driftX: 68, driftY: 22, rotate: -12 },
+    { x: 0.82, y: 0.62, w: 0.16, h: 0.26, driftX: 86, driftY: 26, rotate: 20 },
+];
+
+const MOCK_NOTIFICATION: Notification = {
+    id: 'mock-local-1',
+    userId: 'mock-user',
+    type: 'info',
+    title: 'Test notification',
+    message: 'This is a mock notification for swipe testing.',
+    data: { type: 'mock' },
+    isRead: false,
+    createdAt: new Date().toISOString()
+};
+
+type NotificationRowProps = {
+    item: Notification;
+    theme: Theme;
+    styles: ReturnType<typeof createStyles>;
+    bulkReadKey: number;
+    bulkDeleteKey: number;
+    bulkIndex: number;
+    onPress: (notification: Notification) => void;
+    onMarkRead: (id: string, isRead: boolean) => Promise<void> | void;
+    onDeleteRemote: (id: string) => Promise<void> | void;
+    onRemoveLocal: (id: string) => void;
+    onRejectInvite: (notification: Notification) => Promise<void>;
+    onAcceptInvite: (notification: Notification) => Promise<void>;
+};
+
+const NotificationRow = ({
+    item,
+    theme,
+    styles,
+    bulkReadKey,
+    bulkDeleteKey,
+    bulkIndex,
+    onPress,
+    onMarkRead,
+    onDeleteRemote,
+    onRemoveLocal,
+    onRejectInvite,
+    onAcceptInvite
+}: NotificationRowProps) => {
+    const [layout, setLayout] = useState<{ width: number; height: number } | null>(null);
+    const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+    const [showDust, setShowDust] = useState(false);
+    const [showSnap, setShowSnap] = useState(false);
+    const isDeletingRef = useRef(false);
+
+    const rowOpacity = useRef(new Animated.Value(1)).current;
+    const rowScale = useRef(new Animated.Value(1)).current;
+    const rowTranslateY = useRef(new Animated.Value(0)).current;
+    const rowTranslateX = useRef(new Animated.Value(0)).current;
+    const rowRotate = useRef(new Animated.Value(0)).current;
+    const rowHeight = useRef(new Animated.Value(0)).current;
+    const readPulse = useRef(new Animated.Value(0)).current;
+    const snapProgress = useRef(new Animated.Value(0)).current;
+    const pieceAnimations = useMemo(() => DUST_PIECES.map(() => new Animated.Value(0)), []);
+
+        const dustScale = layout ? Math.max(1.3, Math.min(2.0, layout.width / 240)) : 1.7;
+        const dustDriftBoost = 3.2;
+        const dustSizeBoost = 1.8;
+    const dustColor = theme.isDark ? 'rgba(248,250,252,0.8)' : 'rgba(30,41,59,0.55)';
+
+    const handleLayout = (event: any) => {
+        if (isDeletingRef.current) return;
+        const { width, height } = event.nativeEvent.layout;
+        if (!layout || layout.width !== width || layout.height !== height) {
+            setLayout({ width, height });
+        }
+        if (!measuredHeight || Math.abs(measuredHeight - height) > 0.5) {
+            setMeasuredHeight(height);
+            rowHeight.setValue(height);
+        }
+    };
+
+    const playReadAnimation = (delayMs = 0) => {
+        readPulse.stopAnimation();
+        readPulse.setValue(0);
+        Animated.sequence([
+            Animated.delay(delayMs),
+            Animated.timing(readPulse, {
+                toValue: 1,
+                duration: 260,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false
+            }),
+            Animated.timing(readPulse, {
+                toValue: 0,
+                duration: 420,
+                easing: Easing.inOut(Easing.cubic),
+                useNativeDriver: false
+            }),
+        ]).start();
+    };
+
+    const handleReadAction = () => {
+        if (!item.isRead) {
+            playReadAnimation();
+        }
+        onMarkRead(item.id, item.isRead);
+    };
+
+    const handlePress = () => {
+        if (!item.isRead) {
+            playReadAnimation();
+        }
+        onPress(item);
+    };
+
+    const startDeleteAnimation = (options?: { skipRemote?: boolean; delayMs?: number }) => {
+        const delayMs = options?.delayMs ?? 0;
+        if (isDeletingRef.current) return;
+        isDeletingRef.current = true;
+
+        if (!options?.skipRemote) {
+            onDeleteRemote(item.id);
+        }
+
+        const dustAnimations = pieceAnimations.map((anim, index) =>
+            Animated.timing(anim, {
+                toValue: 1,
+                duration: 1200 + index * 24,
+                easing: Easing.out(Easing.quad),
+                useNativeDriver: true
+            })
+        );
+
+        const snapAnim = Animated.timing(snapProgress, {
+            toValue: 1,
+            duration: 980,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true
+        });
+
+        const fadeOut = Animated.timing(rowOpacity, {
+            toValue: 0,
+            duration: 900,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+            delay: 160
+        });
+
+        const scaleDown = Animated.timing(rowScale, {
+            toValue: 0.58,
+            duration: 900,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+            delay: 160
+        });
+
+        const driftUp = Animated.timing(rowTranslateY, {
+            toValue: -64,
+            duration: 900,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+            delay: 160
+        });
+
+        const driftSide = Animated.timing(rowTranslateX, {
+            toValue: -44,
+            duration: 720,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+            delay: 160
+        });
+
+        const rotateOut = Animated.timing(rowRotate, {
+            toValue: 1,
+            duration: 820,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+            delay: 160
+        });
+
+        const collapse = Animated.timing(rowHeight, {
+            toValue: 0,
+            duration: 520,
+            delay: 720,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: false
+        });
+
+        setTimeout(() => {
+            setShowDust(true);
+            setShowSnap(true);
+            snapProgress.setValue(0);
+            Animated.parallel([
+                Animated.stagger(30, dustAnimations),
+                snapAnim,
+                fadeOut,
+                scaleDown,
+                driftUp,
+                driftSide,
+                rotateOut,
+                collapse
+            ]).start(() => {
+                onRemoveLocal(item.id);
+            });
+        }, delayMs);
+    };
+
+    const handleSwipeAction = (direction: 'left' | 'right', swipeable?: Swipeable) => {
+        if (direction === 'left') {
+            handleReadAction();
+            swipeable?.close();
+            return;
+        }
+        startDeleteAnimation();
+    };
+
+    const RowBody = ({ interactive }: { interactive: boolean }) => (
+        <View pointerEvents={interactive ? 'auto' : 'none'}>
+            <TouchableOpacity
+                style={[styles.notificationItem, !item.isRead && styles.unreadItem]}
+                activeOpacity={interactive ? 0.7 : 1}
+                onPress={interactive ? handlePress : undefined}
+            >
+                <Animated.View
+                    pointerEvents="none"
+                    style={[
+                        styles.readPulse,
+                        {
+                            opacity: readPulse.interpolate({
+                                inputRange: [0, 0.5, 1],
+                                outputRange: [0, 0.7, 0]
+                            }),
+                            transform: [
+                                {
+                                    scale: readPulse.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [1, 1.12]
+                                    })
+                                }
+                            ]
+                        }
+                    ]}
+                />
+                {!item.isRead && <View style={styles.unreadDot} />}
+                <View style={[styles.iconContainer, { backgroundColor: icon.bgColor }]}>
+                    <MaterialCommunityIcons name={icon.name as any} size={24} color={icon.color} />
+                </View>
+                <View style={styles.contentContainer}>
+                    <View style={styles.titleRow}>
+                        <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+                        <Text style={styles.time}>{format(new Date(item.createdAt), 'h:mm a')}</Text>
+                    </View>
+                    <Text style={styles.message} numberOfLines={3}>{item.message}</Text>
+
+                    {/* Contextual Buttons */}
+                    {item.type === 'security' && (
+                        <View style={styles.contextButtons}>
+                            <TouchableOpacity style={[styles.smallButton, styles.denyButton]}>
+                                <Text style={styles.denyButtonText}>Deny</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.smallButton, styles.allowButton]}>
+                                <Text style={styles.allowButtonText}>Yes, it was me</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {item.data?.type === 'bill' && (
+                        <TouchableOpacity style={styles.payNowButton}>
+                            <Text style={styles.payNowButtonText}>Pay Now</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </TouchableOpacity>
+
+            {/* Action Buttons for Invites */}
+            {item.type === 'invite' && !item.isRead && (
+                <View style={styles.actionButtonsContainer}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.rejectButton]}
+                        onPress={interactive ? () => onRejectInvite(item) : undefined}
+                    >
+                        <Text style={styles.rejectButtonText}>Reject</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.acceptButton]}
+                        onPress={interactive ? () => onAcceptInvite(item) : undefined}
+                    >
+                        <Text style={styles.acceptButtonText}>Accept</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+        </View>
+    );
+
+    useEffect(() => {
+        if (bulkReadKey > 0) {
+            playReadAnimation(bulkIndex * 28);
+        }
+    }, [bulkReadKey, bulkIndex]);
+
+    useEffect(() => {
+        if (bulkDeleteKey > 0) {
+            startDeleteAnimation({ skipRemote: true, delayMs: bulkIndex * 40 });
+        }
+    }, [bulkDeleteKey, bulkIndex]);
+
+    const icon = useMemo(() => {
+        switch (item.type) {
+            case 'security': return { name: 'security', color: '#EF4444', bgColor: '#EF444415' };
+            case 'alert': return { name: 'alert-circle', color: '#F59E0B', bgColor: '#F59E0B15' };
+            case 'invite': return { name: 'account-plus', color: theme.colors.primary, bgColor: theme.colors.primary + '15' };
+            case 'success': return { name: 'trophy', color: '#10B981', bgColor: '#10B98115' };
+            case 'info':
+                if (item.data?.type === 'bill') return { name: 'receipt', color: '#3B82F6', bgColor: '#3B82F615' };
+                if (item.data?.type === 'subscription') return { name: 'card-bulleted', color: '#8B5CF6', bgColor: '#8B5CF615' };
+                return { name: 'information', color: theme.colors.secondary, bgColor: theme.colors.secondary + '15' };
+            default: return { name: 'bell', color: theme.colors.text, bgColor: theme.colors.border };
+        }
+    }, [item, theme]);
+
+    return (
+        <Animated.View
+            style={[
+                styles.itemWrapper,
+                {
+                    opacity: rowOpacity,
+                    transform: [
+                        { translateY: rowTranslateY },
+                        { translateX: rowTranslateX },
+                        {
+                            rotateZ: rowRotate.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '-16deg']
+                            })
+                        },
+                        { scale: rowScale }
+                    ],
+                    height: measuredHeight ? rowHeight : undefined
+                }
+            ]}
+            onLayout={handleLayout}
+        >
+            {showSnap && layout && (
+                <View style={styles.snapLayer} pointerEvents="none">
+                    {SNAP_SHARDS.map((shard, index) => {
+                        const sliceWidth = layout.width * shard.w;
+                        const sliceHeight = layout.height * shard.h;
+                        const sliceLeft = layout.width * shard.x;
+                        const sliceTop = layout.height * shard.y;
+                        const translateX = snapProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, shard.driftX * dustScale]
+                        });
+                        const translateY = snapProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, shard.driftY * dustScale]
+                        });
+                        const rotate = snapProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', `${shard.rotate}deg`]
+                        });
+                        const opacity = snapProgress.interpolate({
+                            inputRange: [0, 0.7, 1],
+                            outputRange: [1, 0.8, 0]
+                        });
+                        const scale = snapProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 0.25]
+                        });
+
+                        return (
+                            <Animated.View
+                                key={`snap-${index}`}
+                                style={[
+                                    styles.snapShard,
+                                    {
+                                        width: sliceWidth,
+                                        height: sliceHeight,
+                                        left: sliceLeft,
+                                        top: sliceTop,
+                                        opacity,
+                                        transform: [{ translateX }, { translateY }, { rotate }, { scale }]
+                                    }
+                                ]}
+                            >
+                                <View style={{ position: 'absolute', left: -sliceLeft, top: -sliceTop, width: layout.width, height: layout.height }}>
+                                    <View style={styles.snapCard}>
+                                        <RowBody interactive={false} />
+                                    </View>
+                                </View>
+                            </Animated.View>
+                        );
+                    })}
+                </View>
+            )}
+            {showDust && layout && (
+                <View style={styles.dustLayer} pointerEvents="none">
+                    {DUST_PIECES.map((piece, index) => {
+                        const progress = pieceAnimations[index];
+                        const translateX = progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, piece.driftX * dustScale * dustDriftBoost]
+                        });
+                        const translateY = progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, piece.driftY * dustScale * dustDriftBoost]
+                        });
+                        const rotate = progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', `${piece.rotate}deg`]
+                        });
+                        const opacity = progress.interpolate({
+                            inputRange: [0, 0.6, 1],
+                            outputRange: [1, 0.8, 0]
+                        });
+                        const scale = progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 0.2]
+                        });
+                        const size = piece.size * dustScale * dustSizeBoost;
+                        const left = layout.width * piece.x - size / 2;
+                        const top = layout.height * piece.y - size / 2;
+
+                        return (
+                            <Animated.View
+                                key={`dust-${index}`}
+                                style={[
+                                    styles.dustPiece,
+                                    {
+                                        backgroundColor: dustColor,
+                                        width: size,
+                                        height: size,
+                                        left,
+                                        top,
+                                        opacity,
+                                        transform: [{ translateX }, { translateY }, { rotate }, { scale }]
+                                    }
+                                ]}
+                            />
+                        );
+                    })}
+                </View>
+            )}
+
+            <Swipeable
+                enabled={!showDust && !showSnap}
+                containerStyle={styles.swipeableContainer}
+                leftThreshold={28}
+                rightThreshold={28}
+                dragOffsetFromLeftEdge={10}
+                dragOffsetFromRightEdge={10}
+                friction={1.4}
+                overshootLeft={false}
+                overshootRight={false}
+                renderLeftActions={() => (
+                    <View style={[styles.swipeAction, styles.swipeActionRead]}>
+                        <MaterialCommunityIcons name="check" size={22} color="#FFFFFF" />
+                        <Text style={styles.swipeActionText}>{item.isRead ? 'Read' : 'Mark Read'}</Text>
+                    </View>
+                )}
+                renderRightActions={() => (
+                    <View style={[styles.swipeAction, styles.swipeActionDelete]}>
+                        <MaterialCommunityIcons name="trash-can-outline" size={22} color="#FFFFFF" />
+                        <Text style={styles.swipeActionText}>Delete</Text>
+                    </View>
+                )}
+                onSwipeableWillOpen={(direction) => {
+                    handleSwipeAction(direction);
+                }}
+                onSwipeableOpen={(direction, swipeable) => {
+                    handleSwipeAction(direction, swipeable);
+                }}
+            >
+                <RowBody interactive />
+            </Swipeable>
+        </Animated.View>
+    );
+};
 
 const QSNotificationsScreen = () => {
     const { theme } = useTheme();
@@ -20,6 +530,7 @@ const QSNotificationsScreen = () => {
         getNotifications,
         markAsRead,
         markAllAsRead,
+        deleteNotification,
         clearAllNotifications,
         checkAllNotifications,
         loading
@@ -28,11 +539,15 @@ const QSNotificationsScreen = () => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [activeTab, setActiveTab] = useState<'All' | 'Alerts' | 'Updates'>('All');
+    const [bulkReadKey, setBulkReadKey] = useState(0);
+    const [bulkDeleteKey, setBulkDeleteKey] = useState(0);
+    const bulkDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const loadNotifications = async () => {
         if (!user) return;
         const data = await getNotifications(user.id);
-        setNotifications(data);
+        const merged = __DEV__ ? [MOCK_NOTIFICATION, ...data] : data;
+        setNotifications(merged);
     };
 
     const handleRefresh = async () => {
@@ -47,6 +562,14 @@ const QSNotificationsScreen = () => {
         loadNotifications();
         if (user) checkAllNotifications(user.id).then(loadNotifications);
     }, [user]);
+
+    useEffect(() => {
+        return () => {
+            if (bulkDeleteTimeoutRef.current) {
+                clearTimeout(bulkDeleteTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const filteredNotifications = useMemo(() => {
         if (activeTab === 'All') return notifications;
@@ -82,20 +605,43 @@ const QSNotificationsScreen = () => {
 
     const handleMarkAsRead = async (id: string, isRead: boolean) => {
         if (isRead) return;
+        if (id.startsWith('mock-')) {
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+            return;
+        }
         await markAsRead(id);
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     };
 
     const handleMarkAllRead = async () => {
         if (!user) return;
+        setBulkReadKey(prev => prev + 1);
         await markAllAsRead(user.id);
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     };
 
+    const removeNotificationFromState = (id: string) => {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+    };
+
+    const handleDeleteNotificationRemote = async (id: string) => {
+        if (id.startsWith('mock-')) return;
+        await deleteNotification(id);
+    };
+
     const handleClearAll = async () => {
         if (!user) return;
+        if (notifications.length > 0) {
+            setBulkDeleteKey(prev => prev + 1);
+            const clearDelay = Math.min(6000, 2200 + notifications.length * 80);
+            if (bulkDeleteTimeoutRef.current) {
+                clearTimeout(bulkDeleteTimeoutRef.current);
+            }
+            bulkDeleteTimeoutRef.current = setTimeout(() => {
+                setNotifications([]);
+            }, clearDelay);
+        }
         await clearAllNotifications(user.id);
-        setNotifications([]);
     };
 
     const handleNotificationPress = async (notification: Notification) => {
@@ -112,92 +658,19 @@ const QSNotificationsScreen = () => {
         }
     };
 
-    const renderItem = ({ item }: { item: Notification }) => {
-        const getIconData = () => {
-            switch (item.type) {
-                case 'security': return { name: 'security', color: '#EF4444', bgColor: '#EF444415' };
-                case 'alert': return { name: 'alert-circle', color: '#F59E0B', bgColor: '#F59E0B15' };
-                case 'invite': return { name: 'account-plus', color: theme.colors.primary, bgColor: theme.colors.primary + '15' };
-                case 'success': return { name: 'trophy', color: '#10B981', bgColor: '#10B98115' };
-                case 'info':
-                    if (item.data?.type === 'bill') return { name: 'receipt', color: '#3B82F6', bgColor: '#3B82F615' };
-                    if (item.data?.type === 'subscription') return { name: 'card-bulleted', color: '#8B5CF6', bgColor: '#8B5CF615' };
-                    return { name: 'information', color: theme.colors.secondary, bgColor: theme.colors.secondary + '15' };
-                default: return { name: 'bell', color: theme.colors.text, bgColor: theme.colors.border };
-            }
-        };
+    const handleRejectInvite = async (notification: Notification) => {
+        if (notification.data?.groupId) {
+            await rejectGroupInvite(notification.data.groupId);
+            await handleMarkAsRead(notification.id, false);
+        }
+    };
 
-        const icon = getIconData();
-
-        return (
-            <View style={styles.itemWrapper}>
-                <TouchableOpacity
-                    style={[styles.notificationItem, !item.isRead && styles.unreadItem]}
-                    activeOpacity={0.7}
-                    onPress={() => handleNotificationPress(item)}
-                >
-                    {!item.isRead && <View style={styles.unreadDot} />}
-                    <View style={[styles.iconContainer, { backgroundColor: icon.bgColor }]}>
-                        <MaterialCommunityIcons name={icon.name as any} size={24} color={icon.color} />
-                    </View>
-                    <View style={styles.contentContainer}>
-                        <View style={styles.titleRow}>
-                            <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-                            <Text style={styles.time}>{format(new Date(item.createdAt), 'h:mm a')}</Text>
-                        </View>
-                        <Text style={styles.message} numberOfLines={3}>{item.message}</Text>
-
-                        {/* Contextual Buttons */}
-                        {item.type === 'security' && (
-                            <View style={styles.contextButtons}>
-                                <TouchableOpacity style={[styles.smallButton, styles.denyButton]}>
-                                    <Text style={styles.denyButtonText}>Deny</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.smallButton, styles.allowButton]}>
-                                    <Text style={styles.allowButtonText}>Yes, it was me</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
-
-                        {item.data?.type === 'bill' && (
-                            <TouchableOpacity style={styles.payNowButton}>
-                                <Text style={styles.payNowButtonText}>Pay Now</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </TouchableOpacity>
-
-                {/* Action Buttons for Invites */}
-                {item.type === 'invite' && !item.isRead && (
-                    <View style={styles.actionButtonsContainer}>
-                        <TouchableOpacity
-                            style={[styles.actionButton, styles.rejectButton]}
-                            onPress={async () => {
-                                if (item.data?.groupId) {
-                                    await rejectGroupInvite(item.data.groupId);
-                                    await handleMarkAsRead(item.id, false);
-                                }
-                            }}
-                        >
-                            <Text style={styles.rejectButtonText}>Reject</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.actionButton, styles.acceptButton]}
-                            onPress={async () => {
-                                if (item.data?.groupId) {
-                                    await acceptGroupInvite(item.data.groupId);
-                                    await handleMarkAsRead(item.id, false);
-                                    router.push({ pathname: '/group/[id]', params: { id: item.data.groupId } } as any);
-                                }
-                            }}
-                        >
-                            <Text style={styles.acceptButtonText}>Accept</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </View>
-        );
+    const handleAcceptInvite = async (notification: Notification) => {
+        if (notification.data?.groupId) {
+            await acceptGroupInvite(notification.data.groupId);
+            await handleMarkAsRead(notification.id, false);
+            router.push({ pathname: '/group/[id]', params: { id: notification.data.groupId } } as any);
+        }
     };
 
     return (
@@ -248,16 +721,34 @@ const QSNotificationsScreen = () => {
                     </View>
                 )}
 
-                {groupedNotifications.map((group) => (
-                    <View key={group.title} style={styles.groupContainer}>
-                        <Text style={styles.groupHeader}>{group.title.toUpperCase()}</Text>
-                        {group.data.map((item) => (
-                            <View key={item.id}>
-                                {renderItem({ item })}
-                            </View>
-                        ))}
-                    </View>
-                ))}
+                {(() => {
+                    let bulkIndex = 0;
+                    return groupedNotifications.map((group) => (
+                        <View key={group.title} style={styles.groupContainer}>
+                            <Text style={styles.groupHeader}>{group.title.toUpperCase()}</Text>
+                            {group.data.map((item) => {
+                                const currentIndex = bulkIndex++;
+                                return (
+                                    <NotificationRow
+                                        key={item.id}
+                                        item={item}
+                                        theme={theme}
+                                        styles={styles}
+                                        bulkReadKey={bulkReadKey}
+                                        bulkDeleteKey={bulkDeleteKey}
+                                        bulkIndex={currentIndex}
+                                        onPress={handleNotificationPress}
+                                        onMarkRead={handleMarkAsRead}
+                                        onDeleteRemote={handleDeleteNotificationRemote}
+                                        onRemoveLocal={removeNotificationFromState}
+                                        onRejectInvite={handleRejectInvite}
+                                        onAcceptInvite={handleAcceptInvite}
+                                    />
+                                );
+                            })}
+                        </View>
+                    ));
+                })()}
             </ScrollView>
 
             {loading && !refreshing && (
@@ -336,16 +827,72 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     },
     itemWrapper: {
         marginBottom: 12,
+        position: 'relative',
+        overflow: 'visible',
+    },
+    swipeableContainer: {
+        flex: 1,
         backgroundColor: theme.colors.card,
         borderRadius: 16,
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: theme.isDark ? '#27272a30' : '#E2E8F0',
     },
+    dustLayer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 4,
+    },
+    dustPiece: {
+        position: 'absolute',
+        borderRadius: 999,
+    },
+    snapLayer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 3,
+    },
+    snapShard: {
+        position: 'absolute',
+        overflow: 'hidden',
+        borderRadius: 10,
+    },
+    snapCard: {
+        flex: 1,
+        backgroundColor: theme.colors.card,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: theme.isDark ? '#27272a30' : '#E2E8F0',
+    },
+    swipeAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        width: 112,
+        height: '100%',
+    },
+    swipeActionRead: {
+        backgroundColor: theme.colors.primary,
+    },
+    swipeActionDelete: {
+        backgroundColor: '#EF4444',
+    },
+    swipeActionText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+    },
+    readPulse: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: theme.colors.primary,
+        borderRadius: 16,
+    },
     notificationItem: {
         flexDirection: 'row',
         padding: 16,
         alignItems: 'flex-start',
+        position: 'relative',
     },
     unreadItem: {
         // Subtle indicator if needed

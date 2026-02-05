@@ -90,6 +90,18 @@ export const useNotifications = () => {
         }
     }, []);
 
+    const deleteNotification = useCallback(async (notificationId: string) => {
+        try {
+            await supabase
+                .from('notifications')
+                .delete()
+                .eq('id', notificationId);
+            return true;
+        } catch (err: any) {
+            return false;
+        }
+    }, []);
+
     const clearAllNotifications = useCallback(async (userId: string) => {
         try {
             await supabase
@@ -192,6 +204,7 @@ export const useNotifications = () => {
         getUnreadCount,
         markAsRead,
         markAllAsRead,
+        deleteNotification,
         clearAllNotifications,
         sendInvite,
         checkAllNotifications,

@@ -10,6 +10,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { QSBottomSheet } from "../components/QSBottomSheet";
@@ -36,7 +37,6 @@ import {
   useAnalytics,
 } from "../hooks/useAnalytics";
 import { useTransactions } from "../hooks/useTransactions";
-import { useWidgetData } from "../hooks/useWidgetData";
 
 import CashFlowTrendChart from "../components/analytics/CashFlowTrendChart";
 import { DebtHealthCard } from "../components/analytics/DebtHealthCard";
@@ -96,13 +96,13 @@ export default function QSAnalyticsScreen() {
   // Category transactions modal state
   const { getTransactionsByCategory, getTransactionsByMerchant } =
     useTransactions();
-  const { updateWidgetData } = useWidgetData();
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [categoryTransactions, setCategoryTransactions] = useState<any[]>([]);
   const [loadingCategoryTxns, setLoadingCategoryTxns] = useState(false);
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
   const [showCustomRangePicker, setShowCustomRangePicker] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   // Merchant transactions modal state
   const [showMerchantModal, setShowMerchantModal] = useState(false);
@@ -283,45 +283,105 @@ export default function QSAnalyticsScreen() {
       { label: "Custom", type: "custom" },
     ];
 
+    const getActiveLabel = () => {
+      if (dateRange.type === "days") {
+        return `${dateRange.days || 0} Days`;
+      }
+      if (dateRange.type === "thisMonth") {
+        return "This Month";
+      }
+      if (
+        dateRange.type === "custom" &&
+        dateRange.startDate &&
+        dateRange.endDate
+      ) {
+        return `${format(dateRange.startDate, "MMM d")} - ${format(
+          dateRange.endDate,
+          "MMM d",
+        )}`;
+      }
+      return "Custom";
+    };
+
     return (
       <View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContainer}
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setShowFilterSheet(true)}
         >
-          {filterOptions.map((opt, idx) => {
-            const isActive =
-              (opt.type === "days" &&
-                dateRange.type === "days" &&
-                dateRange.days === opt.days) ||
-              (opt.type === "thisMonth" && dateRange.type === "thisMonth") ||
-              (opt.type === "custom" && dateRange.type === "custom");
+          <View style={styles.filterButtonContent}>
+            <MaterialCommunityIcons
+              name="filter-variant"
+              size={16}
+              color={theme.colors.textSecondary}
+            />
+            <Text style={styles.filterButtonLabel}>Filter</Text>
+            <Text style={styles.filterButtonDivider}>•</Text>
+            <Text style={styles.filterButtonValue}>{getActiveLabel()}</Text>
+          </View>
+          <MaterialCommunityIcons
+            name="chevron-down"
+            size={18}
+            color={theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
 
-            return (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => {
-                  if (opt.type === "custom") {
-                    setShowCustomRangePicker(true);
-                  } else {
+        <QSBottomSheet
+          visible={showFilterSheet}
+          onClose={() => setShowFilterSheet(false)}
+          title="Filter"
+          showSearch={false}
+          showDoneButton={false}
+          variant="bottom"
+        >
+          <View style={{ gap: 10 }}>
+            {filterOptions.map((opt, idx) => {
+              const isActive =
+                (opt.type === "days" &&
+                  dateRange.type === "days" &&
+                  dateRange.days === opt.days) ||
+                (opt.type === "thisMonth" &&
+                  dateRange.type === "thisMonth") ||
+                (opt.type === "custom" && dateRange.type === "custom");
+
+              return (
+                <Pressable
+                  key={idx}
+                  onPress={() => {
+                    if (opt.type === "custom") {
+                      setShowFilterSheet(false);
+                      setShowCustomRangePicker(true);
+                      return;
+                    }
                     setDateRange({ type: opt.type as any, days: opt.days });
-                  }
-                }}
-                style={[styles.filterChip, isActive && styles.activeFilterChip]}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    isActive && styles.activeFilterText,
+                    setShowFilterSheet(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.filterOption,
+                    isActive && styles.filterOptionActive,
+                    { opacity: pressed ? 0.7 : 1 },
                   ]}
                 >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={[
+                      styles.filterOptionText,
+                      isActive && styles.filterOptionTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                  {isActive && (
+                    <MaterialCommunityIcons
+                      name="check"
+                      size={18}
+                      color={theme.colors.primary}
+                    />
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </QSBottomSheet>
         {dateRange.type === "custom" &&
           dateRange.startDate &&
           dateRange.endDate && (
@@ -1189,6 +1249,7 @@ export default function QSAnalyticsScreen() {
               ? `Transactions — ${selectedCategory.category_name || selectedCategory.name}`
               : "Transactions"
           }
+          showCloseButton={false}
           showSearch
           searchPlaceholder="Search transactions..."
           searchValue={categorySearchQuery}
@@ -1312,6 +1373,7 @@ export default function QSAnalyticsScreen() {
               ? `Transactions — ${selectedMerchant.merchant_name}`
               : "Transactions"
           }
+          showCloseButton={false}
           showSearch
           searchPlaceholder="Search transactions..."
           searchValue={merchantSearchQuery}
@@ -1425,6 +1487,7 @@ export default function QSAnalyticsScreen() {
               ? `${selectedFlow.label} — ${format(new Date(selectedFlow.date), "MMM d, yyyy")}`
               : "Transactions"
           }
+          showCloseButton={false}
           showSearch
           searchPlaceholder="Search transactions..."
           searchValue={flowSearchQuery}
@@ -1526,24 +1589,9 @@ export default function QSAnalyticsScreen() {
                         <Text style={styles.transactionTitle} numberOfLines={1}>
                           {tx.name || tx.category_name || "Transaction"}
                         </Text>
-                        <View
-                          style={{ flexDirection: "row", alignItems: "center" }}
-                        >
-                          <Text style={styles.transactionSubtitle}>
-                            {tx.category_name}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.transactionSubtitle,
-                              { marginHorizontal: 4 },
-                            ]}
-                          >
-                            •
-                          </Text>
-                          <Text style={styles.transactionSubtitle}>
-                            {format(new Date(tx.date), "h:mm a")}
-                          </Text>
-                        </View>
+                        <Text style={styles.transactionSubtitle}>
+                          {tx.category_name || "Uncategorized"}
+                        </Text>
                         {tx.account_name && (
                           <Text style={styles.transactionAccount}>
                             {tx.account_name}
@@ -1583,6 +1631,7 @@ export default function QSAnalyticsScreen() {
             setNwsSearchQuery("");
           }}
           title={nwsModalTitle}
+          showCloseButton={false}
           showSearch
           searchPlaceholder="Search transactions..."
           searchValue={nwsSearchQuery}

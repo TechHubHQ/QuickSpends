@@ -53,9 +53,11 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
         overflow: 'hidden', // Essential for floating card rounded corners
     },
     header: {
-        paddingTop: 12,
-        paddingBottom: 8,
+        paddingTop: 16,
+        paddingBottom: 12,
         backgroundColor: colors.background,
+        borderBottomWidth: 1,
+        borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
     },
     dragHandle: {
         width: 48,
@@ -70,25 +72,33 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 24,
+        gap: 12,
     },
     title: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: '700',
         color: colors.text,
     },
     closeButton: {
-        padding: 4,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: isDark ? 'rgba(148,163,184,0.12)' : 'rgba(15,23,42,0.06)',
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
     },
     searchContainer: {
         paddingHorizontal: 24,
-        paddingVertical: 8,
+        paddingVertical: 12,
         backgroundColor: colors.background,
     },
     searchWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.surface,
-        borderRadius: 12,
+        borderRadius: 14,
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderWidth: 1,
@@ -106,7 +116,7 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
     },
     content: {
         paddingHorizontal: 24,
-        paddingVertical: 8,
+        paddingVertical: 12,
     },
     footer: {
         padding: 24,

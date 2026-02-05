@@ -1,13 +1,13 @@
 import { useCallback, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+import { useAuth } from "../context/AuthContext";
+
 export interface Group {
   id: string;
   name: string;
   created_by: string;
 }
-
-import { useAuth } from "../context/AuthContext";
 
 export const useGroups = () => {
   const { user } = useAuth();

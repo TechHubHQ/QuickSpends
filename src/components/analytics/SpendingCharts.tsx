@@ -45,6 +45,8 @@ const SpendingCharts = () => {
                         donut
                         showGradient
                         sectionAutoFocus
+                        isAnimated
+                        animationDuration={900}
                         radius={70}
                         innerRadius={50}
                         innerCircleColor={theme.colors.surface}
@@ -83,6 +85,8 @@ const SpendingCharts = () => {
                         hideYAxisText
                         labelWidth={30} // Adjust based on label length
                         xAxisLabelTextStyle={{ color: theme.colors.textSecondary, fontSize: 12 }}
+                        isAnimated
+                        animationDuration={900}
                     />
                 </View>
             </View>
@@ -121,7 +125,6 @@ const styles = StyleSheet.create({
     },
     barHelper: {
         alignItems: 'center',
-        // paddingLeft: 10,
     }
 });
 

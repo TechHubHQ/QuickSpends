@@ -1,7 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import Animated, { FadeInRight } from "react-native-reanimated";
 import { MerchantSpending } from "../../hooks/useAnalytics";
 import { Theme } from "../../theme/theme";
@@ -25,6 +31,9 @@ export const MerchantInsightsCard: React.FC<MerchantInsightsCardProps> = ({
 }) => {
   const styles = createStyles(theme);
 
+  const { width } = useWindowDimensions();
+  const isCompact = width < 380;
+
   if (loading || data.length === 0) {
     return (
       <View style={styles.container}>
@@ -42,9 +51,14 @@ export const MerchantInsightsCard: React.FC<MerchantInsightsCardProps> = ({
             size={48}
             color={theme.colors.textTertiary}
           />
-          <Text style={styles.emptyText}>
-            {loading ? "Loading..." : "No merchant data available"}
+          <Text style={styles.emptyTitle}>
+            {loading ? "Loading merchants..." : "No merchant data yet"}
           </Text>
+          {!loading && (
+            <Text style={styles.emptySubText}>
+              Add transactions to see your top merchants here.
+            </Text>
+          )}
         </View>
       </View>
     );
@@ -59,7 +73,7 @@ export const MerchantInsightsCard: React.FC<MerchantInsightsCardProps> = ({
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isCompact && styles.containerCompact]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.iconBadge}>
@@ -67,7 +81,11 @@ export const MerchantInsightsCard: React.FC<MerchantInsightsCardProps> = ({
           </View>
           <Text style={styles.title}>Top Merchants</Text>
         </View>
-        <Text style={styles.subtitle}>Where your money goes</Text>
+        {!isCompact && (
+          <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
+            Where your money goes
+          </Text>
+        )}
       </View>
 
       <View style={styles.merchantList}>
@@ -76,7 +94,12 @@ export const MerchantInsightsCard: React.FC<MerchantInsightsCardProps> = ({
             key={merchant.merchant_name}
             entering={FadeInRight.delay(index * 100).springify()}
           >
-            <View style={styles.merchantItem}>
+            <View
+              style={[
+                styles.merchantItem,
+                isCompact && styles.merchantItemCompact,
+              ]}
+            >
               <Pressable
                 onPress={() => onMerchantPress?.(merchant)}
                 style={({ pressed }) => [
@@ -88,25 +111,76 @@ export const MerchantInsightsCard: React.FC<MerchantInsightsCardProps> = ({
                   colors={gradientColors[index % gradientColors.length] as any}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.rankBadge}
+                  style={[
+                    styles.rankBadge,
+                    isCompact && styles.rankBadgeCompact,
+                  ]}
                 >
-                  <Text style={styles.rankText}>{index + 1}</Text>
+                  <Text
+                    style={[
+                      styles.rankText,
+                      isCompact && styles.rankTextCompact,
+                    ]}
+                  >
+                    {index + 1}
+                  </Text>
                 </LinearGradient>
 
-                <View style={styles.merchantInfo}>
-                  <Text style={styles.merchantName} numberOfLines={1}>
+                <View
+                  style={[
+                    styles.merchantInfo,
+                    isCompact && styles.merchantInfoCompact,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.merchantName,
+                      isCompact && styles.merchantNameCompact,
+                    ]}
+                    numberOfLines={1}
+                  >
                     {merchant.merchant_name}
                   </Text>
-                  <View style={styles.merchantMeta}>
-                    <Text style={styles.transactionCount}>
+
+                  <View style={styles.metaRow}>
+                    <Text
+                      style={styles.transactionCount}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
                       {merchant.count} transaction
                       {merchant.count > 1 ? "s" : ""}
                     </Text>
-                    <View style={styles.percentagePill}>
-                      <Text style={styles.percentageText}>
-                        {merchant.percentage.toFixed(1)}%
-                      </Text>
-                    </View>
+
+                    <Text style={styles.percentageTextSmall}>
+                      {merchant.percentage.toFixed(1)}%
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.progressBarContainer,
+                      isCompact && styles.progressBarContainerCompact,
+                    ]}
+                    accessible
+                    accessibilityRole="progressbar"
+                    accessibilityValue={{
+                      min: 0,
+                      max: 100,
+                      now: Math.round(merchant.percentage),
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        {
+                          width: `${Math.min(Math.max(merchant.percentage, 0), 100)}%`,
+                          backgroundColor: (
+                            gradientColors[index % gradientColors.length] as any
+                          )[0],
+                        },
+                      ]}
+                    />
                   </View>
                 </View>
               </Pressable>
@@ -117,7 +191,12 @@ export const MerchantInsightsCard: React.FC<MerchantInsightsCardProps> = ({
                 style={({ pressed }) =>
                   [
                     styles.amountContainer,
-                    { opacity: pressed ? 0.7 : 1 },
+                    isCompact && styles.amountContainerCompact,
+                    {
+                      opacity: pressed ? 0.7 : 1,
+                      minWidth: isCompact ? 72 : 96,
+                      alignItems: "flex-end",
+                    },
                   ] as any
                 }
               >
@@ -182,9 +261,17 @@ const createStyles = (theme: Theme) =>
       paddingVertical: theme.spacing.xl,
       gap: 12,
     },
-    emptyText: {
-      fontSize: 14,
-      color: theme.colors.textTertiary,
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.colors.text,
+      marginTop: 8,
+    },
+    emptySubText: {
+      fontSize: 13,
+      color: theme.colors.textSecondary,
+      marginTop: 6,
+      textAlign: "center",
     },
     merchantList: {
       gap: 12,
@@ -237,6 +324,68 @@ const createStyles = (theme: Theme) =>
       fontSize: 12,
       color: theme.colors.textSecondary,
     },
+    metaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      marginTop: 4,
+    },
+    percentageTextSmall: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: theme.colors.primary,
+      minWidth: 44,
+      textAlign: "right",
+    },
+
+    progressBarContainer: {
+      height: 6,
+      borderRadius: 6,
+      backgroundColor: theme.colors.backgroundTertiary,
+      marginTop: 8,
+      overflow: "hidden",
+    },
+    progressBarFill: {
+      height: "100%",
+      borderRadius: 6,
+    },
+
+    /* Compact / mobile styles */
+    containerCompact: {
+      padding: theme.spacing.m,
+      borderRadius: 18,
+    },
+    merchantItemCompact: {
+      padding: 10,
+      gap: 10,
+    },
+    rankBadgeCompact: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+    },
+    rankTextCompact: {
+      fontSize: 14,
+    },
+    merchantNameCompact: {
+      fontSize: 14,
+    },
+    progressBarContainerCompact: {
+      height: 4,
+      marginTop: 6,
+    },
+    amountContainerCompact: {
+      gap: 6,
+    },
+    leftAreaCompact: {
+      gap: 8,
+    },
+
+    merchantInfoCompact: {
+      gap: 2,
+    },
+
     percentagePill: {
       backgroundColor: theme.colors.primary + "20",
       paddingHorizontal: 8,

@@ -1,7 +1,9 @@
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { LogBox, Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
+import "../src/lib/patchExpoFont";
 import { toastConfig } from "../src/components/QSToastConfig";
 import { AlertProvider } from "../src/context/AlertContext";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
@@ -14,6 +16,7 @@ import { ThemeProvider } from "../src/theme/ThemeContext";
 LogBox.ignoreLogs([
   /"shadow\*" style props are deprecated/,
   /props.pointerEvents is deprecated/,
+  /setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture/,
   /Unknown event handler property `onStartShouldSetResponder`/,
   /Unknown event handler property `onResponderTerminationRequest`/,
   /Unknown event handler property `onResponderGrant`/,
@@ -75,14 +78,16 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AuthProvider>
-      <ThemeProvider>
-        <AlertProvider>
-          <NotificationPreferencesProvider>
-            <AppContent />
-          </NotificationPreferencesProvider>
-        </AlertProvider>
-      </ThemeProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <ThemeProvider>
+          <AlertProvider>
+            <NotificationPreferencesProvider>
+              <AppContent />
+            </NotificationPreferencesProvider>
+          </AlertProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

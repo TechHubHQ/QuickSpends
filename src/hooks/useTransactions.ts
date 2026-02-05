@@ -624,6 +624,8 @@ export const useTransactions = () => {
               start_date: transaction.date || new Date().toISOString(),
               end_date: recurringOptions.endDate || null,
               last_executed: transaction.date || new Date().toISOString(),
+              // Set the recurring config type from the transaction type (income/expense)
+              type: transaction.type === "income" ? "income" : "expense",
             })
             .select()
             .single();
