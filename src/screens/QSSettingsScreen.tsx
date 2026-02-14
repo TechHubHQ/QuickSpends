@@ -257,17 +257,6 @@ const QSSettingsScreen = () => {
 
                     <TouchableOpacity
                         style={styles.menuItem}
-                        onPress={() => router.push('/upcoming-bills')}
-                    >
-                        <View style={styles.menuIcon}>
-                            <MaterialCommunityIcons name="calendar-clock" size={24} color={theme.colors.warning} />
-                        </View>
-                        <Text style={styles.menuText}>Upcoming Bills</Text>
-                        <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.menuItem}
                         onPress={() => router.push('/recurring-transactions')}
                     >
                         <View style={styles.menuIcon}>

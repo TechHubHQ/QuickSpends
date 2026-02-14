@@ -30,6 +30,7 @@ import { useSavings } from "../hooks/useSavings";
 import { useTransactions } from "../hooks/useTransactions";
 import { Trip, useTrips } from "../hooks/useTrips";
 import { useUpcomingBills } from "../hooks/useUpcomingBills";
+import { useCategories } from "../hooks/useCategories";
 import { createStyles } from "../styles/QSHome.styles";
 import { useTheme } from "../theme/ThemeContext";
 import { getSafeIconName } from "../utils/iconMapping";
@@ -47,13 +48,14 @@ export default function QSHomeScreen() {
   const { getGroupsByUser } = useGroups();
   const { getSavingsGoals } = useSavings();
   const { getLoans } = useLoans();
-  const { getUpcomingBills, getOverdueBills } = useUpcomingBills();
+  const { bills, fetchBills } = useUpcomingBills();
+  const { categories } = useCategories();
 
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showBalanceInfo, setShowBalanceInfo] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "budgets" | "trips" | "groups" | "savings" | "loans"
+    "budgets" | "trips" | "groups" | "bills" | "savings" | "loans"
   >("groups");
   const [totalBalance, setTotalBalance] = useState(0);
   const [balanceTrend, setBalanceTrend] = useState({
@@ -67,8 +69,27 @@ export default function QSHomeScreen() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [savings, setSavings] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
-  const [upcomingBills, setUpcomingBills] = useState<any[]>([]);
-  const [overdueBills, setOverdueBills] = useState<any[]>([]);
+  const sortedBills = React.useMemo(() => {
+    return [...bills].sort((a, b) => {
+      if (a.is_active !== b.is_active) {
+        return a.is_active ? -1 : 1;
+      }
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+  }, [bills]);
+
+  const billPreviewCards = React.useMemo(() => {
+    const now = Date.now();
+    return sortedBills.slice(0, 6).map((bill) => {
+      const dueDateMs = new Date(bill.due_date).getTime();
+      return {
+        bill,
+        isCompleted: !bill.is_active,
+        isOverdue: bill.is_active && dueDateMs < now,
+        daysUntilDue: Math.ceil((dueDateMs - now) / (1000 * 60 * 60 * 24)),
+      };
+    });
+  }, [sortedBills]);
 
   useEffect(() => {
     if (accounts.length > 0) {
@@ -119,11 +140,7 @@ export default function QSHomeScreen() {
         getLoans(user.id),
       ]);
 
-      // Get upcoming bills
-      const upcomingBillsData = getUpcomingBills(7);
-      const overdueBillsData = getOverdueBills();
-      setUpcomingBills(upcomingBillsData);
-      setOverdueBills(overdueBillsData);
+      await fetchBills();
 
       setAccounts(accountsData);
       setLoans(loansData);
@@ -167,6 +184,11 @@ export default function QSHomeScreen() {
     getRecentTransactions,
     getBudgetsWithSpending,
     getTripsByUser,
+    getGroupsByUser,
+    getSavingsGoals,
+    getLoans,
+    getBalanceTrend,
+    fetchBills,
   ]);
 
   useEffect(() => {
@@ -186,6 +208,41 @@ export default function QSHomeScreen() {
       maximumFractionDigits: 0,
     }).format(amount);
   };
+
+  const getBillCategory = useCallback(
+    (bill: any) => {
+      const subCategory = bill.sub_category_id
+        ? categories.find((category) => category.id === bill.sub_category_id)
+        : undefined;
+      if (subCategory) return subCategory;
+      return bill.category_id
+        ? categories.find((item) => item.id === bill.category_id)
+        : undefined;
+    },
+    [categories],
+  );
+
+  const getBillIconName = useCallback(
+    (bill: any) => {
+      const category = getBillCategory(bill);
+      const fallbackIcon =
+        bill.bill_type === "transfer" ? "bank-transfer" : "file-document-outline";
+      return getSafeIconName(category?.icon || fallbackIcon);
+    },
+    [getBillCategory],
+  );
+
+  const getBillAccentColor = useCallback(
+    (bill: any) => {
+      const category = getBillCategory(bill);
+      if (category?.color) return category.color;
+      if (!bill.is_active) return theme.colors.textTertiary;
+      return bill.bill_type === "transfer"
+        ? theme.colors.info
+        : theme.colors.primary;
+    },
+    [getBillCategory, theme.colors.info, theme.colors.primary, theme.colors.textTertiary],
+  );
 
   return (
     <View style={styles.container}>
@@ -283,156 +340,7 @@ export default function QSHomeScreen() {
           </LinearGradient>
         </Animated.View>
 
-        {/* Upcoming Bills Widget */}
-        {(upcomingBills.length > 0 || overdueBills.length > 0) && (
-          <Animated.View entering={FadeInDown.delay(150).springify()}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Upcoming Bills</Text>
-              <Pressable
-                onPress={() => router.push("/upcoming-bills")}
-                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-              >
-                <Text style={styles.seeAllButton}>View All</Text>
-              </Pressable>
-            </View>
-            
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.budgetScroll}
-              snapToInterval={216}
-              decelerationRate="fast"
-            >
-              {overdueBills.slice(0, 3).map((bill, index) => {
-                const isOverdue = new Date(bill.due_date) < new Date();
-                return (
-                  <Animated.View
-                    key={bill.id}
-                    entering={FadeInRight.delay(200 + index * 50).springify()}
-                  >
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.budgetCard,
-                        { 
-                          opacity: pressed ? 0.7 : 1,
-                          borderLeftWidth: 4,
-                          borderLeftColor: theme.colors.error,
-                        }
-                      ]}
-                      onPress={() => router.push(`/bill-details/${bill.id}`)}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.budgetIconWrapper,
-                            { backgroundColor: theme.colors.error + "20" },
-                          ]}
-                        >
-                          <MaterialCommunityIcons
-                            name={bill.bill_type === 'transfer' ? 'bank-transfer' : 'file-document-outline'}
-                            size={20}
-                            color={theme.colors.error}
-                          />
-                        </View>
-                        <View style={styles.budgetPercentageWrapper}>
-                          <Text style={[styles.budgetPercentage, { color: theme.colors.error, fontSize: 10 }]}>
-                            OVERDUE
-                          </Text>
-                        </View>
-                      </View>
-                      <View>
-                        <Text style={styles.budgetName} numberOfLines={1}>
-                          {bill.name}
-                        </Text>
-                        <Text style={styles.budgetRemaining}>
-                          ₹{bill.amount.toLocaleString()}
-                        </Text>
-                      </View>
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={[styles.budgetRemaining, { color: theme.colors.error, fontSize: 12 }]}>
-                          Due: {new Date(bill.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  </Animated.View>
-                );
-              })}
-              
-              {upcomingBills.slice(0, 3).map((bill, index) => {
-                const daysUntilDue = Math.ceil((new Date(bill.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                const isDueSoon = daysUntilDue <= 3;
-                return (
-                  <Animated.View
-                    key={bill.id}
-                    entering={FadeInRight.delay(200 + (overdueBills.length + index) * 50).springify()}
-                  >
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.budgetCard,
-                        { 
-                          opacity: pressed ? 0.7 : 1,
-                          borderLeftWidth: 4,
-                          borderLeftColor: isDueSoon ? theme.colors.warning : theme.colors.info,
-                        }
-                      ]}
-                      onPress={() => router.push(`/bill-details/${bill.id}`)}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.budgetIconWrapper,
-                            { backgroundColor: (isDueSoon ? theme.colors.warning : theme.colors.info) + "20" },
-                          ]}
-                        >
-                          <MaterialCommunityIcons
-                            name={bill.bill_type === 'transfer' ? 'bank-transfer' : 'file-document-outline'}
-                            size={20}
-                            color={isDueSoon ? theme.colors.warning : theme.colors.info}
-                          />
-                        </View>
-                        <View style={styles.budgetPercentageWrapper}>
-                          <Text style={[styles.budgetPercentage, { 
-                            color: isDueSoon ? theme.colors.warning : theme.colors.info, 
-                            fontSize: 10 
-                          }]}>
-                            {daysUntilDue === 0 ? 'TODAY' : daysUntilDue === 1 ? 'TOMORROW' : `${daysUntilDue}D`}
-                          </Text>
-                        </View>
-                      </View>
-                      <View>
-                        <Text style={styles.budgetName} numberOfLines={1}>
-                          {bill.name}
-                        </Text>
-                        <Text style={styles.budgetRemaining}>
-                          ₹{bill.amount.toLocaleString()}
-                        </Text>
-                      </View>
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={[styles.budgetRemaining, { fontSize: 12 }]}>
-                          Due: {new Date(bill.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  </Animated.View>
-                );
-              })}
-            </ScrollView>
-          </Animated.View>
-        )}
-
-        {/* Switcher Section (Budgets / Trips / Groups) */}
+        {/* Switcher Section (Groups / Budgets / Trips / Bills / Savings / Loans) */}
         <View style={[styles.sectionHeader, { paddingRight: 0 }]}>
           <ScrollView
             horizontal
@@ -509,6 +417,23 @@ export default function QSHomeScreen() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() => setActiveTab("bills")}
+              style={({ pressed }) => [
+                styles.tabButton,
+                activeTab === "bills" && styles.activeTabButton,
+                { opacity: pressed ? 0.7 : 1 }
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "bills" && styles.activeTabText,
+                ]}
+              >
+                Bills
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => setActiveTab("loans")}
               style={({ pressed }) => [
                 styles.tabButton,
@@ -547,7 +472,7 @@ export default function QSHomeScreen() {
                 ]}
               >
                 <MaterialCommunityIcons
-                  name="plus"
+                  name="plus-circle-outline"
                   size={20}
                   color={theme.colors.onPrimary}
                 />
@@ -566,7 +491,7 @@ export default function QSHomeScreen() {
                 ]}
               >
                 <MaterialCommunityIcons
-                  name="plus"
+                  name="plus-circle-outline"
                   size={20}
                   color={theme.colors.onPrimary}
                 />
@@ -585,7 +510,7 @@ export default function QSHomeScreen() {
                 ]}
               >
                 <MaterialCommunityIcons
-                  name="plus"
+                  name="plus-circle-outline"
                   size={20}
                   color={theme.colors.onPrimary}
                 />
@@ -604,7 +529,26 @@ export default function QSHomeScreen() {
                 ]}
               >
                 <MaterialCommunityIcons
-                  name="plus"
+                  name="plus-circle-outline"
+                  size={20}
+                  color={theme.colors.onPrimary}
+                />
+              </Pressable>
+            )}
+            {activeTab === "bills" && (
+              <Pressable
+                onPress={() => router.push("/add-upcoming-bill")}
+                style={({ pressed }) => [
+                  {
+                    backgroundColor: theme.colors.primary,
+                    padding: 4,
+                    borderRadius: 12,
+                  },
+                  { opacity: pressed ? 0.7 : 1 }
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="plus-circle-outline"
                   size={20}
                   color={theme.colors.onPrimary}
                 />
@@ -623,7 +567,7 @@ export default function QSHomeScreen() {
                 ]}
               >
                 <MaterialCommunityIcons
-                  name="plus"
+                  name="plus-circle-outline"
                   size={20}
                   color={theme.colors.onPrimary}
                 />
@@ -1023,6 +967,128 @@ export default function QSHomeScreen() {
               </View>
             )}
           </ScrollView>
+        ) : activeTab === "bills" ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.budgetScroll}
+            snapToInterval={216}
+            decelerationRate="fast"
+          >
+            {billPreviewCards.length > 0 ? (
+              billPreviewCards.map(
+                ({ bill, isCompleted, isOverdue, daysUntilDue }, index) => {
+                  const accentColor = getBillAccentColor(bill);
+                  const badgeText = isCompleted
+                    ? "COMPLETED"
+                    : isOverdue
+                      ? "OVERDUE"
+                      : daysUntilDue === 0
+                        ? "TODAY"
+                        : daysUntilDue === 1
+                          ? "TOMORROW"
+                          : daysUntilDue <= 30
+                            ? `${daysUntilDue}D`
+                            : "UPCOMING";
+
+                  return (
+                    <Animated.View
+                      key={bill.id}
+                      entering={FadeInRight.delay(200 + index * 50).springify()}
+                    >
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.budgetCard,
+                          {
+                            opacity: pressed ? 0.7 : isCompleted ? 0.78 : 1,
+                            backgroundColor: accentColor + (isCompleted ? "10" : "14"),
+                            borderWidth: 1,
+                            borderColor: accentColor + "30",
+                            borderLeftWidth: 4,
+                            borderLeftColor: accentColor,
+                          },
+                        ]}
+                        onPress={() => router.push(`/bill-details/${bill.id}`)}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.budgetIconWrapper,
+                              { backgroundColor: accentColor + "20" },
+                            ]}
+                          >
+                            <MaterialCommunityIcons
+                              name={getBillIconName(bill)}
+                              size={20}
+                              color={accentColor}
+                            />
+                          </View>
+                          <View style={styles.budgetPercentageWrapper}>
+                            <Text
+                              style={[
+                                styles.budgetPercentage,
+                                { color: accentColor, fontSize: 10 },
+                              ]}
+                            >
+                              {badgeText}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View>
+                          <Text style={styles.budgetName} numberOfLines={1}>
+                            {bill.name}
+                          </Text>
+                          <Text style={styles.budgetRemaining}>
+                            ₹{bill.amount.toLocaleString()}
+                          </Text>
+                        </View>
+
+                        <View style={{ marginTop: 8 }}>
+                          <Text
+                            style={[
+                              styles.budgetRemaining,
+                              {
+                                color: isCompleted
+                                  ? theme.colors.textTertiary
+                                  : isOverdue
+                                    ? theme.colors.error
+                                    : theme.colors.textSecondary,
+                                fontSize: 12,
+                              },
+                            ]}
+                          >
+                            {isCompleted ? "Completed" : "Due"}:{" "}
+                            {new Date(bill.due_date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    </Animated.View>
+                  );
+                },
+              )
+            ) : (
+              <View
+                style={[
+                  styles.budgetCard,
+                  { width: 300, justifyContent: "center" },
+                ]}
+              >
+                <Text style={[styles.budgetName, { textAlign: "center" }]}>
+                  No bills found
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         ) : activeTab === "loans" ? (
           <ScrollView
             horizontal
@@ -1130,7 +1196,7 @@ export default function QSHomeScreen() {
               </View>
             )}
           </ScrollView>
-        ) : // Fallback or empty (but logic covers all 5)
+        ) : // Fallback or empty (but logic covers all 6)
           null}
 
         {/* Recent Transactions */}

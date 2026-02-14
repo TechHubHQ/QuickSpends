@@ -1,20 +1,27 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { QSButton } from '../../src/components/QSButton';
 import { QSHeader } from '../../src/components/QSHeader';
+import { useAlert } from '../../src/context/AlertContext';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { UpcomingBill, useUpcomingBills } from '../../src/hooks/useUpcomingBills';
 import { useCategories } from '../../src/hooks/useCategories';
-import { useAccounts } from '../../src/hooks/useAccounts';
+import { useAccounts, type Account } from '../../src/hooks/useAccounts';
+import { useAuth } from '../../src/context/AuthContext';
+import { getSafeIconName } from '../../src/utils/iconMapping';
 
 const BillDetailsScreen = () => {
   const { theme } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { bills, updateBill, deleteBill } = useUpcomingBills();
   const { categories } = useCategories();
-  const { accounts } = useAccounts();
+  const { getAccountsByUser } = useAccounts();
+  const { user } = useAuth();
+  const { showAlert } = useAlert();
+  const [accounts, setAccounts] = useState<Account[]>([]);
   
   const [bill, setBill] = useState<UpcomingBill | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,10 +33,24 @@ const BillDetailsScreen = () => {
     }
   }, [bills, id]);
 
+  useEffect(() => {
+    const loadAccounts = async () => {
+      if (!user) return;
+      const data = await getAccountsByUser(user.id);
+      setAccounts(data);
+    };
+
+    loadAccounts();
+  }, [user, getAccountsByUser]);
+
   if (!bill) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <QSHeader title="Bill Details" showBackButton />
+        <QSHeader
+          title="Bill Details"
+          showBack
+          onBackPress={() => router.back()}
+        />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.colors.textSecondary }}>Bill not found</Text>
         </View>
@@ -43,9 +64,21 @@ const BillDetailsScreen = () => {
     return category?.name || 'Unknown';
   };
 
+  const getBillCategory = (currentBill: UpcomingBill) => {
+    if (!categories || categories.length === 0) return undefined;
+    const subCategory = currentBill.sub_category_id
+      ? categories.find(c => c.id === currentBill.sub_category_id)
+      : undefined;
+    if (subCategory) return subCategory;
+    return currentBill.category_id
+      ? categories.find(c => c.id === currentBill.category_id)
+      : undefined;
+  };
+
   const getAccountName = (accountId?: string) => {
     if (!accountId) return 'No Account';
-    const account = accounts?.find(a => a.id === accountId);
+    if (!accounts || accounts.length === 0) return 'Loading...';
+    const account = accounts.find(a => a.id === accountId);
     return account?.name || 'Unknown';
   };
 
@@ -77,14 +110,18 @@ const BillDetailsScreen = () => {
       await updateBill(bill.id, { is_active: !bill.is_active });
       setBill(prev => prev ? { ...prev, is_active: !prev.is_active } : null);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update bill status');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to update bill status',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = () => {
-    Alert.alert(
+    showAlert(
       'Delete Bill',
       'Are you sure you want to delete this bill? This action cannot be undone.',
       [
@@ -97,7 +134,11 @@ const BillDetailsScreen = () => {
               await deleteBill(bill.id);
               router.back();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete bill');
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Failed to delete bill',
+              });
             }
           },
         },
@@ -131,7 +172,7 @@ const BillDetailsScreen = () => {
         }}
       >
         <MaterialCommunityIcons
-          name={icon}
+          name={getSafeIconName(icon)}
           size={20}
           color={color || theme.colors.primary}
         />
@@ -197,7 +238,12 @@ const BillDetailsScreen = () => {
             }}
           >
             <MaterialCommunityIcons
-              name={bill.bill_type === 'transfer' ? 'bank-transfer' : 'file-document-outline'}
+              name={getSafeIconName(
+                getBillCategory(bill)?.icon ||
+                  (bill.bill_type === 'transfer'
+                    ? 'bank-transfer'
+                    : 'file-document-outline')
+              )}
               size={40}
               color={isOverdue ? theme.colors.error : theme.colors.primary}
             />
@@ -273,7 +319,7 @@ const BillDetailsScreen = () => {
         {/* Bill Information */}
         {renderInfoCard('Due Date', formatDate(bill.due_date), 'calendar', isOverdue ? theme.colors.error : theme.colors.primary)}
         {renderInfoCard('Frequency', getFrequencyText(bill.frequency), 'repeat')}
-        {renderInfoCard('Category', getCategoryName(bill.category_id), 'tag')}
+        {renderInfoCard('Category', getCategoryName(bill.sub_category_id || bill.category_id), 'tag')}
         {renderInfoCard('From Account', getAccountName(bill.account_id), 'bank')}
         
         {bill.bill_type === 'transfer' && bill.to_account_id && 

@@ -1,7 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+﻿import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { QSButton } from '../src/components/QSButton';
 import { QSBottomSheet } from '../src/components/QSBottomSheet';
 import { QSDatePicker } from '../src/components/QSDatePicker';
@@ -98,41 +99,72 @@ const AddUpcomingBillScreen = () => {
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
-      Alert.alert('Error', 'Please enter a bill name');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please enter a bill name',
+      });
       return;
     }
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please enter a valid amount',
+      });
       return;
     }
 
     if (!formData.account_id) {
-      Alert.alert('Error', 'Please select an account');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please select an account',
+      });
       return;
     }
 
     if (formData.bill_type === 'transfer' && !formData.to_account_id) {
-      Alert.alert('Error', 'Please select a destination account for transfer');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please select a destination account for transfer',
+      });
       return;
     }
 
     setLoading(true);
     try {
       await addBill({
-        ...formData,
-        category_id: formData.sub_category_id || formData.category_id,
+        name: formData.name.trim(),
         amount: parseFloat(formData.amount),
+        category_id: formData.category_id || undefined,
+        sub_category_id: formData.sub_category_id || undefined,
+        account_id: formData.account_id || undefined,
+        bill_type: formData.bill_type,
+        to_account_id: formData.bill_type === 'transfer' ? (formData.to_account_id || undefined) : undefined,
         due_date: formData.due_date.toISOString(),
+        frequency: formData.frequency,
         next_due_date: formData.frequency !== 'once' ? formData.due_date.toISOString() : undefined,
+        description: formData.description || undefined,
         is_active: true,
+        auto_pay: formData.auto_pay,
+        reminder_days: formData.reminder_days,
       });
 
-      Alert.alert('Success', 'Bill added successfully', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Bill added successfully',
+      });
+      router.back();
     } catch (error) {
-      Alert.alert('Error', 'Failed to add bill. Please try again.');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to add bill. Please try again.',
+      });
     } finally {
       setLoading(false);
     }

@@ -1,39 +1,93 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { QSButton } from '../src/components/QSButton';
 import { QSHeader } from '../src/components/QSHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 import { UpcomingBill, useUpcomingBills } from '../src/hooks/useUpcomingBills';
 import { useCategories } from '../src/hooks/useCategories';
-import { useAccounts } from '../src/hooks/useAccounts';
+import { useAccounts, type Account } from '../src/hooks/useAccounts';
+import { useAuth } from '../src/context/AuthContext';
+import { getSafeIconName } from '../src/utils/iconMapping';
 
 const UpcomingBillsScreen = () => {
   const { theme } = useTheme();
-  const { bills, loading, deleteBill, fetchBills, getUpcomingBills, getOverdueBills } = useUpcomingBills();
+  const { bills, fetchBills } = useUpcomingBills();
   const { categories } = useCategories();
-  const { accounts } = useAccounts();
+  const { getAccountsByUser } = useAccounts();
+  const { user } = useAuth();
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const upcomingBills = getUpcomingBills(7);
-  const overdueBills = getOverdueBills();
+  const sortedBills = useMemo(() => {
+    return [...bills].sort((a, b) => {
+      if (a.is_active !== b.is_active) {
+        return a.is_active ? -1 : 1;
+      }
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+  }, [bills]);
+
+  const now = useMemo(() => new Date(), [bills]);
+  const nextWeek = useMemo(() => new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000), [now]);
+
+  const overdueBills = sortedBills.filter((bill) => {
+    const dueDate = new Date(bill.due_date);
+    return bill.is_active && dueDate < now;
+  });
+
+  const dueSoonBills = sortedBills.filter((bill) => {
+    const dueDate = new Date(bill.due_date);
+    return bill.is_active && dueDate >= now && dueDate <= nextWeek;
+  });
+
+  const upcomingBills = sortedBills.filter((bill) => {
+    const dueDate = new Date(bill.due_date);
+    return bill.is_active && dueDate > nextWeek;
+  });
+
+  const completedBills = sortedBills.filter((bill) => !bill.is_active);
+
+  useEffect(() => {
+    const loadAccounts = async () => {
+      if (!user) return;
+      const data = await getAccountsByUser(user.id);
+      setAccounts(data);
+    };
+
+    loadAccounts();
+  }, [user, getAccountsByUser]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchBills();
+    await Promise.all([
+      fetchBills(),
+      user ? getAccountsByUser(user.id).then(setAccounts) : Promise.resolve(),
+    ]);
     setRefreshing(false);
   };
 
-  const getCategoryName = (categoryId?: string) => {
-    if (!categoryId) return 'Uncategorized';
-    const category = categories?.find(c => c.id === categoryId);
+  const getBillCategory = (bill: UpcomingBill) => {
+    if (!categories || categories.length === 0) return undefined;
+    const subCategory = bill.sub_category_id
+      ? categories.find(c => c.id === bill.sub_category_id)
+      : undefined;
+    if (subCategory) return subCategory;
+    return bill.category_id
+      ? categories.find(c => c.id === bill.category_id)
+      : undefined;
+  };
+
+  const getCategoryName = (bill: UpcomingBill) => {
+    const category = getBillCategory(bill);
     return category?.name || 'Unknown';
   };
 
   const getAccountName = (accountId?: string) => {
     if (!accountId) return 'No Account';
-    const account = accounts?.find(a => a.id === accountId);
+    if (!accounts || accounts.length === 0) return 'Loading...';
+    const account = accounts.find(a => a.id === accountId);
     return account?.name || 'Unknown';
   };
 
@@ -56,35 +110,40 @@ const UpcomingBillsScreen = () => {
     }
   };
 
-  const getBillTypeIcon = (bill: UpcomingBill) => {
-    if (bill.bill_type === 'transfer') {
-      return 'bank-transfer';
-    }
-    return 'file-document-outline';
+  const getBillIcon = (bill: UpcomingBill) => {
+    const category = getBillCategory(bill);
+    const fallbackIcon = bill.bill_type === 'transfer' ? 'bank-transfer' : 'file-document-outline';
+    return getSafeIconName(category?.icon || fallbackIcon);
   };
 
-  const getBillTypeColor = (bill: UpcomingBill) => {
-    if (bill.bill_type === 'transfer') {
-      return theme.colors.info;
-    }
-    return theme.colors.error;
+  const getBillIconColor = (bill: UpcomingBill) => {
+    const category = getBillCategory(bill);
+    if (category?.color) return category.color;
+    return getBillTypeColor(bill);
   };
+
+  const getBillTypeColor = (bill: UpcomingBill) =>
+    bill.bill_type === 'transfer' ? theme.colors.info : theme.colors.error;
 
   const renderBillItem = ({ item }: { item: UpcomingBill }) => {
     const isOverdue = new Date(item.due_date) < new Date();
     const daysUntilDue = Math.ceil((new Date(item.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    const accentColor = getBillIconColor(item);
 
     return (
       <Pressable
         style={[
           {
-            backgroundColor: theme.colors.card,
+            backgroundColor: accentColor + (item.is_active ? "12" : "0D"),
             borderRadius: theme.borderRadius.m,
             padding: theme.spacing.m,
             marginHorizontal: theme.spacing.m,
             marginVertical: theme.spacing.s,
+            borderWidth: 1,
+            borderColor: accentColor + "2A",
             borderLeftWidth: 4,
-            borderLeftColor: isOverdue ? theme.colors.error : getBillTypeColor(item),
+            borderLeftColor: accentColor,
+            opacity: item.is_active ? 1 : 0.72,
           },
           theme.shadows.small,
         ]}
@@ -97,16 +156,16 @@ const UpcomingBillsScreen = () => {
                 width: 48,
                 height: 48,
                 borderRadius: theme.borderRadius.m,
-                backgroundColor: `${getBillTypeColor(item)}20`,
+                backgroundColor: `${accentColor}20`,
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginRight: theme.spacing.m,
               }}
             >
               <MaterialCommunityIcons
-                name={getBillTypeIcon(item)}
+                name={getBillIcon(item)}
                 size={24}
-                color={getBillTypeColor(item)}
+                color={accentColor}
               />
             </View>
 
@@ -130,20 +189,24 @@ const UpcomingBillsScreen = () => {
                   marginBottom: 2,
                 }}
               >
-                {getCategoryName(item.category_id)} • {getAccountName(item.account_id)}
+                {getCategoryName(item)} • {getAccountName(item.account_id)}
               </Text>
 
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text
                   style={{
                     fontSize: theme.typography.caption.fontSize,
-                    color: isOverdue ? theme.colors.error : theme.colors.textTertiary,
-                    fontWeight: isOverdue ? '600' : '400',
+                    color: !item.is_active
+                      ? theme.colors.textTertiary
+                      : isOverdue
+                        ? theme.colors.error
+                        : theme.colors.textTertiary,
+                    fontWeight: !item.is_active || isOverdue ? '600' : '400',
                   }}
                 >
-                  {isOverdue ? 'Overdue' : formatDate(item.due_date)}
+                  {!item.is_active ? 'Completed' : isOverdue ? 'Overdue' : formatDate(item.due_date)}
                 </Text>
-                {!isOverdue && daysUntilDue <= 3 && (
+                {item.is_active && !isOverdue && daysUntilDue <= 3 && (
                   <View
                     style={{
                       backgroundColor: theme.colors.warning,
@@ -179,12 +242,12 @@ const UpcomingBillsScreen = () => {
             >
               ₹{item.amount.toLocaleString()}
             </Text>
-            
+
             {item.bill_type === 'transfer' && (
               <Text
                 style={{
                   fontSize: theme.typography.caption.fontSize,
-                  color: theme.colors.info,
+                  color: accentColor,
                   fontWeight: '500',
                 }}
               >
@@ -329,9 +392,20 @@ const UpcomingBillsScreen = () => {
               </>
             )}
 
+            {dueSoonBills.length > 0 && (
+              <>
+                {renderSectionHeader('Due Soon', dueSoonBills.length, theme.colors.warning)}
+                {dueSoonBills.map(bill => (
+                  <View key={bill.id}>
+                    {renderBillItem({ item: bill })}
+                  </View>
+                ))}
+              </>
+            )}
+
             {upcomingBills.length > 0 && (
               <>
-                {renderSectionHeader('Due Soon', upcomingBills.length, theme.colors.warning)}
+                {renderSectionHeader('Upcoming', upcomingBills.length, theme.colors.info)}
                 {upcomingBills.map(bill => (
                   <View key={bill.id}>
                     {renderBillItem({ item: bill })}
@@ -340,10 +414,10 @@ const UpcomingBillsScreen = () => {
               </>
             )}
 
-            {bills.filter(b => !overdueBills.includes(b) && !upcomingBills.includes(b)).length > 0 && (
+            {completedBills.length > 0 && (
               <>
-                {renderSectionHeader('All Bills', bills.length, theme.colors.textTertiary)}
-                {bills.filter(b => !overdueBills.includes(b) && !upcomingBills.includes(b)).map(bill => (
+                {renderSectionHeader('Completed', completedBills.length, theme.colors.textTertiary)}
+                {completedBills.map(bill => (
                   <View key={bill.id}>
                     {renderBillItem({ item: bill })}
                   </View>

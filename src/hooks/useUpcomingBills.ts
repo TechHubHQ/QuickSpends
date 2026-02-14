@@ -8,6 +8,7 @@ export interface UpcomingBill {
   name: string;
   amount: number;
   category_id?: string;
+  sub_category_id?: string;
   account_id?: string;
   bill_type: 'transfer' | 'expense';
   to_account_id?: string;
@@ -36,6 +37,7 @@ export const useUpcomingBills = () => {
         .from('upcoming_bills')
         .select('*')
         .eq('user_id', user.id)
+        .order('is_active', { ascending: false })
         .order('due_date', { ascending: true });
 
       if (error) throw error;
@@ -135,3 +137,4 @@ export const useUpcomingBills = () => {
     getOverdueBills,
   };
 };
+

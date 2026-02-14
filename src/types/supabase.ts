@@ -1,4 +1,4 @@
-export interface Database {
+﻿export interface Database {
   public: {
     Tables: {
       upcoming_bills: {
@@ -8,6 +8,7 @@ export interface Database {
           name: string;
           amount: number;
           category_id: string | null;
+          sub_category_id: string | null;
           account_id: string | null;
           bill_type: 'transfer' | 'expense';
           to_account_id: string | null;
@@ -27,6 +28,7 @@ export interface Database {
           name: string;
           amount: number;
           category_id?: string | null;
+          sub_category_id?: string | null;
           account_id?: string | null;
           bill_type?: 'transfer' | 'expense';
           to_account_id?: string | null;
@@ -46,6 +48,7 @@ export interface Database {
           name?: string;
           amount?: number;
           category_id?: string | null;
+          sub_category_id?: string | null;
           account_id?: string | null;
           bill_type?: 'transfer' | 'expense';
           to_account_id?: string | null;

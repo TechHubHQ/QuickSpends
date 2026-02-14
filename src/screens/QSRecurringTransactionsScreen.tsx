@@ -2,7 +2,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
     FlatList,
     Modal,
     RefreshControl,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { QSHeader } from '../components/QSHeader';
+import { useAlert } from '../context/AlertContext';
 import { useAuth } from '../context/AuthContext';
 import { useCategories } from '../hooks/useCategories';
 import { RecurringConfig, useRecurringConfigs } from '../hooks/useRecurringConfigs';
@@ -27,6 +27,7 @@ const QSRecurringTransactionsScreen = () => {
     const { user } = useAuth();
     const { getRecurringConfigs, deleteRecurringConfig, updateRecurringConfig, loading } = useRecurringConfigs();
     const { getCategories } = useCategories();
+    const { showAlert } = useAlert();
 
     const [configs, setConfigs] = useState<RecurringConfig[]>([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -64,7 +65,7 @@ const QSRecurringTransactionsScreen = () => {
     };
 
     const handleDelete = (id: string) => {
-        Alert.alert(
+        showAlert(
             "Stop Recurring Transaction?",
             "This will stop future transactions from being created. Past transactions will remain.",
             [
@@ -123,6 +124,9 @@ const QSRecurringTransactionsScreen = () => {
 
     const renderItem = ({ item }: { item: RecurringConfig }) => {
         const nextDate = new Date(item.last_executed || item.start_date);
+        const isIncome = item.type === 'income';
+        const amountSign = isIncome ? '+' : '-';
+        const amountColor = isIncome ? theme.colors.success : theme.colors.error;
 
         // Calculate next date for display (naive calculation matching hook logic)
         const getNextDueDate = (current: Date, freq: string, interval: number = 1) => {
@@ -168,8 +172,8 @@ const QSRecurringTransactionsScreen = () => {
                     </View>
                 </View>
                 <View style={styles.cardRight}>
-                    <Text style={[styles.amount, { color: theme.colors.error }]}>
-                        -₹{item.amount.toFixed(2)}
+                    <Text style={[styles.amount, { color: amountColor }]}>
+                        {amountSign}₹{item.amount.toFixed(2)}
                     </Text>
                     <Text style={styles.nextDate}>
                         Next: {displayNextDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}

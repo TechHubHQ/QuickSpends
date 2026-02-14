@@ -28,12 +28,15 @@ export default function QSAddSavingScreen() {
 
     const [name, setName] = useState("");
     const [targetAmount, setTargetAmount] = useState("");
-    const [categoryId, setCategoryId] = useState("");
+    const [parentCategoryId, setParentCategoryId] = useState("");
+    const [subCategoryId, setSubCategoryId] = useState("");
+    const [initialCategoryId, setInitialCategoryId] = useState<string | null>(null);
     const [targetDate, setTargetDate] = useState<Date | null>(null);
     const [includeInNetWorth, setIncludeInNetWorth] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showNetWorthInfo, setShowNetWorthInfo] = useState(false);
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+    const [showSubCategoryPicker, setShowSubCategoryPicker] = useState(false);
     const [categories, setCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -49,7 +52,7 @@ export default function QSAddSavingScreen() {
             if (goal) {
                 setName(goal.name);
                 setTargetAmount(goal.target_amount.toString());
-                setCategoryId(goal.category_id || "");
+                setInitialCategoryId(goal.category_id || null);
                 setTargetDate(goal.target_date ? new Date(goal.target_date) : null);
                 setIncludeInNetWorth(goal.include_in_net_worth || false);
             }
@@ -59,6 +62,36 @@ export default function QSAddSavingScreen() {
     React.useEffect(() => {
         fetchSavingData();
     }, [fetchSavingData]);
+
+    React.useEffect(() => {
+        if (!categories.length || initialCategoryId === null) return;
+
+        if (!initialCategoryId) {
+            setParentCategoryId("");
+            setSubCategoryId("");
+            setInitialCategoryId(null);
+            return;
+        }
+
+        const selected = categories.find(c => c.id === initialCategoryId);
+        if (!selected) {
+            setParentCategoryId("");
+            setSubCategoryId("");
+        } else if (selected.parent_id) {
+            setParentCategoryId(selected.parent_id);
+            setSubCategoryId(selected.id);
+        } else {
+            setParentCategoryId(initialCategoryId);
+            setSubCategoryId("");
+        }
+        setInitialCategoryId(null);
+    }, [categories, initialCategoryId]);
+
+    const effectiveCategoryId = subCategoryId || parentCategoryId;
+    const selectedParentCategory = categories.find(c => c.id === parentCategoryId);
+    const selectedSubCategory = categories.find(c => c.id === subCategoryId);
+    const subCategories = categories.filter(c => c.parent_id === parentCategoryId);
+    const hasSubCategories = subCategories.length > 0;
 
     const handleSave = async () => {
         if (!user) return;
@@ -77,7 +110,7 @@ export default function QSAddSavingScreen() {
             success = await updateSavingsGoal(savingId, {
                 name,
                 target_amount: parseFloat(targetAmount),
-                category_id: categoryId || undefined,
+                category_id: effectiveCategoryId || undefined,
                 target_date: targetDate?.toISOString(),
                 include_in_net_worth: includeInNetWorth
             });
@@ -86,7 +119,7 @@ export default function QSAddSavingScreen() {
                 user_id: user.id,
                 name,
                 target_amount: parseFloat(targetAmount),
-                category_id: categoryId || undefined,
+                category_id: effectiveCategoryId || undefined,
                 target_date: targetDate?.toISOString(),
                 include_in_net_worth: includeInNetWorth
             });
@@ -102,8 +135,6 @@ export default function QSAddSavingScreen() {
         }
         setLoading(false);
     };
-
-    const getSelectedCategory = () => categories.find(c => c.id === categoryId);
 
     return (
         <View style={styles.container}>
@@ -156,12 +187,29 @@ export default function QSAddSavingScreen() {
                         style={styles.inputWrapper}
                         onPress={() => setShowCategoryPicker(true)}
                     >
-                        <Text style={[styles.selectText, { color: getSelectedCategory() ? theme.colors.text : (theme.isDark ? '#64748B' : '#94A3B8') }]}>
-                            {getSelectedCategory()?.name || "Select Category"}
+                        <Text style={[styles.selectText, { color: selectedParentCategory ? theme.colors.text : (theme.isDark ? '#64748B' : '#94A3B8') }]}>
+                            {selectedSubCategory && selectedParentCategory
+                                ? `${selectedParentCategory.name} > ${selectedSubCategory.name}`
+                                : selectedParentCategory?.name || "Select Category"}
                         </Text>
                         <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
                     </TouchableOpacity>
                 </Animated.View>
+
+                {hasSubCategories && (
+                    <Animated.View entering={FadeInDown.delay(450).springify()} style={styles.inputGroup}>
+                        <Text style={styles.label}>Sub Category (Optional)</Text>
+                        <TouchableOpacity
+                            style={styles.inputWrapper}
+                            onPress={() => setShowSubCategoryPicker(true)}
+                        >
+                            <Text style={[styles.selectText, { color: selectedSubCategory ? theme.colors.text : (theme.isDark ? '#64748B' : '#94A3B8') }]}>
+                                {selectedSubCategory?.name || "Select Sub Category"}
+                            </Text>
+                            <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
 
                 <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.switchContainer}>
                     <View style={styles.switchLabel}>
@@ -192,8 +240,27 @@ export default function QSAddSavingScreen() {
                 visible={showCategoryPicker}
                 onClose={() => setShowCategoryPicker(false)}
                 categories={categories}
-                selectedId={categoryId}
-                onSelect={(cat) => setCategoryId(cat.id)}
+                selectedId={parentCategoryId}
+                onSelect={(cat) => {
+                    setParentCategoryId(cat.id);
+                    setSubCategoryId("");
+                    setShowCategoryPicker(false);
+                    if (categories.some(c => c.parent_id === cat.id)) {
+                        setTimeout(() => setShowSubCategoryPicker(true), 250);
+                    }
+                }}
+            />
+
+            <QSCategoryPicker
+                visible={showSubCategoryPicker}
+                onClose={() => setShowSubCategoryPicker(false)}
+                categories={categories}
+                selectedId={subCategoryId}
+                parentId={parentCategoryId}
+                onSelect={(cat) => {
+                    setSubCategoryId(cat.id);
+                    setShowSubCategoryPicker(false);
+                }}
             />
 
             <QSDatePicker

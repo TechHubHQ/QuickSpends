@@ -1,7 +1,9 @@
 
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { useAlert } from '../src/context/AlertContext';
 import { Logger } from '../src/services/logger';
 // Assuming simple colors for now to avoid import errors if Colors file path is different.
 
@@ -9,6 +11,7 @@ export default function LogsScreen() {
     const [logs, setLogs] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const router = useRouter();
+    const { showAlert } = useAlert();
 
     const fetchLogs = async () => {
         setLoading(true);
@@ -24,7 +27,7 @@ export default function LogsScreen() {
     };
 
     const handleClearLogs = async () => {
-        Alert.alert(
+        showAlert(
             'Clear Logs',
             'Are you sure you want to delete all logs locally?',
             [
@@ -48,7 +51,11 @@ export default function LogsScreen() {
                 title: 'App Logs'
             });
         } catch (error) {
-            Alert.alert('Error', 'Failed to share logs');
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Failed to share logs',
+            });
         }
     };
 
