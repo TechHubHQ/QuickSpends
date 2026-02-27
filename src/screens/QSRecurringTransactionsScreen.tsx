@@ -17,8 +17,10 @@ import { useAlert } from '../context/AlertContext';
 import { useAuth } from '../context/AuthContext';
 import { useCategories } from '../hooks/useCategories';
 import { RecurringConfig, useRecurringConfigs } from '../hooks/useRecurringConfigs';
+import { useTransactions } from '../hooks/useTransactions';
 import { Theme } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
+import { getNextDueDate } from '../utils/dateUtils';
 
 const QSRecurringTransactionsScreen = () => {
     const { theme } = useTheme();
@@ -26,11 +28,13 @@ const QSRecurringTransactionsScreen = () => {
     const router = useRouter();
     const { user } = useAuth();
     const { getRecurringConfigs, deleteRecurringConfig, updateRecurringConfig, loading } = useRecurringConfigs();
+    const { addTransaction } = useTransactions();
     const { getCategories } = useCategories();
     const { showAlert } = useAlert();
 
     const [configs, setConfigs] = useState<RecurringConfig[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
 
     // Edit Modal State
     const [editModalVisible, setEditModalVisible] = useState(false);
@@ -98,12 +102,14 @@ const QSRecurringTransactionsScreen = () => {
     const handleSaveEdit = async () => {
         if (!selectedConfig) return;
 
+        setActionLoading(true);
         const success = await updateRecurringConfig(selectedConfig.id, {
             name: editName,
             amount: parseFloat(editAmount),
             frequency: editFrequency,
             interval: parseInt(editInterval) || 1
         });
+        setActionLoading(false);
 
         if (success) {
             Toast.show({
@@ -122,25 +128,66 @@ const QSRecurringTransactionsScreen = () => {
         }
     };
 
+    const handlePayEarly = async () => {
+        if (!selectedConfig || !user) return;
+
+        setActionLoading(true);
+        try {
+            const lastExecuted = new Date(selectedConfig.last_executed || selectedConfig.start_date);
+            const nextDueDate = getNextDueDate(lastExecuted, selectedConfig.frequency, selectedConfig.interval || 1);
+
+            // Create the transaction
+            const transactionId = await addTransaction({
+                user_id: user.id,
+                account_id: selectedConfig.account_id,
+                category_id: selectedConfig.category_id || undefined,
+                name: selectedConfig.name,
+                description: "Manually processed recurring transaction early",
+                amount: selectedConfig.amount,
+                type: selectedConfig.type === 'income' ? 'income' : 'expense',
+                date: new Date().toISOString(),
+                recurring_id: selectedConfig.id,
+            });
+
+            if (transactionId) {
+                // Update the config's last_executed and execution_count
+                const currentCount = selectedConfig.execution_count || 0;
+                await updateRecurringConfig(selectedConfig.id, {
+                    last_executed: nextDueDate.toISOString(),
+                    execution_count: currentCount + 1
+                });
+
+                Toast.show({
+                    type: 'success',
+                    text1: 'Processed Early',
+                    text2: 'Transaction created and next due date advanced.'
+                });
+                setEditModalVisible(false);
+                fetchConfigs();
+            } else {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Failed to create transaction.'
+                });
+            }
+        } catch (error) {
+            console.error('Error paying early:', error);
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'An unexpected error occurred.'
+            });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     const renderItem = ({ item }: { item: RecurringConfig }) => {
         const nextDate = new Date(item.last_executed || item.start_date);
         const isIncome = item.type === 'income';
         const amountSign = isIncome ? '+' : '-';
         const amountColor = isIncome ? theme.colors.success : theme.colors.error;
-
-        // Calculate next date for display (naive calculation matching hook logic)
-        const getNextDueDate = (current: Date, freq: string, interval: number = 1) => {
-            const next = new Date(current);
-            // If it has never executed (execution_count == 0), start_date is the next date? 
-            // Logic in hook: lastExecuted is updated AFTER execution. 
-            // If execution_count is 1 (initial txn), last_executed is set.
-            // If we want to show NEXT due date:
-            if (freq === "daily") next.setDate(next.getDate() + 1 * interval);
-            if (freq === "weekly") next.setDate(next.getDate() + 7 * interval);
-            if (freq === "monthly") next.setMonth(next.getMonth() + 1 * interval);
-            if (freq === "yearly") next.setFullYear(next.getFullYear() + 1 * interval);
-            return next;
-        };
 
         // Note: The hook logic updates last_executed to the recently created txn date.
         // So next due date is calculated from last_executed.
@@ -274,17 +321,29 @@ const QSRecurringTransactionsScreen = () => {
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity
+                                style={[styles.modalButton, styles.earlyPayButton]}
+                                onPress={handlePayEarly}
+                                disabled={actionLoading}
+                            >
+                                <MaterialCommunityIcons name="calendar-check" size={20} color={theme.colors.onPrimary} style={{ marginRight: 4 }} />
+                                <Text style={styles.saveText}>Process Now</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
                                 style={[styles.modalButton, styles.deleteButton]}
                                 onPress={() => {
                                     setEditModalVisible(false);
                                     if (selectedConfig) handleDelete(selectedConfig.id);
                                 }}
+                                disabled={actionLoading}
                             >
                                 <Text style={styles.deleteButtonText}>Stop Recurring</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.modalButton, styles.saveButton]}
                                 onPress={handleSaveEdit}
+                                disabled={actionLoading}
                             >
                                 <Text style={styles.saveText}>Save Changes</Text>
                             </TouchableOpacity>
@@ -456,6 +515,10 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     deleteButtonText: {
         ...theme.typography.button,
         color: theme.colors.error,
+    },
+    earlyPayButton: {
+        backgroundColor: theme.colors.success,
+        flexDirection: 'row',
     },
     saveButton: {
         backgroundColor: theme.colors.primary,

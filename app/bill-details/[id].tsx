@@ -6,23 +6,25 @@ import Toast from 'react-native-toast-message';
 import { QSButton } from '../../src/components/QSButton';
 import { QSHeader } from '../../src/components/QSHeader';
 import { useAlert } from '../../src/context/AlertContext';
-import { useTheme } from '../../src/theme/ThemeContext';
-import { UpcomingBill, useUpcomingBills } from '../../src/hooks/useUpcomingBills';
-import { useCategories } from '../../src/hooks/useCategories';
-import { useAccounts, type Account } from '../../src/hooks/useAccounts';
 import { useAuth } from '../../src/context/AuthContext';
+import { useAccounts, type Account } from '../../src/hooks/useAccounts';
+import { useCategories } from '../../src/hooks/useCategories';
+import { useTransactions } from '../../src/hooks/useTransactions';
+import { UpcomingBill, useUpcomingBills } from '../../src/hooks/useUpcomingBills';
+import { useTheme } from '../../src/theme/ThemeContext';
 import { getSafeIconName } from '../../src/utils/iconMapping';
 
 const BillDetailsScreen = () => {
   const { theme } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { bills, updateBill, deleteBill } = useUpcomingBills();
+  const { bills, updateBill, deleteBill, markAsPaid } = useUpcomingBills();
+  const { addTransaction } = useTransactions();
   const { categories } = useCategories();
   const { getAccountsByUser } = useAccounts();
   const { user } = useAuth();
   const { showAlert } = useAlert();
   const [accounts, setAccounts] = useState<Account[]>([]);
-  
+
   const [bill, setBill] = useState<UpcomingBill | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -114,6 +116,34 @@ const BillDetailsScreen = () => {
         type: 'error',
         text1: 'Error',
         text2: 'Failed to update bill status',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAsPaid = async () => {
+    if (!bill) return;
+    setLoading(true);
+    try {
+      const result = await markAsPaid(bill);
+      if (result) {
+        // Create the actual transaction
+        await addTransaction(result.transactionData);
+        setBill(result.updatedBill);
+        Toast.show({
+          type: 'success',
+          text1: 'Bill Paid',
+          text2: bill.frequency === 'once'
+            ? 'Bill marked as completed.'
+            : 'Bill marked as paid and next due date updated.',
+        });
+      }
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to mark bill as paid',
       });
     } finally {
       setLoading(false);
@@ -240,9 +270,9 @@ const BillDetailsScreen = () => {
             <MaterialCommunityIcons
               name={getSafeIconName(
                 getBillCategory(bill)?.icon ||
-                  (bill.bill_type === 'transfer'
-                    ? 'bank-transfer'
-                    : 'file-document-outline')
+                (bill.bill_type === 'transfer'
+                  ? 'bank-transfer'
+                  : 'file-document-outline')
               )}
               size={40}
               color={isOverdue ? theme.colors.error : theme.colors.primary}
@@ -321,8 +351,8 @@ const BillDetailsScreen = () => {
         {renderInfoCard('Frequency', getFrequencyText(bill.frequency), 'repeat')}
         {renderInfoCard('Category', getCategoryName(bill.sub_category_id || bill.category_id), 'tag')}
         {renderInfoCard('From Account', getAccountName(bill.account_id), 'bank')}
-        
-        {bill.bill_type === 'transfer' && bill.to_account_id && 
+
+        {bill.bill_type === 'transfer' && bill.to_account_id &&
           renderInfoCard('To Account', getAccountName(bill.to_account_id), 'bank-transfer-in', theme.colors.info)
         }
 
@@ -361,10 +391,19 @@ const BillDetailsScreen = () => {
 
         {/* Action Buttons */}
         <View style={{ marginTop: theme.spacing.l }}>
+          {bill.is_active && (
+            <QSButton
+              title="Mark as Paid"
+              onPress={handleMarkAsPaid}
+              loading={loading}
+              style={{ marginBottom: theme.spacing.m }}
+            />
+          )}
+
           <QSButton
             title={bill.is_active ? 'Deactivate Bill' : 'Activate Bill'}
             onPress={handleToggleActive}
-            variant="secondary"
+            variant={bill.is_active ? "secondary" : "primary"}
             loading={loading}
             style={{ marginBottom: theme.spacing.m }}
           />
