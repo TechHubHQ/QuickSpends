@@ -1,0 +1,14 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit",
+    "source.sortMembers": "explicit"
+  },
+  "acacia-erd.entitiesJsonPath": "backend\\db\\schema\\entities.json",
+  "acacia-erd.entitiesLists": [
+    {
+      "name": "QSSchema",
+      "jsonPath": "backend\\db\\schema\\entities.json"
+    }
+  ]
+}
