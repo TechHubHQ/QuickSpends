@@ -38,8 +38,6 @@ const LEGACY_ICON_MAP: Record<string, keyof typeof MaterialCommunityIcons.glyphM
     'settings': 'cog',
     'home': 'home',
     'person': 'account',
-    'group': 'account-group',
-    'groups': 'account-group',
     'notifications': 'bell',
     'mail': 'email',
     'lock': 'lock',

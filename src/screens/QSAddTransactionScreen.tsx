@@ -9,7 +9,6 @@ import { QSButton } from "../components/QSButton";
 import { QSCategoryPicker } from "../components/QSCategoryPicker";
 import { QSCreateCategorySheet } from "../components/QSCreateCategorySheet";
 import { QSDatePicker } from "../components/QSDatePicker";
-import { QSGroupPicker } from "../components/QSGroupPicker";
 import { QSHeader } from "../components/QSHeader";
 import { QSLoanPicker } from "../components/QSLoanPicker";
 import { QSSavingsPicker } from "../components/QSSavingsPicker";
@@ -17,7 +16,6 @@ import { QSTripPicker } from "../components/QSTripPicker";
 import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../hooks/useAccounts";
 import { useCategories } from "../hooks/useCategories";
-import { useGroups } from "../hooks/useGroups";
 import { useLoans } from "../hooks/useLoans";
 import { useNotifications } from "../hooks/useNotifications";
 import { useSavings } from "../hooks/useSavings";
@@ -38,7 +36,6 @@ export default function QSAddTransactionScreen() {
 
     const { getAccountsByUser } = useAccounts();
     const { getCategories } = useCategories();
-    const { getGroupsByUser } = useGroups();
     const { getTripsByUser } = useTrips();
     const { addCategory } = useCategories(); // Added hook
     const { addTransaction, updateTransaction, loading: saving } = useTransactions();
@@ -68,9 +65,7 @@ export default function QSAddTransactionScreen() {
     const [toAccountId, setToAccountId] = useState(editTransaction?.to_account_id || '');
     const [categoryId, setCategoryId] = useState(editTransaction?.category_id || '');
     const [subCategoryId, setSubCategoryId] = useState(''); // New State
-    const [isGroup, setIsGroup] = useState(!!editTransaction?.group_id);
     const [isTrip, setIsTrip] = useState(!!editTransaction?.trip_id);
-    const [selectedGroupId, setSelectedGroupId] = useState(editTransaction?.group_id || '');
     const [selectedTripId, setSelectedTripId] = useState(editTransaction?.trip_id || '');
 
     // Bottom sheet visibility states
@@ -81,7 +76,6 @@ export default function QSAddTransactionScreen() {
 
     const [showAccountPicker, setShowAccountPicker] = useState(false);
     const [showToAccountPicker, setShowToAccountPicker] = useState(false);
-    const [showGroupPicker, setShowGroupPicker] = useState(false);
     const [showTripPicker, setShowTripPicker] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showSavingsPicker, setShowSavingsPicker] = useState(false);
@@ -90,7 +84,6 @@ export default function QSAddTransactionScreen() {
     const [accounts, setAccounts] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     // We will derive sub-categories from 'categories' based on 'categoryId' selection
-    const [groups, setGroups] = useState<any[]>([]);
     const [trips, setTrips] = useState<any[]>([]);
     const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
     const [loans, setLoans] = useState<any[]>([]);
@@ -137,25 +130,14 @@ export default function QSAddTransactionScreen() {
         }
     }, [isSavings, savingsAction]);
 
-    // Handle initial params for trip/group
+    // Handle initial params for trip
     useEffect(() => {
         if (params.tripId) {
             setIsTrip(true);
             const tripId = params.tripId as string;
             setSelectedTripId(tripId);
-
-            // Auto-link group if trip is found in loaded trips and has a group
-            const trip = trips.find(t => t.id === tripId);
-            if (trip?.groupId) {
-                setIsGroup(true);
-                setSelectedGroupId(trip.groupId);
-            }
         }
-        if (params.groupId) {
-            setIsGroup(true);
-            setSelectedGroupId(params.groupId as string);
-        }
-    }, [params.tripId, params.groupId, trips]);
+    }, [params.tripId]);
 
     // Handle initial loanId from params
     useEffect(() => {
@@ -181,20 +163,6 @@ export default function QSAddTransactionScreen() {
         }
     }, [isLoan, loanId, categories, type, categoryId]);
 
-    // Auto-link Trip when a Group is selected (Fix for group-trip discrepancy)
-    useEffect(() => {
-        if (isGroup && selectedGroupId && groups.length > 0) {
-            const group = groups.find((g: any) => g.id === selectedGroupId);
-            if (group?.trip_id) {
-                // If group is linked to a trip, auto-select that trip
-                if (!isTrip || selectedTripId !== group.trip_id) {
-                    setIsTrip(true);
-                    setSelectedTripId(group.trip_id);
-                }
-            }
-        }
-    }, [isGroup, selectedGroupId, groups, isTrip, selectedTripId]);
-
     useEffect(() => {
         if (user) {
             fetchData();
@@ -203,17 +171,15 @@ export default function QSAddTransactionScreen() {
 
     const fetchData = async () => {
         if (!user) return;
-        const [accs, cats, grps, trps, goals, lnz] = await Promise.all([
+        const [accs, cats, trps, goals, lnz] = await Promise.all([
             getAccountsByUser(user.id),
             getCategories(type === 'transfer' ? 'expense' : type as any),
-            getGroupsByUser(user.id),
             getTripsByUser(user.id),
             getSavingsGoals(user.id),
             getLoans(user.id)
         ]);
         setAccounts(accs);
         setCategories(cats);
-        setGroups(grps);
         setTrips(trps);
         setSavingsGoals(goals);
         setLoans(lnz);
@@ -244,7 +210,6 @@ export default function QSAddTransactionScreen() {
     const getSelectedSubCategory = () => categories.find(c => c.id === subCategoryId);
     const getSelectedAccount = () => accounts.find(a => a.id === accountId);
     const getSelectedToAccount = () => accounts.find(a => a.id === toAccountId);
-    const getSelectedGroup = () => groups.find(g => g.id === selectedGroupId);
     const getSelectedTrip = () => trips.find(t => t.id === selectedTripId);
     const getSelectedSavingsGoal = () => savingsGoals.find(g => g.id === savingsId);
     const getSelectedLoan = () => loans.find(l => l.id === loanId);
@@ -311,7 +276,6 @@ export default function QSAddTransactionScreen() {
                 amount: parseFloat(amount),
                 type,
                 date: date.toISOString(),
-                group_id: isGroup ? selectedGroupId : undefined,
                 trip_id: isTrip ? selectedTripId : undefined,
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
@@ -360,7 +324,6 @@ export default function QSAddTransactionScreen() {
                 amount: parseFloat(amount),
                 type,
                 date: date.toISOString(),
-                group_id: isGroup ? selectedGroupId : undefined,
                 trip_id: isTrip ? selectedTripId : undefined,
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
@@ -376,10 +339,6 @@ export default function QSAddTransactionScreen() {
                 router.back();
             }
         }
-    };
-
-    const toggleGroup = (value: boolean) => {
-        setIsGroup(value);
     };
 
     const toggleTrip = (value: boolean) => {
@@ -604,23 +563,8 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Group and Trip Toggles */}
+                        {/* Trip Toggle */}
                         <Animated.View entering={FadeInDown.delay(900).springify()} style={styles.toggleGrid}>
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
-                                    </View>
-                                    <Switch
-                                        value={isGroup}
-                                        onValueChange={toggleGroup}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#EC4899' }}
-                                        thumbColor={isGroup ? '#FFFFFF' : '#F3F4F6'}
-                                    />
-                                </View>
-                                <Text style={styles.toggleLabel}>Group Txn</Text>
-                            </View>
-
                             <View style={styles.toggleCard}>
                                 <View style={styles.toggleCardHeader}>
                                     <View style={styles.toggleIconContainer}>
@@ -731,27 +675,6 @@ export default function QSAddTransactionScreen() {
                                     >
                                         <Text style={getSelectedLoan() ? styles.selectText : styles.selectPlaceholder}>
                                             {getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : 'Select Loan'}
-                                        </Text>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )}
-
-                        {/* Group Selection (if enabled) */}
-                        {isGroup && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Select Group</Text>
-                                <View style={styles.inputWrapper}>
-                                    <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowGroupPicker(true)}
-                                    >
-                                        <Text style={getSelectedGroup() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedGroup()?.name || 'Select Group'}
                                         </Text>
                                         <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
                                     </TouchableOpacity>
@@ -1003,14 +926,6 @@ export default function QSAddTransactionScreen() {
                 excludeId={!isSavings ? accountId : undefined}
             />
 
-            <QSGroupPicker
-                visible={showGroupPicker}
-                onClose={() => setShowGroupPicker(false)}
-                groups={groups}
-                selectedId={selectedGroupId}
-                onSelect={(grp) => setSelectedGroupId(grp.id)}
-            />
-
             <QSTripPicker
                 visible={showTripPicker}
                 onClose={() => setShowTripPicker(false)}
@@ -1018,10 +933,6 @@ export default function QSAddTransactionScreen() {
                 selectedId={selectedTripId}
                 onSelect={(trip) => {
                     setSelectedTripId(trip.id);
-                    if (trip.groupId) {
-                        setIsGroup(true);
-                        setSelectedGroupId(trip.groupId);
-                    }
                 }}
             />
 

@@ -734,50 +734,6 @@ export const useAnalytics = () => {
     }
   }, []);
 
-  const getGroupsAnalytics = useCallback(async (userId: string) => {
-    setLoading(true);
-    try {
-      const { data: groups, error } = await supabase
-        .from("group_members")
-        .select(
-          `
-                    group:groups (id, name)
-                `,
-        )
-        .eq("user_id", userId);
-
-      if (error) throw error;
-
-      return await Promise.all(
-        (groups || []).map(async (g: any) => {
-          const group = g.group;
-          const { data: spending } = await supabase
-            .from("transactions")
-            .select("amount")
-            .eq("group_id", group.id)
-            .eq("type", "expense");
-
-          const totalSpent = (spending || []).reduce(
-            (sum, s) => sum + s.amount,
-            0,
-          );
-
-          return {
-            id: group.id,
-            name: group.name,
-            color: "#6366F1",
-            total_spent: totalSpent,
-          };
-        }),
-      );
-    } catch (err: any) {
-      setError(err.message);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const getNeedsWantsSavings = useCallback(
     async (userId: string, options?: DateRangeOptions) => {
       setLoading(true);
@@ -1347,7 +1303,6 @@ export const useAnalytics = () => {
       getCashFlow,
       getBudgetPerformance,
       getTripsAnalytics,
-      getGroupsAnalytics,
       getSpendingInsights,
       getNeedsWantsSavings,
       getMerchantSpending,
@@ -1363,7 +1318,6 @@ export const useAnalytics = () => {
       getCashFlow,
       getBudgetPerformance,
       getTripsAnalytics,
-      getGroupsAnalytics,
       getSpendingInsights,
       getNeedsWantsSavings,
       getMerchantSpending,

@@ -8,7 +8,6 @@ export interface NotificationPreferences {
     billReminders: boolean; // recurring
     upcomingBillReminders: boolean; // upcoming bills
     lowBalanceAlerts: boolean;
-    splitReminders: boolean;
     monthlySummary: boolean;
     loanDueReminders: boolean;
     loanPaidAlerts: boolean;
@@ -21,7 +20,6 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
     billReminders: true,
     upcomingBillReminders: true,
     lowBalanceAlerts: true,
-    splitReminders: true,
     monthlySummary: true,
     loanDueReminders: true,
     loanPaidAlerts: true,

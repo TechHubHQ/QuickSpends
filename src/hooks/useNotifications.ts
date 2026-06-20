@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { notificationRules } from '../config/notificationRules';
-import { useAuth } from '../context/AuthContext';
 import { useNotificationPreferences } from '../context/NotificationPreferencesContext';
 import { supabase } from '../lib/supabase';
 
@@ -18,7 +17,6 @@ export interface Notification {
 
 export const useNotifications = () => {
     const { preferences } = useNotificationPreferences();
-    const { user: currentUser } = useAuth();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -114,53 +112,6 @@ export const useNotifications = () => {
         }
     }, []);
 
-    const sendInvite = useCallback(async (fromUserName: string, toEmail: string, groupName: string, groupId: string, toUserId?: string) => {
-        setLoading(true);
-        try {
-            let userId = toUserId;
-
-            // 1. If no userId provided, find the user by email (profile)
-            if (!userId) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('email', toEmail)
-                    .maybeSingle();
-
-                if (profile) {
-                    userId = profile.id;
-                }
-            }
-
-            if (!userId) {
-                return { success: true, message: `Invite sent to ${toEmail}` };
-            }
-
-            if (currentUser && userId === currentUser.id) {
-                return { success: false, message: "You cannot invite yourself." };
-            }
-
-            // 2. Create notification for that user
-            await supabase
-                .from('notifications')
-                .insert({
-                    user_id: userId,
-                    type: 'invite',
-                    title: 'Group Invitation',
-                    message: `${fromUserName} invited you to join "${groupName}"`,
-                    data: { groupId, groupName, fromUserName },
-                    is_read: false
-                });
-
-            return { success: true, message: "Invitation sent successfully!" };
-
-        } catch (err: any) {
-            return { success: false, message: err.message };
-        } finally {
-            setLoading(false);
-        }
-    }, [currentUser]);
-
     const checkAllNotifications = useCallback(async (userId: string) => {
         try {
             const createNotificationForUser = async (title: string, message: string, type: string, data: any = {}) => {
@@ -206,7 +157,6 @@ export const useNotifications = () => {
         markAllAsRead,
         deleteNotification,
         clearAllNotifications,
-        sendInvite,
         checkAllNotifications,
         loading,
         error

@@ -33,7 +33,6 @@ export const QSClearDataModal: React.FC<QSClearDataModalProps> = ({
         savings: false,
         loans: false,
         trips: false,
-        groups: false,
         preferences: false,
     });
 
@@ -46,7 +45,6 @@ export const QSClearDataModal: React.FC<QSClearDataModalProps> = ({
         { id: 'savings', label: 'Savings Goals', icon: 'piggy-bank' },
         { id: 'loans', label: 'Loans & Debt', icon: 'handshake' },
         { id: 'trips', label: 'Trips', icon: 'airplane' },
-        { id: 'groups', label: 'Groups', icon: 'account-group' },
         { id: 'preferences', label: 'User Preferences', icon: 'cog' },
     ];
 
@@ -91,7 +89,6 @@ export const QSClearDataModal: React.FC<QSClearDataModalProps> = ({
             savings: false,
             loans: false,
             trips: false,
-            groups: false,
             preferences: false,
         });
     };

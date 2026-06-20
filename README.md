@@ -9,7 +9,6 @@ QuickSpends
 ├── app/                  # Expo Router pages and layouts
 │   ├── (tabs)/           # Main tab-based navigation
 │   ├── account-details/  # Account management screens
-│   ├── group/            # Group expense sharing screens
 │   ├── _layout.tsx       # Root layout configuration
 │   └── index.tsx         # App entry point
 ├── assets/               # Static assets (images, fonts, etc.)

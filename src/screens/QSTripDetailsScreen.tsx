@@ -25,8 +25,6 @@ import Animated, {
 import { AlertButton, QSAlertModal } from "../components/QSAlertModal";
 import { QSHeader } from "../components/QSHeader";
 import { QSTransactionIndicators } from "../components/QSTransactionIndicators";
-import { useAuth } from "../context/AuthContext";
-import { useGroups } from "../hooks/useGroups";
 import { Transaction, useTransactions } from "../hooks/useTransactions";
 import { Trip, useTrips } from "../hooks/useTrips";
 import { createStyles } from "../styles/QSTripDetails.styles";
@@ -40,7 +38,6 @@ interface QSTripDetailsScreenProps {
 export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
   const router = useRouter();
   const { theme } = useTheme();
-  const { user } = useAuth();
   const styles = createStyles(theme);
   const { getTripById, deleteTrip, loading: tripLoading } = useTrips();
   const {
@@ -48,7 +45,6 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
     getSpendingByCategoryByTrip,
     loading: transLoading,
   } = useTransactions();
-  const { getGroupDetails } = useGroups();
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -57,13 +53,11 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Filter State
-  const [filterUserId, setFilterUserId] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<
     "date_desc" | "date_asc" | "amount_desc" | "amount_asc"
   >("date_desc");
   const [showFilters, setShowFilters] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "expense" | "income" | "transfer">("all");
-  const [groupMembers, setGroupMembers] = useState<any[]>([]);
 
   const [alertConfig, setAlertConfig] = useState<{
     visible: boolean;
@@ -81,11 +75,6 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
   const filteredTransactions = React.useMemo(() => {
     if (!transactions) return [];
     let result = [...transactions];
-
-    // Filter by User
-    if (filterUserId) {
-      result = result.filter((t) => t.user_id === filterUserId);
-    }
 
     // Filter by Type
     if (filterType !== "all") {
@@ -109,7 +98,7 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
     });
 
     return result;
-  }, [transactions, filterUserId, filterType, sortOption]);
+  }, [transactions, filterType, sortOption]);
 
   const filteredTotal = React.useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
@@ -140,16 +129,7 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
         getSpendingByCategoryByTrip(id),
       ]);
 
-      if (tripData) {
-        setTrip(tripData);
-        // If it's a group trip, fetch members
-        if (tripData.type === 'group' && tripData.groupId && user) {
-          const groupDetails = await getGroupDetails(tripData.groupId, user.id);
-          if (groupDetails) {
-            setGroupMembers(groupDetails.members || []);
-          }
-        }
-      }
+      if (tripData) setTrip(tripData);
       setTransactions(transData);
       setCategorySpending(catData);
     } catch (error) {
@@ -368,11 +348,11 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
           <View style={styles.headerContent}>
             <View style={styles.tripTypeBadge}>
               <MaterialCommunityIcons
-                name={trip.type === "group" ? "account-group" : "account"}
+                name="account"
                 size={12}
                 color="#FFFFFF"
               />
-              <Text style={styles.tripTypeText}>{trip.type} Trip</Text>
+              <Text style={styles.tripTypeText}>Trip</Text>
             </View>
             <Text style={styles.tripTitle}>{trip.name}</Text>
             <Text style={styles.tripSubtitle}>
@@ -551,7 +531,7 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
             </View>
 
             {/* Filter Total Info bar */}
-            {(filterUserId !== null || filterType !== "all" || sortOption !== "date_desc") && (
+            {(filterType !== "all" || sortOption !== "date_desc") && (
               <Animated.View
                 entering={FadeInDown.duration(400)}
                 style={{
@@ -580,10 +560,7 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
                       color: theme.colors.textSecondary,
                     }}
                   >
-                    {filterUserId
-                      ? (groupMembers.find((m) => m.id === filterUserId)?.username || "User") +
-                      "'s activity"
-                      : "Filtered results"}
+                    Filtered results
                     {filterType !== "all" && ` • ${filterType.charAt(0).toUpperCase() + filterType.slice(1)}s`}
                   </Text>
                 </View>
@@ -773,85 +750,6 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
                     </Pressable>
                   ))}
                 </View>
-
-                {/* User Section (Only if group members exist) */}
-                {groupMembers.length > 0 && (
-                  <>
-                    <View
-                      style={{
-                        height: 1,
-                        backgroundColor: theme.colors.border,
-                        marginVertical: 12,
-                      }}
-                    />
-                    <Text style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      marginBottom: 8,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      color: theme.colors.textSecondary,
-                    }}>Filter By User</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      <Pressable
-                        style={({ pressed }) => [
-                          {
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 20,
-                            borderWidth: 1,
-                            borderColor: theme.colors.border,
-                          },
-                          filterUserId === null && {
-                            backgroundColor: theme.colors.primary,
-                            borderColor: theme.colors.primary,
-                          },
-                          pressed && { opacity: 0.8 }
-                        ]}
-                        onPress={() => setFilterUserId(null)}
-                      >
-                        <Text
-                          style={[
-                            { fontSize: 12, fontWeight: "600", color: theme.colors.text },
-                            filterUserId === null && { color: "#FFF" }
-                          ]}
-                        >
-                          All Members
-                        </Text>
-                      </Pressable>
-                      {groupMembers.map((m) => (
-                        <Pressable
-                          key={m.id}
-                          style={({ pressed }) => [
-                            {
-                              paddingHorizontal: 12,
-                              paddingVertical: 6,
-                              borderRadius: 20,
-                              borderWidth: 1,
-                              borderColor: theme.colors.border,
-                            },
-                            filterUserId === m.id && {
-                              backgroundColor: theme.colors.primary,
-                              borderColor: theme.colors.primary,
-                            },
-                          ]}
-                          onPress={() =>
-                            setFilterUserId(filterUserId === m.id ? null : m.id)
-                          }
-                        >
-                          <Text
-                            style={[
-                              { fontSize: 12, fontWeight: "600", color: theme.colors.text },
-                              filterUserId === m.id && { color: "#FFF" }
-                            ]}
-                          >
-                            {m.id === user?.id ? "You" : m.username.split(" ")[0]}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </>
-                )}
               </View>
             )}
 
@@ -923,9 +821,7 @@ export default function QSTripDetailsScreen({ id }: QSTripDetailsScreenProps) {
                                 )}
                               </Text>
                               <QSTransactionIndicators
-                                isSplit={item.is_split}
                                 tripId={item.trip_id}
-                                groupId={item.group_id}
                                 savingsId={item.savings_id}
                                 loanId={item.loan_id}
                                 hideTrip

@@ -411,10 +411,9 @@ export default function QSTransactionDetailsScreen() {
           </View>
         </Animated.View>
 
-        {/* Tags Card - Only show if we have trip info, group info or recurring info */}
+        {/* Tags Card - Only show if we have trip, savings, or recurring info */}
         {!!(
           data.trip_id ||
-          data.group_id ||
           data.recurring_id ||
           data.savings_id
         ) && (
@@ -442,7 +441,7 @@ export default function QSTransactionDetailsScreen() {
                   {
                     borderBottomColor: theme.colors.border,
                     borderBottomWidth:
-                      data.group_id || data.savings_id || data.recurring_id
+                      data.savings_id || data.recurring_id
                         ? 1
                         : 0,
                   },
@@ -478,59 +477,6 @@ export default function QSTransactionDetailsScreen() {
                       ]}
                     >
                       Trip
-                    </Text>
-                  </View>
-                </View>
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={20}
-                  color={theme.colors.textTertiary}
-                />
-              </TouchableOpacity>
-            )}
-
-            {/* Group Tag */}
-            {!!data.group_id && (
-              <TouchableOpacity
-                style={[
-                  styles.tagRow,
-                  {
-                    borderBottomColor: theme.colors.border,
-                    borderBottomWidth:
-                      data.savings_id || data.recurring_id ? 1 : 0,
-                  },
-                ]}
-              >
-                <View style={styles.tagLeft}>
-                  <View
-                    style={[
-                      styles.iconBox,
-                      {
-                        backgroundColor: isDark
-                          ? "rgba(59, 130, 246, 0.2)"
-                          : "rgba(59, 130, 246, 0.1)",
-                      },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="account-group"
-                      size={16}
-                      color="#3B82F6"
-                    />
-                  </View>
-                  <View>
-                    <Text
-                      style={[styles.tagName, { color: theme.colors.text }]}
-                    >
-                      {data.group_name || "Group"}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.tagType,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      Group
                     </Text>
                   </View>
                 </View>

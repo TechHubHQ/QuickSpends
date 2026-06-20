@@ -17,14 +17,11 @@ export interface Transaction {
   category_color?: string;
   account_name?: string;
   trip_name?: string;
-  group_name?: string;
   recurring_frequency?: string;
-  group_id?: string;
   trip_id?: string;
   recurring_id?: string;
   to_account_id?: string;
   receipt_url?: string;
-  is_split?: boolean;
   savings_id?: string;
   savings_name?: string;
   loan_id?: string;
@@ -114,10 +111,8 @@ export const useTransactions = () => {
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
                     trips (name),
-                    groups (name),
                     savings (name),
-                    recurring_configs (frequency),
-                    is_split:splits(count)
+                    recurring_configs (frequency)
                 `,
           )
           .eq("user_id", userId)
@@ -136,10 +131,8 @@ export const useTransactions = () => {
           category_color: t.categories?.color,
           account_name: t.accounts?.name,
           trip_name: t.trips?.name,
-          group_name: t.groups?.name,
           savings_name: t.savings?.name,
           recurring_frequency: t.recurring_configs?.frequency,
-          is_split: t.is_split && t.is_split[0]?.count > 0,
         })) as Transaction[];
       } catch (err: any) {
         setError(err.message);
@@ -646,7 +639,6 @@ export const useTransactions = () => {
             amount: transaction.amount,
             type: transaction.type,
             date: transaction.date || new Date().toISOString(),
-            group_id: transaction.group_id || null,
             trip_id: transaction.trip_id || null,
             to_account_id: transaction.to_account_id || null,
             receipt_url: transaction.receipt_url || null,

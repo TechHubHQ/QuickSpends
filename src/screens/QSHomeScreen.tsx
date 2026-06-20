@@ -17,14 +17,12 @@ import Animated, {
   FadeInRight,
   FadeInUp,
 } from "react-native-reanimated";
-import { QSGroupCard } from "../components/QSGroupCard";
 import { QSHeader } from "../components/QSHeader";
 import { QSInfoSheet } from "../components/QSInfoSheet";
 import { QSTransactionIndicators } from "../components/QSTransactionIndicators";
 import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../hooks/useAccounts";
 import { useBudgets } from "../hooks/useBudgets";
-import { useGroups } from "../hooks/useGroups";
 import { useLoans } from "../hooks/useLoans";
 import { useSavings } from "../hooks/useSavings";
 import { useTransactions } from "../hooks/useTransactions";
@@ -45,7 +43,6 @@ export default function QSHomeScreen() {
   const { getRecentTransactions, getBalanceTrend } = useTransactions();
   const { getBudgetsWithSpending } = useBudgets();
   const { getTripsByUser } = useTrips();
-  const { getGroupsByUser } = useGroups();
   const { getSavingsGoals } = useSavings();
   const { getLoans } = useLoans();
   const { bills, fetchBills } = useUpcomingBills();
@@ -55,8 +52,8 @@ export default function QSHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showBalanceInfo, setShowBalanceInfo] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "budgets" | "trips" | "groups" | "bills" | "savings" | "loans"
-  >("groups");
+    "budgets" | "trips" | "bills" | "savings" | "loans"
+  >("budgets");
   const [totalBalance, setTotalBalance] = useState(0);
   const [balanceTrend, setBalanceTrend] = useState({
     percentage: 0,
@@ -64,7 +61,6 @@ export default function QSHomeScreen() {
   });
   const [budgets, setBudgets] = useState<any[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [groups, setGroups] = useState<any[]>([]); // Added groups state
   const [accounts, setAccounts] = useState<any[]>([]); // Added accounts state
   const [transactions, setTransactions] = useState<any[]>([]);
   const [savings, setSavings] = useState<any[]>([]);
@@ -127,7 +123,6 @@ export default function QSHomeScreen() {
         transactionsData,
         budgetsData,
         tripsData,
-        groupsData,
         savingsData,
         loansData,
       ] = await Promise.all([
@@ -135,7 +130,6 @@ export default function QSHomeScreen() {
         getRecentTransactions(user.id, 5),
         getBudgetsWithSpending(user.id),
         getTripsByUser(user.id),
-        getGroupsByUser(user.id),
         getSavingsGoals(user.id),
         getLoans(user.id),
       ]);
@@ -171,7 +165,6 @@ export default function QSHomeScreen() {
       setTransactions(transactionsData);
       setBudgets(budgetsData);
       setTrips(tripsData);
-      setGroups(groupsData);
       setSavings(savingsData);
       setLoans(loansData);
     } catch (error) {
@@ -184,7 +177,6 @@ export default function QSHomeScreen() {
     getRecentTransactions,
     getBudgetsWithSpending,
     getTripsByUser,
-    getGroupsByUser,
     getSavingsGoals,
     getLoans,
     getBalanceTrend,
@@ -340,7 +332,7 @@ export default function QSHomeScreen() {
           </LinearGradient>
         </Animated.View>
 
-        {/* Switcher Section (Groups / Budgets / Trips / Bills / Savings / Loans) */}
+        {/* Switcher Section (Budgets / Trips / Bills / Savings / Loans) */}
         <View style={[styles.sectionHeader, { paddingRight: 0 }]}>
           <ScrollView
             horizontal
@@ -348,23 +340,6 @@ export default function QSHomeScreen() {
             contentContainerStyle={styles.switcherContainer}
             decelerationRate="fast"
           >
-            <Pressable
-              onPress={() => setActiveTab("groups")}
-              style={({ pressed }) => [
-                styles.tabButton,
-                activeTab === "groups" && styles.activeTabButton,
-                { opacity: pressed ? 0.7 : 1 }
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "groups" && styles.activeTabText,
-                ]}
-              >
-                Groups
-              </Text>
-            </Pressable>
             <Pressable
               onPress={() => setActiveTab("budgets")}
               style={({ pressed }) => [
@@ -459,25 +434,6 @@ export default function QSHomeScreen() {
               paddingRight: theme.spacing.l,
             }}
           >
-            {activeTab === "groups" && (
-              <Pressable
-                onPress={() => router.push("/create-group")}
-                style={({ pressed }) => [
-                  {
-                    backgroundColor: theme.colors.primary,
-                    padding: 4,
-                    borderRadius: 12,
-                  },
-                  { opacity: pressed ? 0.7 : 1 }
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="plus-circle-outline"
-                  size={20}
-                  color={theme.colors.onPrimary}
-                />
-              </Pressable>
-            )}
             {activeTab === "budgets" && (
               <Pressable
                 onPress={() => router.push("/budget-creation")}
@@ -576,46 +532,7 @@ export default function QSHomeScreen() {
           </View>
         </View>
 
-        {activeTab === "groups" ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tripScroll}
-            snapToInterval={208} // w-48 (192) + margin (16)
-            decelerationRate="fast"
-          >
-            {groups.length > 0 ? (
-              groups.map((group, index) => (
-                <Animated.View
-                  key={group.id}
-                  entering={FadeInRight.delay(200 + index * 50).springify()}
-                >
-                  <QSGroupCard
-                    group={group}
-                    onPress={() => {
-                      // @ts-ignore
-                      router.push({
-                        pathname: `/group/[id]`,
-                        params: { id: group.id },
-                      });
-                    }}
-                  />
-                </Animated.View>
-              ))
-            ) : (
-              <View
-                style={[
-                  styles.budgetCard,
-                  { width: 300, justifyContent: "center" },
-                ]}
-              >
-                <Text style={[styles.budgetName, { textAlign: "center" }]}>
-                  No groups joined yet
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-        ) : activeTab === "budgets" ? (
+        {activeTab === "budgets" ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -761,11 +678,7 @@ export default function QSHomeScreen() {
                           <View style={styles.tripHeaderLeft}>
                             <View style={styles.tripTypeIcon}>
                               <MaterialCommunityIcons
-                                name={
-                                  trip.type === "group"
-                                    ? "account-group"
-                                    : "account"
-                                }
+                                name="account"
                                 size={14}
                                 color="#FFFFFF"
                               />
@@ -1280,9 +1193,7 @@ export default function QSHomeScreen() {
                           })}
                         </Text>
                         <QSTransactionIndicators
-                          isSplit={item.is_split}
                           tripId={item.trip_id}
-                          groupId={item.group_id}
                           savingsId={item.savings_id}
                           loanId={item.loan_id}
                         />
