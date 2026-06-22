@@ -54,6 +54,8 @@ export const createStyles = (theme: Theme) =>
       padding: theme.spacing.l,
       borderRadius: 24,
       backgroundColor: theme.colors.card,
+      borderWidth: 1,
+      borderColor: `${theme.colors.border}60`,
       ...theme.shadows.small,
     },
     sectionTitle: {
@@ -62,63 +64,13 @@ export const createStyles = (theme: Theme) =>
       color: theme.colors.text,
       marginBottom: theme.spacing.l,
     },
-    // Filter Styles
-    filterContainer: {
-      flexGrow: 1,
-      flexDirection: "row",
-      justifyContent: "center",
-      alignItems: "center",
-      marginTop: theme.spacing.l,
-      marginBottom: theme.spacing.s,
-      paddingHorizontal: theme.spacing.l,
-      gap: 10,
-    },
-    filterChip: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
-      borderRadius: 20,
-      backgroundColor: theme.colors.card,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    filterChipNarrow: {
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderRadius: 16,
-      width: "48%",
-      minWidth: 0,
-      alignItems: "center",
-    },
-    activeFilterChip: {
-      backgroundColor: theme.colors.text,
-      borderColor: theme.colors.text,
-      ...theme.shadows.small,
-    },
-    filterText: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: theme.colors.textSecondary,
-    },
-    filterTextNarrow: {
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    filterContainerNarrow: {
-      paddingHorizontal: theme.spacing.m,
-      gap: 8,
-    },
-    filterContainerWrap: {
-      flexWrap: "wrap",
-      justifyContent: "space-between",
-      rowGap: 8,
-    },
     filterButton: {
       marginHorizontal: theme.spacing.l,
       marginTop: theme.spacing.l,
       marginBottom: theme.spacing.s,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 14,
       backgroundColor: theme.colors.card,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -132,20 +84,20 @@ export const createStyles = (theme: Theme) =>
     filterButtonContent: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: 8,
       paddingRight: 8,
     },
     filterButtonLabel: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: "600",
       color: theme.colors.textSecondary,
     },
     filterButtonDivider: {
-      fontSize: 12,
+      fontSize: 14,
       color: theme.colors.textTertiary,
     },
     filterButtonValue: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: "700",
       color: theme.colors.text,
     },
@@ -173,18 +125,14 @@ export const createStyles = (theme: Theme) =>
       color: theme.colors.primary,
       fontWeight: "700",
     },
-    activeFilterText: {
-      color: theme.colors.background, // Inverted contrast
-    },
-    // Tab Styles
     tabContainer: {
       flexDirection: "row",
       marginHorizontal: theme.spacing.l,
       marginVertical: theme.spacing.l,
       backgroundColor: theme.colors.backgroundSecondary,
       borderRadius: 16,
-      padding: 6,
-      gap: 6,
+      padding: 5,
+      gap: 5,
     },
     tabItem: {
       flex: 1,
@@ -195,7 +143,6 @@ export const createStyles = (theme: Theme) =>
     activeTabItem: {
       backgroundColor: theme.colors.primary,
       ...theme.shadows.medium,
-      transform: [{ scale: 1.02 }],
     },
     tabLabel: {
       fontSize: 14,
@@ -203,10 +150,9 @@ export const createStyles = (theme: Theme) =>
       color: theme.colors.textSecondary,
     },
     activeTabLabel: {
-      color: "#FFFFFF", // White text on primary background
+      color: "#FFFFFF",
       fontWeight: "700",
     },
-    // List Styles
     budgetList: {
       gap: theme.spacing.m,
     },

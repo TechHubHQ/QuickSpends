@@ -36,7 +36,8 @@ export const QSMonthSelector: React.FC<QSMonthSelectorProps> = ({
         alignItems: "center",
         justifyContent: "center",
         paddingVertical: theme.spacing.m,
-        gap: theme.spacing.l,
+        gap: theme.spacing.s,
+        paddingHorizontal: theme.spacing.m,
       }}
     >
       <Pressable
@@ -44,62 +45,74 @@ export const QSMonthSelector: React.FC<QSMonthSelectorProps> = ({
         style={({ pressed }) => ({
           opacity: pressed ? 0.6 : 1,
           padding: theme.spacing.s,
+          backgroundColor: theme.colors.backgroundSecondary,
+          borderRadius: theme.borderRadius.m,
         })}
       >
         <MaterialCommunityIcons
           name="chevron-left"
-          size={28}
+          size={24}
           color={theme.colors.text}
         />
       </Pressable>
 
-      <Text
-        style={{
-          fontSize: theme.typography.h2.fontSize,
-          fontWeight: theme.typography.h2.fontWeight,
-          color: theme.colors.text,
-          minWidth: 180,
-          textAlign: "center",
-        }}
-      >
-        {monthName}
-      </Text>
+      <View style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: theme.spacing.s,
+        flex: 1,
+        justifyContent: "center",
+      }}>
+        <Text
+          style={{
+            fontSize: theme.typography.h2.fontSize,
+            fontWeight: theme.typography.h2.fontWeight,
+            color: theme.colors.text,
+            textAlign: "center",
+          }}
+        >
+          {monthName}
+        </Text>
+
+        {isCurrentMonth && (
+          <View
+            style={{
+              backgroundColor: theme.colors.primary,
+              borderRadius: 20,
+              paddingHorizontal: 10,
+              paddingVertical: 3,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 10,
+                color: theme.colors.onPrimary,
+                fontWeight: "700",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+              }}
+            >
+              Now
+            </Text>
+          </View>
+        )}
+      </View>
 
       <Pressable
         onPress={onNext}
         style={({ pressed }) => ({
           opacity: pressed ? 0.6 : 1,
           padding: theme.spacing.s,
+          backgroundColor: theme.colors.backgroundSecondary,
+          borderRadius: theme.borderRadius.m,
         })}
       >
         <MaterialCommunityIcons
           name="chevron-right"
-          size={28}
+          size={24}
           color={theme.colors.text}
         />
       </Pressable>
-
-      {isCurrentMonth && (
-        <View
-          style={{
-            backgroundColor: theme.colors.primary,
-            borderRadius: theme.borderRadius.s,
-            paddingHorizontal: 8,
-            paddingVertical: 2,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 10,
-              color: theme.colors.onPrimary,
-              fontWeight: "700",
-              textTransform: "uppercase",
-            }}
-          >
-            Now
-          </Text>
-        </View>
-      )}
     </View>
   );
 };

@@ -96,7 +96,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                     };
 
                     const tabCount = state.routes.length;
-                    const fabOffset = 44;
+                    const fabOffset = 36;
                     const isLeftFabSide = index < Math.floor(tabCount / 2) && index === Math.floor(tabCount / 2) - 1;
                     const isRightFabSide = index >= Math.ceil(tabCount / 2) && index === Math.ceil(tabCount / 2);
 

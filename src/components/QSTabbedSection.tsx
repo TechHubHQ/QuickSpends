@@ -49,9 +49,9 @@ export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
             key={tab.key}
             onPress={() => onTabChange(tab.key)}
             style={isPill ? {
-              paddingVertical: theme.spacing.s,
-              paddingHorizontal: theme.spacing.m,
-              borderRadius: 20,
+              paddingVertical: theme.spacing.xs + 2,
+              paddingHorizontal: theme.spacing.s + 4,
+              borderRadius: 16,
               backgroundColor: isActive ? `${theme.colors.primary}15` : "transparent",
               borderWidth: 1,
               borderColor: isActive ? `${theme.colors.primary}30` : "transparent",
@@ -72,7 +72,7 @@ export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
           >
             <Text
               style={isPill ? {
-                fontSize: theme.typography.bodySmall.fontSize,
+                fontSize: 13,
                 fontWeight: isActive ? "700" : "500",
                 color: isActive ? theme.colors.primary : theme.colors.textTertiary,
               } : {

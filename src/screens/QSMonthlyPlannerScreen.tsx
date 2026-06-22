@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { QSButton } from "../components/QSButton";
 import { QSHeader } from "../components/QSHeader";
 import { QSMonthSelector } from "../components/QSMonthSelector";
@@ -194,29 +195,13 @@ export default function QSMonthlyPlannerScreen() {
   ) => {
     if (!visible) return null;
     return (
-      <View
-        style={{
-          margin: theme.spacing.m,
-          padding: theme.spacing.m,
-          borderRadius: theme.borderRadius.m,
-          backgroundColor: theme.colors.surface,
-          borderWidth: 1,
-          borderColor: `${theme.colors.primary}30`,
-        }}
-      >
+      <Animated.View entering={FadeInDown.duration(300)} style={styles.inputCard}>
         <TextInput
           placeholder={type === "income" ? "Income source (e.g. Bonus)" : "Expense category (e.g. Groceries)"}
           placeholderTextColor={theme.colors.textTertiary}
           value={newItemLabel}
           onChangeText={setNewItemLabel}
-          style={{
-            fontSize: theme.typography.body.fontSize,
-            color: theme.colors.text,
-            borderBottomWidth: 1,
-            borderBottomColor: `${theme.colors.textTertiary}30`,
-            paddingVertical: theme.spacing.s,
-            marginBottom: theme.spacing.s,
-          }}
+          style={styles.inputField}
         />
         <TextInput
           placeholder="Amount"
@@ -224,16 +209,9 @@ export default function QSMonthlyPlannerScreen() {
           value={newItemAmount}
           onChangeText={setNewItemAmount}
           keyboardType="numeric"
-          style={{
-            fontSize: theme.typography.body.fontSize,
-            color: theme.colors.text,
-            borderBottomWidth: 1,
-            borderBottomColor: `${theme.colors.textTertiary}30`,
-            paddingVertical: theme.spacing.s,
-            marginBottom: theme.spacing.m,
-          }}
+          style={styles.inputField}
         />
-        <View style={{ flexDirection: "row", gap: theme.spacing.s }}>
+        <View style={styles.inputActions}>
           <QSButton
             title="Cancel"
             onPress={() => {
@@ -250,7 +228,7 @@ export default function QSMonthlyPlannerScreen() {
             style={{ flex: 1 }}
           />
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -264,7 +242,7 @@ export default function QSMonthlyPlannerScreen() {
   ) => {
     const color = type === "income" ? "#22C55E" : theme.colors.error;
     return (
-      <View style={styles.section}>
+      <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             {title} ({items.length})
@@ -326,12 +304,12 @@ export default function QSMonthlyPlannerScreen() {
             </Text>
           </Pressable>
         )}
-      </View>
+      </Animated.View>
     );
   };
 
   const renderSummaryCard = () => (
-    <View style={styles.summaryCard}>
+    <Animated.View entering={FadeInDown.duration(500).springify()} style={styles.summaryCard}>
       <View style={styles.summaryRow}>
         <Text style={styles.summaryLabel}>Total Income</Text>
         <Text style={[styles.summaryAmount, { color: "#22C55E" }]}>
@@ -370,7 +348,7 @@ export default function QSMonthlyPlannerScreen() {
           {formatCurrency(totalIncome - totalBills)}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 
   const renderPlanTab = () => {
@@ -538,23 +516,10 @@ export default function QSMonthlyPlannerScreen() {
                 </Text>
               </View>
               {isDeficit && (
-                <View
-                  style={{
-                    marginTop: theme.spacing.s,
-                    padding: theme.spacing.s,
-                    borderRadius: theme.borderRadius.s,
-                    backgroundColor: `${theme.colors.error}15`,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: theme.typography.caption.fontSize,
-                      color: theme.colors.error,
-                      fontWeight: "600",
-                      textAlign: "center",
-                    }}
-                  >
-                    ⚠ Projected deficit — review spending or increase income
+                <View style={[styles.deficitWarning, { backgroundColor: `${theme.colors.error}15` }]}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={16} color={theme.colors.error} />
+                  <Text style={[styles.deficitWarningText, { color: theme.colors.error }]}>
+                    Projected deficit — review spending or increase income
                   </Text>
                 </View>
               )}
@@ -752,7 +717,7 @@ export default function QSMonthlyPlannerScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}
       >
-        <View style={styles.settlementProgress}>
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.settlementProgress}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Settled</Text>
             <Text style={styles.summaryAmount}>
@@ -780,7 +745,7 @@ export default function QSMonthlyPlannerScreen() {
           >
             {pendingExpenses.length} remaining
           </Text>
-        </View>
+        </Animated.View>
 
         {pendingExpenses.length > 0 && (
           <View style={styles.section}>

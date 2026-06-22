@@ -17,11 +17,12 @@ export const createStyles = (colors: any, isDark: boolean) => StyleSheet.create(
         alignItems: "center",
         justifyContent: "space-around",
         paddingBottom: 10,
+        paddingHorizontal: 6,
     },
     tabItem: {
         alignItems: "center",
         justifyContent: "center",
-        width: width / 5,
+        flex: 1,
     },
     tabLabel: {
         fontSize: 10,

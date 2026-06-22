@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import type { Theme } from "../theme";
 
 export const createStyles = (theme: Theme) =>
@@ -10,15 +10,17 @@ export const createStyles = (theme: Theme) =>
     summaryCard: {
       margin: theme.spacing.m,
       padding: theme.spacing.l,
-      borderRadius: theme.borderRadius.l,
+      borderRadius: 20,
       backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: `${theme.colors.border}80`,
       ...theme.shadows.medium,
     },
     summaryRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      paddingVertical: theme.spacing.xs,
+      paddingVertical: theme.spacing.xs + 2,
     },
     summaryLabel: {
       fontSize: theme.typography.bodySmall.fontSize,
@@ -31,12 +33,28 @@ export const createStyles = (theme: Theme) =>
     },
     summaryDivider: {
       height: 1,
-      backgroundColor: `${theme.colors.textTertiary}40`,
-      marginVertical: theme.spacing.s,
+      backgroundColor: `${theme.colors.textTertiary}30`,
+      marginVertical: theme.spacing.s + 2,
     },
     surplusAmount: {
       fontSize: theme.typography.h2.fontSize,
       fontWeight: "700",
+    },
+    surplusRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.s,
+    },
+    surplusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+    },
+    surplusBadgeText: {
+      fontSize: 11,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
     },
     section: {
       marginHorizontal: theme.spacing.m,
@@ -50,14 +68,14 @@ export const createStyles = (theme: Theme) =>
       paddingHorizontal: theme.spacing.s,
     },
     sectionTitle: {
-      fontSize: theme.typography.bodySmall.fontSize,
+      fontSize: 13,
       fontWeight: "700",
       textTransform: "uppercase",
-      letterSpacing: 0.5,
+      letterSpacing: 0.8,
       color: theme.colors.textSecondary,
     },
     sectionTotal: {
-      fontSize: theme.typography.bodySmall.fontSize,
+      fontSize: 13,
       fontWeight: "600",
       color: theme.colors.text,
     },
@@ -65,16 +83,16 @@ export const createStyles = (theme: Theme) =>
       flexDirection: "row",
       alignItems: "center",
       padding: theme.spacing.m,
-      borderRadius: theme.borderRadius.m,
+      borderRadius: 16,
       marginBottom: theme.spacing.s,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: `${theme.colors.textTertiary}20`,
+      borderColor: `${theme.colors.border}60`,
     },
     itemIcon: {
       width: 40,
       height: 40,
-      borderRadius: theme.borderRadius.m,
+      borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
       marginRight: theme.spacing.m,
@@ -99,8 +117,10 @@ export const createStyles = (theme: Theme) =>
     forecastCard: {
       margin: theme.spacing.m,
       padding: theme.spacing.l,
-      borderRadius: theme.borderRadius.l,
+      borderRadius: 20,
       backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: `${theme.colors.border}60`,
       ...theme.shadows.small,
     },
     forecastMonth: {
@@ -112,7 +132,7 @@ export const createStyles = (theme: Theme) =>
     forecastRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      paddingVertical: 3,
+      paddingVertical: 4,
     },
     forecastLabel: {
       fontSize: theme.typography.bodySmall.fontSize,
@@ -123,49 +143,77 @@ export const createStyles = (theme: Theme) =>
       fontWeight: "600",
       color: theme.colors.text,
     },
+    forecastSurplusBar: {
+      height: 6,
+      borderRadius: 3,
+      marginTop: theme.spacing.s,
+      overflow: "hidden",
+    },
+    forecastSurplusFill: {
+      height: "100%",
+      borderRadius: 3,
+    },
+    deficitWarning: {
+      marginTop: theme.spacing.s,
+      padding: theme.spacing.s,
+      borderRadius: theme.borderRadius.s,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    deficitWarningText: {
+      fontSize: theme.typography.caption.fontSize,
+      fontWeight: "600",
+      flex: 1,
+    },
     settlementProgress: {
       margin: theme.spacing.m,
       padding: theme.spacing.l,
-      borderRadius: theme.borderRadius.l,
+      borderRadius: 20,
       backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: `${theme.colors.border}60`,
       ...theme.shadows.small,
     },
     progressBar: {
-      height: 8,
-      borderRadius: 4,
+      height: 10,
+      borderRadius: 5,
       backgroundColor: `${theme.colors.textTertiary}20`,
       marginVertical: theme.spacing.s,
       overflow: "hidden",
     },
     progressFill: {
       height: "100%",
-      borderRadius: 4,
+      borderRadius: 5,
     },
     settlementItem: {
       flexDirection: "row",
       alignItems: "center",
       padding: theme.spacing.m,
-      borderRadius: theme.borderRadius.m,
+      borderRadius: 16,
       marginBottom: theme.spacing.s,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: `${theme.colors.textTertiary}20`,
+      borderColor: `${theme.colors.border}60`,
     },
     statusBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: theme.borderRadius.s,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
     },
     statusText: {
       fontSize: 10,
       fontWeight: "700",
       textTransform: "uppercase",
+      letterSpacing: 0.5,
     },
     analyticsCard: {
       margin: theme.spacing.m,
       padding: theme.spacing.l,
-      borderRadius: theme.borderRadius.l,
+      borderRadius: 20,
       backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: `${theme.colors.border}60`,
       ...theme.shadows.small,
     },
     analyticsTitle: {
@@ -187,14 +235,14 @@ export const createStyles = (theme: Theme) =>
     barTrack: {
       flex: 1,
       height: 20,
-      borderRadius: 4,
+      borderRadius: 6,
       backgroundColor: `${theme.colors.textTertiary}15`,
       overflow: "hidden",
       flexDirection: "row",
     },
     barFill: {
       height: "100%",
-      borderRadius: 4,
+      borderRadius: 6,
     },
     accuracyValue: {
       fontSize: 36,
@@ -225,7 +273,7 @@ export const createStyles = (theme: Theme) =>
       alignItems: "center",
       justifyContent: "center",
       padding: theme.spacing.m,
-      borderRadius: theme.borderRadius.m,
+      borderRadius: 16,
       borderWidth: 1.5,
       borderStyle: "dashed",
       borderColor: `${theme.colors.primary}50`,
@@ -236,5 +284,25 @@ export const createStyles = (theme: Theme) =>
       fontWeight: "600",
       color: theme.colors.primary,
       marginLeft: theme.spacing.s,
+    },
+    inputCard: {
+      margin: theme.spacing.m,
+      padding: theme.spacing.m,
+      borderRadius: 16,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}30`,
+    },
+    inputField: {
+      fontSize: theme.typography.body.fontSize,
+      color: theme.colors.text,
+      borderBottomWidth: 1,
+      borderBottomColor: `${theme.colors.textTertiary}30`,
+      paddingVertical: theme.spacing.s,
+      marginBottom: theme.spacing.s,
+    },
+    inputActions: {
+      flexDirection: "row",
+      gap: theme.spacing.s,
     },
   });

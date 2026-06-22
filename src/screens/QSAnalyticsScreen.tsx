@@ -554,7 +554,7 @@ export default function QSAnalyticsScreen() {
 
             {/* Cash Flow Summary */}
             {cashFlow.length > 0 && (
-              <View style={styles.sectionCard}>
+              <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Summary</Text>
 
                 {(() => {
@@ -873,15 +873,15 @@ export default function QSAnalyticsScreen() {
                     </View>
                   );
                 })()}
-              </View>
+              </Animated.View>
             )}
           </Animated.View>
         )}
 
         {activeTab === "budgets" && (
-          <View>
+          <Animated.View entering={FadeInUp.springify()}>
             {insights && (
-              <Animated.View entering={FadeInUp.springify()}>
+              <Animated.View entering={FadeInUp.delay(100).springify()}>
                 {/* Needs vs Wants vs Savings */}
                 <View style={styles.sectionCard}>
                   <Text style={styles.sectionTitle}>Breakdown</Text>
@@ -986,7 +986,8 @@ export default function QSAnalyticsScreen() {
                     marginHorizontal: theme.spacing.l,
                   }}
                 >
-                  <View
+                  <Animated.View
+                    entering={FadeInUp.delay(200).springify()}
                     style={[
                       styles.sectionCard,
                       { flex: 1, marginBottom: 0, marginHorizontal: 0 },
@@ -1010,8 +1011,9 @@ export default function QSAnalyticsScreen() {
                     >
                       {formatCurrency(Math.round(insights.dailyAverage))}
                     </Text>
-                  </View>
-                  <View
+                  </Animated.View>
+                  <Animated.View
+                    entering={FadeInUp.delay(300).springify()}
                     style={[
                       styles.sectionCard,
                       { flex: 1, marginBottom: 0, marginHorizontal: 0 },
@@ -1035,7 +1037,7 @@ export default function QSAnalyticsScreen() {
                     >
                       {formatCurrency(Math.round(insights.projectedTotal))}
                     </Text>
-                  </View>
+                  </Animated.View>
                 </View>
 
                 {/* Big Spender Card */}
@@ -1303,7 +1305,7 @@ export default function QSAnalyticsScreen() {
                 </View>
               </Animated.View>
             )}
-          </View>
+          </Animated.View>
         )}
 
         {/* Category Transactions Modal */}
