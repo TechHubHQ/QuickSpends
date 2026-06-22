@@ -5,13 +5,6 @@ import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "rea
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { QSAccountPicker } from "../components/QSAccountPicker";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import Toast from "react-native-toast-message";
-import { QSAccountPicker } from "../components/QSAccountPicker";
 import { QSButton } from "../components/QSButton";
 import { QSCategoryPicker } from "../components/QSCategoryPicker";
 import { QSCreateCategorySheet } from "../components/QSCreateCategorySheet";
@@ -35,6 +28,13 @@ import { useTheme } from "../theme/ThemeContext";
 type TransactionType = 'income' | 'expense' | 'transfer';
 type RecurringType = 'one-time' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
+const LINK_PILLS = [
+  { key: 'tag', icon: 'tag', label: 'Tag', color: '#8B5CF6' },
+  { key: 'trip', icon: 'airplane', label: 'Trip', color: '#FBBF24' },
+  { key: 'savings', icon: 'piggy-bank', label: 'Savings', color: '#E91E63' },
+  { key: 'loan', icon: 'handshake', label: 'Loan', color: '#FF5722' },
+] as const;
+
 export default function QSAddTransactionScreen() {
     const { theme } = useTheme();
     const router = useRouter();
@@ -45,13 +45,12 @@ export default function QSAddTransactionScreen() {
     const { getAccountsByUser } = useAccounts();
     const { getCategories } = useCategories();
     const { getTripsByUser } = useTrips();
-    const { addCategory } = useCategories(); // Added hook
+    const { addCategory } = useCategories();
     const { addTransaction, updateTransaction, loading: saving } = useTransactions();
     const { checkAllNotifications } = useNotifications();
     const { getSavingsGoals } = useSavings();
     const { getLoans } = useLoans();
 
-    // Parse edit transaction if available
     const editTransaction = params.editTransaction ? JSON.parse(params.editTransaction as string) : null;
 
     const [type, setType] = useState<TransactionType>(editTransaction?.type || (params.initialType as TransactionType) || 'expense');
@@ -61,7 +60,6 @@ export default function QSAddTransactionScreen() {
     const [description, setDescription] = useState(editTransaction?.description || '');
     const [date, setDate] = useState(editTransaction ? new Date(editTransaction.date) : new Date());
     const [recurringType, setRecurringType] = useState<RecurringType>('one-time');
-    // Custom recurring state
     const [customInterval, setCustomInterval] = useState('1');
     const [customFrequency, setCustomFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
     const [endCondition, setEndCondition] = useState<'never' | 'after_occurrences' | 'on_date'>('never');
@@ -72,15 +70,15 @@ export default function QSAddTransactionScreen() {
     const [accountId, setAccountId] = useState(editTransaction?.account_id || '');
     const [toAccountId, setToAccountId] = useState(editTransaction?.to_account_id || '');
     const [categoryId, setCategoryId] = useState(editTransaction?.category_id || '');
-    const [subCategoryId, setSubCategoryId] = useState(''); // New State
+    const [subCategoryId, setSubCategoryId] = useState('');
     const [isTrip, setIsTrip] = useState(!!editTransaction?.trip_id);
     const [selectedTripId, setSelectedTripId] = useState(editTransaction?.trip_id || '');
 
     // Bottom sheet visibility states
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-    const [showSubCategoryPicker, setShowSubCategoryPicker] = useState(false); // New State
-    const [showCreateCategory, setShowCreateCategory] = useState(false); // New State
-    const [creatingParentId, setCreatingParentId] = useState<string | undefined>(undefined); // New State
+    const [showSubCategoryPicker, setShowSubCategoryPicker] = useState(false);
+    const [showCreateCategory, setShowCreateCategory] = useState(false);
+    const [creatingParentId, setCreatingParentId] = useState<string | undefined>(undefined);
 
     const [showAccountPicker, setShowAccountPicker] = useState(false);
     const [showToAccountPicker, setShowToAccountPicker] = useState(false);
@@ -91,7 +89,6 @@ export default function QSAddTransactionScreen() {
 
     const [accounts, setAccounts] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
-    // We will derive sub-categories from 'categories' based on 'categoryId' selection
     const [trips, setTrips] = useState<any[]>([]);
     const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
     const [loans, setLoans] = useState<any[]>([]);
@@ -99,7 +96,7 @@ export default function QSAddTransactionScreen() {
     const [savingsId, setSavingsId] = useState(editTransaction?.savings_id || '');
     const [loanId, setLoanId] = useState(editTransaction?.loan_id || '');
     const [isSavings, setIsSavings] = useState(!!editTransaction?.savings_id);
-    const [savingsAction, setSavingsAction] = useState<'contribute' | 'withdraw'>('contribute'); // New State
+    const [savingsAction, setSavingsAction] = useState<'contribute' | 'withdraw'>('contribute');
     const [isLoan, setIsLoan] = useState(!!editTransaction?.loan_id);
     const [selectedTag, setSelectedTag] = useState<any>(
         editTransaction?.tag_id ? {
@@ -111,21 +108,24 @@ export default function QSAddTransactionScreen() {
     );
     const [showTagPicker, setShowTagPicker] = useState(false);
 
-    // Pre-fill data if editing - cleanup redundant useEffect
+    // Track which link pills are active
+    const [activeLinks, setActiveLinks] = useState<Record<string, boolean>>({
+        tag: !!selectedTag,
+        trip: !!editTransaction?.trip_id,
+        savings: !!editTransaction?.savings_id,
+        loan: !!editTransaction?.loan_id,
+    });
+
     useEffect(() => {
         if (editTransaction) {
-            // If already initialized, we might still need to handle complex cases like subcategories
-            // but we can do that in fetchData after categories are loaded.
         }
     }, [params.editTransaction]);
 
-
-    // Handle initial savingsId param
     useEffect(() => {
         if (params.savingsId) {
             setIsSavings(true);
             setSavingsId(params.savingsId as string);
-            // Default to transfer if adding funds to savings (Contribute)
+            setActiveLinks(prev => ({ ...prev, savings: true }));
             if (params.initialType === 'transfer') {
                 setType('transfer');
                 setSavingsAction('contribute');
@@ -136,7 +136,6 @@ export default function QSAddTransactionScreen() {
         }
     }, [params.savingsId, params.initialType]);
 
-    // Update Type based on Savings Action
     useEffect(() => {
         if (isSavings) {
             if (savingsAction === 'contribute') {
@@ -147,24 +146,23 @@ export default function QSAddTransactionScreen() {
         }
     }, [isSavings, savingsAction]);
 
-    // Handle initial params for trip
     useEffect(() => {
         if (params.tripId) {
             setIsTrip(true);
+            setActiveLinks(prev => ({ ...prev, trip: true }));
             const tripId = params.tripId as string;
             setSelectedTripId(tripId);
         }
     }, [params.tripId]);
 
-    // Handle initial loanId from params
     useEffect(() => {
         if (params.loanId) {
             setIsLoan(true);
+            setActiveLinks(prev => ({ ...prev, loan: true }));
             setLoanId(params.loanId as string);
         }
     }, [params.loanId]);
 
-    // Handle loan auto-categorization when a loan is linked
     useEffect(() => {
         if (isLoan && loanId && categories.length > 0 && !categoryId) {
             const loanCategory = categories.find((c: any) => c.name === 'Loans & Debt' && !c.parent_id);
@@ -204,7 +202,6 @@ export default function QSAddTransactionScreen() {
         if (accs.length > 0 && !accountId) setAccountId(accs[0].id);
 
         if (editTransaction && editTransaction.category_id) {
-            // Find if existing category has a parent (meaning it's a subcategory)
             const existingCat = cats.find(c => c.id === editTransaction.category_id);
             if (existingCat?.parent_id) {
                 setCategoryId(existingCat.parent_id);
@@ -214,7 +211,6 @@ export default function QSAddTransactionScreen() {
                 setSubCategoryId('');
             }
         } else {
-            // Reset category when type changes or if invalid
             const isValidIdx = cats.findIndex(c => c.id === categoryId);
             if (isValidIdx === -1) {
                 setCategoryId('');
@@ -247,8 +243,6 @@ export default function QSAddTransactionScreen() {
     const handleSave = async () => {
         if (!user) return;
 
-        // Validate mandatory fields
-        // Name is only required for income/expense, not for transfer
         if ((type !== 'transfer' && !name) || !amount || !accountId) {
             Toast.show({
                 type: 'error',
@@ -259,9 +253,7 @@ export default function QSAddTransactionScreen() {
         }
 
         if (type === 'transfer' && !toAccountId) {
-            // Allow if it's a savings contribution
             if (isSavings && savingsAction === 'contribute') {
-                // This is valid
             } else {
                 Toast.show({
                     type: 'error',
@@ -273,7 +265,6 @@ export default function QSAddTransactionScreen() {
         }
 
         if (type === 'transfer' && accountId === toAccountId) {
-            // Allow same account transfer ONLY if it's for a savings goal (earmarking funds) - though currently we hide ToAccount for Savings
             if (!isSavings) {
                 Toast.show({
                     type: 'error',
@@ -307,7 +298,7 @@ export default function QSAddTransactionScreen() {
                     text2: 'Transaction updated successfully'
                 });
                 checkAllNotifications(user.id);
-                router.back(); // Smooth navigation back, transactions screen will auto-refresh
+                router.back();
             }
         } else {
             const savingsGoalName = getSelectedSavingsGoal()?.name;
@@ -326,7 +317,6 @@ export default function QSAddTransactionScreen() {
                         endDate: endCondition === 'on_date' ? endDate.toISOString() : undefined
                     };
                 } else {
-                    // Default fallback if somehow 'one-time' is selected but isRecurring is true
                     recurringOptions = {
                         frequency: recurringType === 'one-time' ? 'monthly' : recurringType
                     };
@@ -360,15 +350,66 @@ export default function QSAddTransactionScreen() {
         }
     };
 
-    const toggleTrip = (value: boolean) => {
-        setIsTrip(value);
+    const toggleLinkPill = (key: string) => {
+        const nextActive = !activeLinks[key];
+        setActiveLinks(prev => ({ ...prev, [key]: nextActive }));
+
+        if (!nextActive) {
+            switch (key) {
+                case 'tag':
+                    setSelectedTag(null);
+                    break;
+                case 'trip':
+                    setIsTrip(false);
+                    setSelectedTripId('');
+                    break;
+                case 'savings':
+                    setIsSavings(false);
+                    setSavingsId('');
+                    break;
+                case 'loan':
+                    setIsLoan(false);
+                    setLoanId('');
+                    break;
+            }
+        }
+    };
+
+    const openLinkPicker = (key: string) => {
+        switch (key) {
+            case 'tag':
+                setShowTagPicker(true);
+                break;
+            case 'trip':
+                setShowTripPicker(true);
+                break;
+            case 'savings':
+                setShowSavingsPicker(true);
+                break;
+            case 'loan':
+                setShowLoanPicker(true);
+                break;
+        }
+    };
+
+    const getActiveLinkLabel = (key: string): string => {
+        switch (key) {
+            case 'tag':
+                return selectedTag ? `#${selectedTag.name}` : '';
+            case 'trip':
+                return getSelectedTrip()?.name || '';
+            case 'savings':
+                return getSelectedSavingsGoal()?.name || '';
+            case 'loan':
+                return getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : '';
+            default:
+                return '';
+        }
     };
 
     return (
         <>
             <View style={styles.container}>
-
-
                 <ScrollView
                     showsVerticalScrollIndicator={false}
                 >
@@ -409,7 +450,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Transaction Name - Now available for all types */}
+                        {/* Transaction Name */}
                         <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Transaction Name {type === 'transfer' && '(Optional)'}</Text>
                             <View style={styles.inputWrapper}>
@@ -426,7 +467,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Category - Now available for all types */}
+                        {/* Category */}
                         <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Category {type === 'transfer' && '(Optional)'}</Text>
                             <View style={styles.inputWrapper}>
@@ -449,14 +490,13 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Description - Now available for all types */}
+                        {/* Description */}
                         <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Description</Text>
                             <View style={styles.toolbar}>
                                 <TouchableOpacity
                                     style={styles.toolbarButton}
                                     onPress={() => {
-                                        const lines = description.split('\n');
                                         const newDescription = description ? (description.endsWith('\n') ? description + '• ' : description + '\n• ') : '• ';
                                         setDescription(newDescription);
                                     }}
@@ -500,7 +540,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Account Selection Logic */}
+                        {/* Account Selection */}
                         {type !== 'transfer' ? (
                             <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
                                 <Text style={styles.label}>Account</Text>
@@ -521,7 +561,6 @@ export default function QSAddTransactionScreen() {
                             </Animated.View>
                         ) : (
                             <>
-                                {/* From Account */}
                                 <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
                                     <Text style={styles.label}>{isSavings && savingsAction === 'contribute' ? 'From Account' : 'From Account'}</Text>
                                     <View style={styles.inputWrapper}>
@@ -540,7 +579,6 @@ export default function QSAddTransactionScreen() {
                                     </View>
                                 </Animated.View>
 
-                                {/* To Account - Hide if it's a savings contribution */}
                                 {(!isSavings || savingsAction !== 'contribute') && (
                                     <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.inputGroup}>
                                         <Text style={styles.label}>To Account</Text>
@@ -582,133 +620,167 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Tag/Event Selector */}
-                        <Animated.View entering={FadeInDown.delay(850).springify()} style={styles.inputGroup}>
-                            <Text style={styles.label}>Tag / Event</Text>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.iconContainer}>
-                                    <MaterialCommunityIcons 
-                                        name={selectedTag?.is_event ? "calendar-star" : "tag"} 
-                                        size={20} 
-                                        color={selectedTag ? selectedTag.color : (theme.isDark ? '#64748B' : '#94A3B8')} 
-                                    />
-                                </View>
+                        {/* Link Pills - Modern toggle buttons replacing Switch cards */}
+                        <Animated.View entering={FadeInDown.delay(850).springify()} style={styles.linkPillsSection}>
+                            <Text style={styles.linkPillsLabel}>Links</Text>
+                            <View style={styles.linkPillsRow}>
+                                {LINK_PILLS.map((pill) => {
+                                    const isActive = activeLinks[pill.key];
+                                    return (
+                                        <TouchableOpacity
+                                            key={pill.key}
+                                            style={[
+                                                styles.linkPill,
+                                                isActive && styles.linkPillActive,
+                                            ]}
+                                            onPress={() => toggleLinkPill(pill.key)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <View
+                                                style={[
+                                                    styles.linkPillDot,
+                                                    { backgroundColor: isActive ? pill.color : theme.colors.textTertiary },
+                                                ]}
+                                            />
+                                            <MaterialCommunityIcons
+                                                name={pill.icon as any}
+                                                size={16}
+                                                color={isActive ? pill.color : theme.colors.textSecondary}
+                                            />
+                                            <Text
+                                                style={[
+                                                    styles.linkPillText,
+                                                    isActive && styles.linkPillTextActive,
+                                                ]}
+                                            >
+                                                {pill.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </Animated.View>
+
+                        {/* Expanded sections for active links */}
+                        {activeLinks.tag && !selectedTag && (
+                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
                                 <TouchableOpacity
-                                    style={styles.selectButton}
+                                    style={[styles.inputWrapper, { borderColor: '#8B5CF640' }]}
                                     onPress={() => setShowTagPicker(true)}
                                 >
-                                    <Text style={selectedTag ? styles.selectText : styles.selectPlaceholder}>
-                                        {selectedTag ? `#${selectedTag.name}` : 'Attach a tag or event'}
-                                    </Text>
-                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                    <View style={[styles.iconContainer, { backgroundColor: '#8B5CF615' }]}>
+                                        <MaterialCommunityIcons name="tag" size={20} color="#8B5CF6" />
+                                    </View>
+                                    <Text style={styles.selectPlaceholder}>Select a tag or event</Text>
+                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
                                 </TouchableOpacity>
-                            </View>
-                        </Animated.View>
-
-                        {/* Trip Toggle */}
-                        <Animated.View entering={FadeInDown.delay(900).springify()} style={styles.toggleGrid}>
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="airplane" size={20} color="#FBBF24" />
+                            </Animated.View>
+                        )}
+                        {activeLinks.tag && selectedTag && (
+                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
+                                <View style={[styles.inputWrapper, { borderColor: '#8B5CF640' }]}>
+                                    <View style={[styles.iconContainer, { backgroundColor: '#8B5CF615' }]}>
+                                        <MaterialCommunityIcons
+                                            name={selectedTag?.is_event ? "calendar-star" : "tag"}
+                                            size={20}
+                                            color={selectedTag.color}
+                                        />
                                     </View>
-                                    <Switch
-                                        value={isTrip}
-                                        onValueChange={toggleTrip}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FBBF24' }}
-                                        thumbColor={isTrip ? '#FFFFFF' : '#F3F4F6'}
-                                    />
+                                    <TouchableOpacity
+                                        style={styles.selectButton}
+                                        onPress={() => setShowTagPicker(true)}
+                                    >
+                                        <Text style={[styles.selectText, { color: selectedTag.color }]}>
+                                            #{selectedTag.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowTagPicker(true)}>
+                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                                    </TouchableOpacity>
                                 </View>
-                                <Text style={styles.toggleLabel}>Trip Txn</Text>
-                            </View>
-                        </Animated.View>
-
-                        {/* Savings and Loan Toggles */}
-                        <Animated.View entering={FadeInDown.delay(1000).springify()} style={styles.toggleGrid}>
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
-                                    </View>
-                                    <Switch
-                                        value={isSavings}
-                                        onValueChange={setIsSavings}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#E91E63' }}
-                                        thumbColor={isSavings ? '#FFFFFF' : '#F3F4F6'}
-                                    />
-                                </View>
-                                <Text style={styles.toggleLabel}>Savings Link</Text>
-                            </View>
-
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
-                                    </View>
-                                    <Switch
-                                        value={isLoan}
-                                        onValueChange={setIsLoan}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FF5722' }}
-                                        thumbColor={isLoan ? '#FFFFFF' : '#F3F4F6'}
-                                    />
-                                </View>
-                                <Text style={styles.toggleLabel}>Loan Link</Text>
-                            </View>
-                        </Animated.View>
-
-                        {/* Savings Selection (if enabled) */}
-                        {isSavings && (
-                            <View>
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Savings Action</Text>
-                                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.typeButton,
-                                                { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'contribute' ? '#10B981' : theme.colors.border }
-                                            ]}
-                                            onPress={() => setSavingsAction('contribute')}
-                                        >
-                                            <Text style={[styles.typeText, { color: savingsAction === 'contribute' ? '#10B981' : theme.colors.textSecondary }]}>Contribute</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.typeButton,
-                                                { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.border }
-                                            ]}
-                                            onPress={() => setSavingsAction('withdraw')}
-                                        >
-                                            <Text style={[styles.typeText, { color: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.textSecondary }]}>Withdraw/Spend</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Select Savings Goal</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <View style={styles.iconContainer}>
-                                            <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
-                                        </View>
-                                        <TouchableOpacity
-                                            style={styles.selectButton}
-                                            onPress={() => setShowSavingsPicker(true)}
-                                        >
-                                            <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
-                                                {getSelectedSavingsGoal()?.name || 'Select Goal'}
-                                            </Text>
-                                            <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            </View>
+                            </Animated.View>
                         )}
 
-                        {/* Loan Selection (if enabled) */}
-                        {isLoan && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Select Loan</Text>
-                                <View style={styles.inputWrapper}>
-                                    <View style={styles.iconContainer}>
+                        {activeLinks.trip && !selectedTripId && (
+                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
+                                <TouchableOpacity
+                                    style={[styles.inputWrapper, { borderColor: '#FBBF2440' }]}
+                                    onPress={() => setShowTripPicker(true)}
+                                >
+                                    <View style={[styles.iconContainer, { backgroundColor: '#FBBF2415' }]}>
+                                        <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
+                                    </View>
+                                    <Text style={styles.selectPlaceholder}>Select a trip</Text>
+                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                                </TouchableOpacity>
+                            </Animated.View>
+                        )}
+                        {activeLinks.trip && selectedTripId && (
+                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
+                                <View style={[styles.inputWrapper, { borderColor: '#FBBF2440' }]}>
+                                    <View style={[styles.iconContainer, { backgroundColor: '#FBBF2415' }]}>
+                                        <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.selectButton}
+                                        onPress={() => setShowTripPicker(true)}
+                                    >
+                                        <Text style={styles.selectText}>
+                                            {getSelectedTrip()?.name || 'Select Trip'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowTripPicker(true)}>
+                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                </View>
+                            </Animated.View>
+                        )}
+
+                        {activeLinks.savings && (
+                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
+                                <View style={[styles.inputWrapper, { borderColor: '#E91E6340', marginBottom: 8 }]}>
+                                    <View style={[styles.iconContainer, { backgroundColor: '#E91E6315' }]}>
+                                        <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.selectButton}
+                                        onPress={() => setShowSavingsPicker(true)}
+                                    >
+                                        <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
+                                            {getSelectedSavingsGoal()?.name || 'Select Goal'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowSavingsPicker(true)}>
+                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                </View>
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.typeButton,
+                                            { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'contribute' ? '#10B981' : theme.colors.border }
+                                        ]}
+                                        onPress={() => setSavingsAction('contribute')}
+                                    >
+                                        <Text style={[styles.typeText, { color: savingsAction === 'contribute' ? '#10B981' : theme.colors.textSecondary }]}>Contribute</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.typeButton,
+                                            { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.border }
+                                        ]}
+                                        onPress={() => setSavingsAction('withdraw')}
+                                    >
+                                        <Text style={[styles.typeText, { color: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.textSecondary }]}>Withdraw</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </Animated.View>
+                        )}
+
+                        {activeLinks.loan && (
+                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
+                                <View style={[styles.inputWrapper, { borderColor: '#FF572240' }]}>
+                                    <View style={[styles.iconContainer, { backgroundColor: '#FF572215' }]}>
                                         <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
                                     </View>
                                     <TouchableOpacity
@@ -718,31 +790,12 @@ export default function QSAddTransactionScreen() {
                                         <Text style={getSelectedLoan() ? styles.selectText : styles.selectPlaceholder}>
                                             {getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : 'Select Loan'}
                                         </Text>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowLoanPicker(true)}>
+                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
                                     </TouchableOpacity>
                                 </View>
-                            </View>
-                        )}
-
-                        {/* Trip Selection (if enabled) */}
-                        {isTrip && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Select Trip</Text>
-                                <View style={styles.inputWrapper}>
-                                    <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowTripPicker(true)}
-                                    >
-                                        <Text style={getSelectedTrip() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedTrip()?.name || 'Select Trip'}
-                                        </Text>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
+                            </Animated.View>
                         )}
 
                         {/* Recurring Transaction Toggle */}
@@ -758,7 +811,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </View>
 
-                        {/* Recurring Frequency (only if recurring is enabled) */}
+                        {/* Recurring Frequency */}
                         {isRecurring && (
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Frequency</Text>
@@ -785,7 +838,6 @@ export default function QSAddTransactionScreen() {
 
                                 {recurringType === 'custom' && (
                                     <Animated.View entering={FadeInDown} style={{ marginTop: 16, gap: 16 }}>
-                                        {/* Custom Interval */}
                                         <View>
                                             <Text style={[styles.label, { fontSize: 13, marginBottom: 8 }]}>Repeat every</Text>
                                             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
@@ -812,7 +864,6 @@ export default function QSAddTransactionScreen() {
                                             </View>
                                         </View>
 
-                                        {/* End Condition */}
                                         <View>
                                             <Text style={[styles.label, { fontSize: 13, marginBottom: 8 }]}>Ends</Text>
                                             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
@@ -881,7 +932,7 @@ export default function QSAddTransactionScreen() {
                     </View>
                 </ScrollView>
 
-                {/* Save Button (Fixed at Bottom) */}
+                {/* Save Button */}
                 <View style={styles.saveButtonContainer}>
                     <QSButton
                         title={editTransaction ? "Update Transaction" : "Save Transaction"}
@@ -911,15 +962,14 @@ export default function QSAddTransactionScreen() {
                 selectedId={categoryId}
                 onSelect={(cat) => {
                     setCategoryId(cat.id);
-                    setSubCategoryId(''); // Reset sub on parent change
+                    setSubCategoryId('');
                     setShowCategoryPicker(false);
-                    // Automatically show sub-category picker only if sub-categories exist
                     const hasSubCategories = categories.some(c => c.parent_id === cat.id);
                     if (hasSubCategories) {
                         setTimeout(() => setShowSubCategoryPicker(true), 300);
                     }
                 }}
-                parentId={null} // Top level
+                parentId={null}
                 onCreateNew={() => {
                     setCreatingParentId(undefined);
                     setShowCreateCategory(true);
@@ -935,7 +985,7 @@ export default function QSAddTransactionScreen() {
                     setSubCategoryId(cat.id);
                     setShowSubCategoryPicker(false);
                 }}
-                parentId={categoryId} // Filter by parent
+                parentId={categoryId}
                 onCreateNew={() => {
                     setCreatingParentId(categoryId);
                     setShowCreateCategory(true);
@@ -947,7 +997,7 @@ export default function QSAddTransactionScreen() {
                 onClose={() => setShowCreateCategory(false)}
                 onSave={handleCreateCategory}
                 parentId={creatingParentId}
-                type={type === 'transfer' ? 'expense' : type} // Default fallback
+                type={type === 'transfer' ? 'expense' : type}
             />
 
             <QSAccountPicker

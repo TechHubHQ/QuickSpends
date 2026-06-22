@@ -1,8 +1,10 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -15,6 +17,9 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { QSHeader } from "../components/QSHeader";
 import { TagWithSpending, useTags } from "../hooks/useTags";
 import { useTheme } from "../theme/ThemeContext";
+
+const { width } = Dimensions.get("window");
+const HEADER_HEIGHT = 280;
 
 function getEventImage(eventType?: string | null): string {
   switch (eventType) {
@@ -34,6 +39,15 @@ const EVENT_BG_COLORS: Record<string, [string, string]> = {
   festival: ["#55EFC4", "#00B894"],
   travel: ["#74B9FF", "#0984E3"],
   other: ["#6366F1", "#4F46E5"],
+};
+
+const EVENT_IMAGES: Record<string, string> = {
+  birthday: "https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=800&q=80",
+  marriage: "https://images.unsplash.com/photo-1519741497674-611481863552?w=800&q=80",
+  anniversary: "https://images.unsplash.com/photo-1513200381563-0e4e8abaa40e?w=800&q=80",
+  festival: "https://images.unsplash.com/photo-1530023367847-a683933f4172?w=800&q=80",
+  travel: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80",
+  other: "https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800&q=80",
 };
 
 export default function QSTagDetailsScreen() {
@@ -104,8 +118,9 @@ export default function QSTagDetailsScreen() {
   const progressPercent = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
   const countdown = getCountdown(tagData.event_date);
   const daysUntilEvent = tagData.event_date ? Math.ceil((new Date(tagData.event_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  const isEvent = tagData.is_event;
+  const eventImage = isEvent ? (EVENT_IMAGES[tagData.event_type || "other"] || EVENT_IMAGES.other) : null;
 
-  // Group transactions by date
   const groupedTransactions: Record<string, any[]> = {};
   tagData.transactions.forEach((tx: any) => {
     const dateKey = formatDate(tx.date);
@@ -115,34 +130,52 @@ export default function QSTagDetailsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
-      <QSHeader
-        title={tagData.is_event ? "Event Details" : "Tag Details"}
-        showBack
-        onBackPress={() => router.back()}
-        style={{ marginHorizontal: -16 }}
-      />
+      <StatusBar barStyle="light-content" />
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
       >
-        {/* Hero Header Card */}
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <View style={[styles.heroCard, { backgroundColor: gradientStart }]}>
+        <QSHeader
+          title={tagData.is_event ? "" : "Tag Details"}
+          showBack
+          onBackPress={() => router.back()}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            backgroundColor: "transparent",
+          }}
+        />
+
+        {/* Hero Header - Image for events, Gradient for tags */}
+        <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.heroContainer}>
+          {isEvent && eventImage ? (
+            <>
+              <Image source={eventImage} style={styles.heroImage} contentFit="cover" />
+              <View style={styles.heroImageOverlay} />
+            </>
+          ) : (
+            <View style={[styles.heroGradient, { backgroundColor: gradientStart }]} />
+          )}
+          <View style={styles.heroContent}>
+            {isEvent && (
+              <View style={styles.eventTypeBadge}>
+                <Text style={styles.eventTypeBadgeText}>{tagData.event_type || "Event"}</Text>
+              </View>
+            )}
             <View style={styles.heroEmoji}>
               <Text style={{ fontSize: 48 }}>{getEventImage(tagData.event_type)}</Text>
             </View>
             <Text style={styles.heroName}>{tagData.name}</Text>
-            {tagData.is_event && tagData.event_type && (
-              <Text style={styles.heroType}>{tagData.event_type.charAt(0).toUpperCase() + tagData.event_type.slice(1)}</Text>
-            )}
             {tagData.description && (
               <Text style={styles.heroDesc}>{tagData.description}</Text>
             )}
-            {tagData.is_event && tagData.event_date && (
+            {isEvent && tagData.event_date && (
               <View style={styles.heroDateRow}>
-                <MaterialCommunityIcons name="calendar" size={16} color="rgba(255,255,255,0.8)" />
+                <MaterialCommunityIcons name="calendar" size={14} color="rgba(255,255,255,0.8)" />
                 <Text style={styles.heroDate}>{formatDate(tagData.event_date)}</Text>
               </View>
             )}
@@ -154,114 +187,119 @@ export default function QSTagDetailsScreen() {
           </View>
         </Animated.View>
 
-        {/* Spending Stats Row */}
-        <Animated.View entering={FadeInUp.delay(200).springify()}>
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Spent</Text>
-              <Text style={[styles.statValue, { color: theme.colors.text }]}>{formatCurrency(spent)}</Text>
+        {/* Content Card (overlapping) */}
+        <View style={[styles.contentCard, { backgroundColor: theme.colors.background }]}>
+          {/* Spending Stats Row */}
+          <Animated.View entering={FadeInUp.delay(200).springify()}>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Spent</Text>
+                <Text style={[styles.statValue, { color: theme.colors.text }]}>{formatCurrency(spent)}</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Transactions</Text>
+                <Text style={[styles.statValue, { color: theme.colors.text }]}>{tagData.transactions.length}</Text>
+              </View>
             </View>
-            <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Transactions</Text>
-              <Text style={[styles.statValue, { color: theme.colors.text }]}>{tagData.transactions.length}</Text>
-            </View>
-          </View>
-        </Animated.View>
+          </Animated.View>
 
-        {/* Budget Progress (Event only) */}
-        {tagData.is_event && budget > 0 && (
-          <Animated.View entering={FadeInUp.delay(300).springify()}>
-            <View style={[styles.budgetCard, { backgroundColor: theme.colors.card }]}>
-              <View style={styles.budgetHeader}>
-                <Text style={[styles.budgetTitle, { color: theme.colors.text }]}>Budget Progress</Text>
-                <Text style={[styles.budgetPercent, { color: theme.colors.primary }]}>
-                  {progressPercent.toFixed(0)}%
-                </Text>
-              </View>
-              <View style={[styles.progressBar, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${Math.min(progressPercent, 100)}%`,
-                      backgroundColor: progressPercent > 80 ? theme.colors.error : progressPercent > 50 ? theme.colors.warning : theme.colors.success,
-                    },
-                  ]}
-                />
-              </View>
-              <View style={styles.budgetMeta}>
-                <Text style={[styles.budgetMetaText, { color: theme.colors.textSecondary }]}>
-                  Spent: {formatCurrency(spent)}
-                </Text>
-                <Text style={[styles.budgetMetaText, { color: theme.colors.textSecondary }]}>
-                  Budget: {formatCurrency(budget)}
-                </Text>
-              </View>
-              {spent > budget && (
-                <View style={[styles.overBudgetBadge, { backgroundColor: theme.colors.error + "20" }]}>
-                  <MaterialCommunityIcons name="alert" size={16} color={theme.colors.error} />
-                  <Text style={[styles.overBudgetText, { color: theme.colors.error }]}>
-                    Over budget by {formatCurrency(spent - budget)}
+          {/* Budget Progress (Event only) */}
+          {isEvent && budget > 0 && (
+            <Animated.View entering={FadeInUp.delay(300).springify()}>
+              <View style={[styles.budgetCard, { backgroundColor: theme.colors.card }]}>
+                <View style={styles.budgetHeader}>
+                  <Text style={[styles.budgetTitle, { color: theme.colors.text }]}>Budget Progress</Text>
+                  <Text style={[styles.budgetPercent, { color: theme.colors.primary }]}>
+                    {progressPercent.toFixed(0)}%
                   </Text>
                 </View>
-              )}
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Daily Spend Rate (Event only, future event) */}
-        {tagData.is_event && daysUntilEvent && daysUntilEvent > 0 && budget > 0 && (
-          <Animated.View entering={FadeInUp.delay(350).springify()}>
-            <View style={[styles.insightCard, { backgroundColor: theme.colors.card }]}>
-              <MaterialCommunityIcons name="lightbulb-outline" size={18} color={theme.colors.warning} />
-              <Text style={[styles.insightText, { color: theme.colors.textSecondary }]}>
-                {daysUntilEvent} days until event — you can spend ₹{Math.max(0, Math.round((budget - spent) / daysUntilEvent))}/day to stay on budget.
-              </Text>
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Transactions List */}
-        <Animated.View entering={FadeInUp.delay(400).springify()} style={[styles.txCard, { backgroundColor: theme.colors.card }]}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Transactions</Text>
-          {tagData.transactions.length === 0 ? (
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No transactions linked to this {tagData.is_event ? "event" : "tag"}.
-            </Text>
-          ) : (
-            Object.entries(groupedTransactions).map(([dateKey, txs]) => (
-              <View key={dateKey}>
-                <Text style={[styles.dateHeader, { color: theme.colors.textTertiary }]}>{dateKey}</Text>
-                {txs.map((tx: any) => (
-                  <TouchableOpacity
-                    key={tx.id}
-                    style={[styles.txItem, { borderBottomColor: theme.colors.border }]}
-                    onPress={() => router.push({ pathname: "/transaction-details", params: { transaction: JSON.stringify(tx) } })}
-                  >
-                    <View style={[styles.txIcon, { backgroundColor: (tx.category_color || theme.colors.primary) + "20" }]}>
-                      <MaterialCommunityIcons
-                        name={(tx.category_icon as any) || "cart"}
-                        size={18}
-                        color={tx.category_color || theme.colors.primary}
-                      />
-                    </View>
-                    <View style={styles.txInfo}>
-                      <Text style={[styles.txName, { color: theme.colors.text }]} numberOfLines={1}>
-                        {tx.name}
-                      </Text>
-                      <Text style={[styles.txCategory, { color: theme.colors.textTertiary }]} numberOfLines={1}>
-                        {tx.category_name || tx.account_name || ""}
-                      </Text>
-                    </View>
-                    <Text style={[styles.txAmount, { color: tx.type === "income" ? theme.colors.success : theme.colors.text }]}>
-                      {tx.type === "expense" ? "-" : "+"}{formatCurrency(tx.amount)}
+                <View style={[styles.progressBar, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.min(progressPercent, 100)}%`,
+                        backgroundColor: progressPercent > 80 ? theme.colors.error : progressPercent > 50 ? theme.colors.warning : theme.colors.success,
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={styles.budgetMeta}>
+                  <Text style={[styles.budgetMetaText, { color: theme.colors.textSecondary }]}>
+                    Spent: {formatCurrency(spent)}
+                  </Text>
+                  <Text style={[styles.budgetMetaText, { color: theme.colors.textSecondary }]}>
+                    Budget: {formatCurrency(budget)}
+                  </Text>
+                </View>
+                {spent > budget && (
+                  <View style={[styles.overBudgetBadge, { backgroundColor: theme.colors.error + "20" }]}>
+                    <MaterialCommunityIcons name="alert" size={16} color={theme.colors.error} />
+                    <Text style={[styles.overBudgetText, { color: theme.colors.error }]}>
+                      Over budget by {formatCurrency(spent - budget)}
                     </Text>
-                  </TouchableOpacity>
-                ))}
+                  </View>
+                )}
               </View>
-            ))
+            </Animated.View>
           )}
-        </Animated.View>
+
+          {/* Daily Spend Rate (Event only, future event) */}
+          {isEvent && daysUntilEvent && daysUntilEvent > 0 && budget > 0 && (
+            <Animated.View entering={FadeInUp.delay(350).springify()}>
+              <View style={[styles.insightCard, { backgroundColor: theme.colors.card }]}>
+                <MaterialCommunityIcons name="lightbulb-outline" size={18} color={theme.colors.warning} />
+                <Text style={[styles.insightText, { color: theme.colors.textSecondary }]}>
+                  {daysUntilEvent} days until event — you can spend ₹{Math.max(0, Math.round((budget - spent) / daysUntilEvent))}/day to stay on budget.
+                </Text>
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Transactions List */}
+          <Animated.View entering={FadeInUp.delay(400).springify()} style={[styles.txCard, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Transactions</Text>
+            {tagData.transactions.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No transactions linked to this {tagData.is_event ? "event" : "tag"}.
+              </Text>
+            ) : (
+              Object.entries(groupedTransactions).map(([dateKey, txs]) => (
+                <View key={dateKey}>
+                  <Text style={[styles.dateHeader, { color: theme.colors.textTertiary }]}>{dateKey}</Text>
+                  {txs.map((tx: any) => (
+                    <TouchableOpacity
+                      key={tx.id}
+                      style={[styles.txItem, { borderBottomColor: theme.colors.border }]}
+                      onPress={() => router.push({ pathname: "/transaction-details", params: { transaction: JSON.stringify(tx) } })}
+                    >
+                      <View style={[styles.txIcon, { backgroundColor: (tx.category_color || theme.colors.primary) + "20" }]}>
+                        <MaterialCommunityIcons
+                          name={(tx.category_icon as any) || "cart"}
+                          size={18}
+                          color={tx.category_color || theme.colors.primary}
+                        />
+                      </View>
+                      <View style={styles.txInfo}>
+                        <Text style={[styles.txName, { color: theme.colors.text }]} numberOfLines={1}>
+                          {tx.name}
+                        </Text>
+                        <Text style={[styles.txCategory, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+                          {tx.category_name || tx.account_name || ""}
+                        </Text>
+                      </View>
+                      <Text style={[styles.txAmount, { color: tx.type === "income" ? theme.colors.success : theme.colors.text }]}>
+                        {tx.type === "expense" ? "-" : "+"}{formatCurrency(tx.amount)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))
+            )}
+          </Animated.View>
+
+          <View style={{ height: 40 }} />
+        </View>
       </ScrollView>
     </View>
   );
@@ -269,41 +307,82 @@ export default function QSTagDetailsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 40 },
-  heroCard: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-    marginBottom: 16,
-    marginTop: 8,
+  content: { paddingBottom: 40 },
+  heroContainer: {
+    height: HEADER_HEIGHT,
+    width: width,
+    position: "relative",
   },
-  heroEmoji: { marginBottom: 12 },
-  heroName: { fontSize: 24, fontWeight: "800", color: "#FFF", textAlign: "center" },
-  heroType: { fontSize: 13, fontWeight: "600", color: "rgba(255,255,255,0.7)", marginTop: 4, textTransform: "uppercase", letterSpacing: 1 },
-  heroDesc: { fontSize: 14, color: "rgba(255,255,255,0.8)", textAlign: "center", marginTop: 8, lineHeight: 20 },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroImageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  heroGradient: {
+    width: "100%",
+    height: "100%",
+  },
+  heroContent: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 24,
+    paddingBottom: 32,
+    alignItems: "center",
+  },
+  eventTypeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    marginBottom: 10,
+  },
+  eventTypeBadgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  heroEmoji: { marginBottom: 8 },
+  heroName: { fontSize: 28, fontWeight: "800", color: "#FFF", textAlign: "center" },
+  heroDesc: { fontSize: 14, color: "rgba(255,255,255,0.8)", textAlign: "center", marginTop: 6, lineHeight: 20, paddingHorizontal: 20 },
   heroDateRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
-  heroDate: { fontSize: 14, color: "rgba(255,255,255,0.8)", fontWeight: "500" },
+  heroDate: { fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: "500" },
   countdownBadge: {
-    marginTop: 12,
+    marginTop: 10,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.2)",
   },
   countdownText: { fontSize: 13, fontWeight: "700", color: "#FFF" },
+  contentCard: {
+    marginTop: -30,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 24,
+    paddingHorizontal: 16,
+  },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   statCard: {
     flex: 1,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: "center",
   },
   statLabel: { fontSize: 12, fontWeight: "500", marginBottom: 4 },
-  statValue: { fontSize: 20, fontWeight: "800" },
+  statValue: { fontSize: 22, fontWeight: "800" },
   budgetCard: {
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
   budgetHeader: {
     flexDirection: "row",
@@ -312,7 +391,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   budgetTitle: { fontSize: 14, fontWeight: "600" },
-  budgetPercent: { fontSize: 18, fontWeight: "800" },
+  budgetPercent: { fontSize: 20, fontWeight: "800" },
   progressBar: {
     height: 10,
     borderRadius: 5,
@@ -343,14 +422,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
   insightText: { fontSize: 13, flex: 1, lineHeight: 18 },
   txCard: {
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
   cardTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
   emptyText: { fontSize: 14, textAlign: "center", marginVertical: 20 },

@@ -29,6 +29,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { Trip, useTrips } from "../hooks/useTrips";
 import { useUpcomingBills } from "../hooks/useUpcomingBills";
 import { useCategories } from "../hooks/useCategories";
+import { useMonthlyPlans } from "../hooks/useMonthlyPlans";
 import { useTags } from "../hooks/useTags";
 import { createStyles } from "../styles/QSHome.styles";
 import { useTheme } from "../theme/ThemeContext";
@@ -49,12 +50,13 @@ export default function QSHomeScreen() {
   const { bills, fetchBills } = useUpcomingBills();
   const { categories } = useCategories();
   const { getAllTagsWithSpending } = useTags();
+  const { getOrCreatePlan, getPlanItems } = useMonthlyPlans();
 
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showBalanceInfo, setShowBalanceInfo] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "budgets" | "trips" | "bills" | "savings" | "loans"
+    "budgets" | "trips" | "bills" | "savings" | "loans" | "events"
   >("budgets");
   const [totalBalance, setTotalBalance] = useState(0);
   const [balanceTrend, setBalanceTrend] = useState({
@@ -68,6 +70,13 @@ export default function QSHomeScreen() {
   const [savings, setSavings] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [activeEvents, setActiveEvents] = useState<any[]>([]);
+  const [planSummary, setPlanSummary] = useState<{
+    totalIncome: number;
+    totalExpenses: number;
+    surplus: number;
+    pendingBills: number;
+    billCount: number;
+  } | null>(null);
   const sortedBills = React.useMemo(() => {
     return [...bills].sort((a, b) => {
       if (a.is_active !== b.is_active) {
@@ -139,6 +148,27 @@ export default function QSHomeScreen() {
 
       await fetchBills();
 
+      // Fetch monthly plan summary
+      if (user) {
+        const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+        const plan = await getOrCreatePlan(user.id, monthKey);
+        if (plan) {
+          const items = await getPlanItems(plan.id);
+          const income = items.filter((i) => i.type === "income").reduce((s, i) => s + i.amount, 0);
+          const expenses = items.filter((i) => i.type === "expense").reduce((s, i) => s + i.amount, 0);
+          const pendingBills = items.filter(
+            (i) => i.type === "expense" && i.status === "pending" && (i.source_type === "bill" || i.source_type === "loan"),
+          );
+          setPlanSummary({
+            totalIncome: income,
+            totalExpenses: expenses,
+            surplus: income - expenses,
+            pendingBills: pendingBills.reduce((s, i) => s + i.amount, 0),
+            billCount: pendingBills.length,
+          });
+        }
+      }
+
       setAccounts(accountsData);
       setLoans(loansData);
 
@@ -191,6 +221,8 @@ export default function QSHomeScreen() {
     getLoans,
     getBalanceTrend,
     fetchBills,
+    getOrCreatePlan,
+    getPlanItems,
   ]);
 
   useEffect(() => {
@@ -342,78 +374,86 @@ export default function QSHomeScreen() {
           </LinearGradient>
         </Animated.View>
 
-        {/* Active Events Carousel */}
-        {activeEvents.filter((e: any) => new Date(e.event_date).getTime() > Date.now() - 86400000).length > 0 && (
-          <Animated.View entering={FadeInUp.delay(150).springify()}>
-            <View style={[styles.sectionHeader, { paddingRight: theme.spacing.l }]}>
-              <Text style={styles.sectionTitle}>Active Events</Text>
-              {/* @ts-ignore */}
-              <Pressable onPress={() => router.push('/tags-management')}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.primary }}>View All</Text>
-              </Pressable>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.eventsScroll}
-              snapToInterval={180}
-              decelerationRate="fast"
+        {/* Monthly Plan Summary Card */}
+        {planSummary && (
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <Pressable
+              onPress={() => router.push("/monthly-planner")}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.85 : 1,
+                marginHorizontal: theme.spacing.m,
+                marginBottom: theme.spacing.s,
+                padding: theme.spacing.m,
+                borderRadius: theme.borderRadius.l,
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: `${theme.colors.primary}25`,
+                ...theme.shadows.small,
+              })}
             >
-              {activeEvents
-                .filter((e: any) => new Date(e.event_date).getTime() > Date.now() - 86400000)
-                .map((event: any, index: number) => {
-                  const progressPercent = event.budget > 0 ? Math.min((event.spent / event.budget) * 100, 100) : 0;
-                  const daysLeft = Math.ceil((new Date(event.event_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                  const eventImage = (() => {
-                    switch (event.event_type) {
-                      case 'birthday': return '🎂';
-                      case 'marriage': return '💒';
-                      case 'anniversary': return '💍';
-                      case 'festival': return '🎉';
-                      case 'travel': return '✈️';
-                      default: return '📌';
-                    }
-                  })();
-                  const eventBg = (() => {
-                    switch (event.event_type) {
-                      case 'birthday': return '#FF6B6B';
-                      case 'marriage': return '#A29BFE';
-                      case 'anniversary': return '#FDCB6E';
-                      case 'festival': return '#55EFC4';
-                      case 'travel': return '#74B9FF';
-                      default: return '#6366F1';
-                    }
-                  })();
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: theme.spacing.s }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    backgroundColor: `${theme.colors.primary}18`,
+                    alignItems: "center", justifyContent: "center",
+                  }}>
+                    <MaterialCommunityIcons name="calendar-month" size={20} color={theme.colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: theme.typography.bodySmall.fontSize, fontWeight: "600", color: theme.colors.text }}>
+                      This Month
+                    </Text>
+                    <Text style={{ fontSize: theme.typography.caption.fontSize, color: theme.colors.textSecondary }}>
+                      {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Text style={{ fontSize: theme.typography.caption.fontSize, color: theme.colors.primary, fontWeight: "600" }}>
+                    View Plan
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={theme.colors.primary} />
+                </View>
+              </View>
 
-                  return (
-                    <Animated.View key={event.id} entering={FadeInRight.delay(200 + index * 50).springify()}>
-                      <Pressable
-                        style={({ pressed }) => [styles.eventCard, { backgroundColor: eventBg, opacity: pressed ? 0.85 : 1 }]}
-                        // @ts-ignore
-                        onPress={() => router.push({ pathname: `/tag-details/[id]`, params: { id: event.id } })}
-                      >
-                        <Text style={{ fontSize: 32, marginBottom: 8 }}>{eventImage}</Text>
-                        <Text style={styles.eventCardName} numberOfLines={1}>{event.name}</Text>
-                        <Text style={styles.eventCardDate}>
-                          {daysLeft > 0 ? `${daysLeft}d left` : daysLeft === 0 ? 'Today!' : 'Past'}
-                        </Text>
-                        {event.budget > 0 && (
-                          <View style={styles.eventMiniProgress}>
-                            <View style={[styles.eventMiniProgressFill, { width: `${Math.min(progressPercent, 100)}%` }]} />
-                          </View>
-                        )}
-                        <Text style={styles.eventCardBudget}>
-                          ₹{event.spent.toLocaleString('en-IN')}{event.budget ? ` / ₹${event.budget.toLocaleString('en-IN')}` : ''}
-                        </Text>
-                      </Pressable>
-                    </Animated.View>
-                  );
-                })}
-            </ScrollView>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: theme.spacing.xs }}>
+                <Text style={{ fontSize: theme.typography.bodySmall.fontSize, color: theme.colors.textSecondary }}>Income</Text>
+                <Text style={{ fontSize: theme.typography.bodySmall.fontSize, fontWeight: "600", color: "#22C55E" }}>
+                  +{formatCurrency(planSummary.totalIncome)}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: theme.spacing.xs }}>
+                <Text style={{ fontSize: theme.typography.bodySmall.fontSize, color: theme.colors.textSecondary }}>Expenses</Text>
+                <Text style={{ fontSize: theme.typography.bodySmall.fontSize, fontWeight: "600", color: theme.colors.error }}>
+                  -{formatCurrency(planSummary.totalExpenses)}
+                </Text>
+              </View>
+
+              <View style={{ height: 1, backgroundColor: `${theme.colors.textTertiary}30`, marginVertical: theme.spacing.s }} />
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontSize: theme.typography.body.fontSize, fontWeight: "700", color: planSummary.surplus >= 0 ? "#22C55E" : theme.colors.error }}>
+                  {planSummary.surplus >= 0 ? "+" : ""}{formatCurrency(planSummary.surplus)}
+                </Text>
+                <Text style={{ fontSize: theme.typography.caption.fontSize, color: theme.colors.textSecondary }}>
+                  {planSummary.surplus >= 0 ? "Surplus" : "Deficit"}
+                </Text>
+              </View>
+
+              {planSummary.billCount > 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: theme.spacing.s, paddingTop: theme.spacing.s, borderTopWidth: 1, borderTopColor: `${theme.colors.textTertiary}20` }}>
+                  <MaterialCommunityIcons name="calendar-clock" size={14} color={theme.colors.warning} />
+                  <Text style={{ fontSize: theme.typography.caption.fontSize, color: theme.colors.textSecondary }}>
+                    {planSummary.billCount} bills to settle • {formatCurrency(planSummary.pendingBills)}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
           </Animated.View>
         )}
 
-        {/* Switcher Section (Budgets / Trips / Bills / Savings / Loans) */}
+        {/* Switcher Section (Budgets / Trips / Savings / Bills / Loans / Events) */}
         <View style={[styles.sectionHeader, { paddingRight: 0 }]}>
           <ScrollView
             horizontal
@@ -504,6 +544,23 @@ export default function QSHomeScreen() {
                 ]}
               >
                 Loans
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab("events")}
+              style={({ pressed }) => [
+                styles.tabButton,
+                activeTab === "events" && styles.activeTabButton,
+                { opacity: pressed ? 0.7 : 1 }
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "events" && styles.activeTabText,
+                ]}
+              >
+                Events
               </Text>
             </Pressable>
           </ScrollView>
@@ -605,6 +662,28 @@ export default function QSHomeScreen() {
               >
                 <MaterialCommunityIcons
                   name="plus-circle-outline"
+                  size={20}
+                  color={theme.colors.onPrimary}
+                />
+              </Pressable>
+            )}
+            {activeTab === "events" && (
+              <Pressable
+                onPress={() => {
+                  // @ts-ignore
+                  router.push('/tags-management');
+                }}
+                style={({ pressed }) => [
+                  {
+                    backgroundColor: theme.colors.primary,
+                    padding: 4,
+                    borderRadius: 12,
+                  },
+                  { opacity: pressed ? 0.7 : 1 }
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="tag-plus-outline"
                   size={20}
                   color={theme.colors.onPrimary}
                 />
@@ -1187,6 +1266,73 @@ export default function QSHomeScreen() {
                 <Text style={[styles.budgetName, { textAlign: "center" }]}>
                   No active loans
                 </Text>
+              </View>
+            )}
+          </ScrollView>
+        ) : activeTab === "events" ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.eventsScroll}
+            snapToInterval={180}
+            decelerationRate="fast"
+          >
+            {activeEvents.length > 0 ? (
+              activeEvents
+                .filter((e: any) => new Date(e.event_date).getTime() > Date.now() - 86400000)
+                .map((event: any, index: number) => {
+                  const progressPercent = event.budget > 0 ? Math.min((event.spent / event.budget) * 100, 100) : 0;
+                  const daysLeft = Math.ceil((new Date(event.event_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const eventImage = (() => {
+                    switch (event.event_type) {
+                      case 'birthday': return '🎂';
+                      case 'marriage': return '💒';
+                      case 'anniversary': return '💍';
+                      case 'festival': return '🎉';
+                      case 'travel': return '✈️';
+                      default: return '📌';
+                    }
+                  })();
+                  const eventBg = (() => {
+                    switch (event.event_type) {
+                      case 'birthday': return '#FF6B6B';
+                      case 'marriage': return '#A29BFE';
+                      case 'anniversary': return '#FDCB6E';
+                      case 'festival': return '#55EFC4';
+                      case 'travel': return '#74B9FF';
+                      default: return '#6366F1';
+                    }
+                  })();
+
+                  return (
+                    <Animated.View key={event.id} entering={FadeInRight.delay(200 + index * 50).springify()}>
+                      <Pressable
+                        style={({ pressed }) => [styles.eventCard, { backgroundColor: eventBg, opacity: pressed ? 0.85 : 1 }]}
+                        // @ts-ignore
+                        onPress={() => router.push({ pathname: `/tag-details/[id]`, params: { id: event.id } })}
+                      >
+                        <Text style={{ fontSize: 32, marginBottom: 8 }}>{eventImage}</Text>
+                        <Text style={styles.eventCardName} numberOfLines={1}>{event.name}</Text>
+                        <Text style={styles.eventCardDate}>
+                          {daysLeft > 0 ? `${daysLeft}d left` : daysLeft === 0 ? 'Today!' : 'Past'}
+                        </Text>
+                        {event.budget > 0 && (
+                          <View style={styles.eventMiniProgress}>
+                            <View style={[styles.eventMiniProgressFill, { width: `${Math.min(progressPercent, 100)}%` }]} />
+                          </View>
+                        )}
+                        <Text style={styles.eventCardBudget}>
+                          ₹{event.spent.toLocaleString('en-IN')}{event.budget ? ` / ₹${event.budget.toLocaleString('en-IN')}` : ''}
+                        </Text>
+                      </Pressable>
+                    </Animated.View>
+                  );
+                })
+            ) : (
+              <View style={[styles.budgetCard, { width: 220, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>📌</Text>
+                <Text style={[styles.budgetName, { textAlign: 'center' }]}>No active events</Text>
+                <Text style={[styles.budgetRemaining, { textAlign: 'center', marginTop: 4 }]}>Tap + to create one</Text>
               </View>
             )}
           </ScrollView>

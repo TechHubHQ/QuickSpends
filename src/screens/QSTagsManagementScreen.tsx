@@ -1,15 +1,16 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -17,6 +18,7 @@ import {
 } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
+import { QSDatePicker } from "../components/QSDatePicker";
 import { QSHeader } from "../components/QSHeader";
 import { useAuth } from "../context/AuthContext";
 import { Tag, useTags } from "../hooks/useTags";
@@ -47,25 +49,25 @@ export default function QSTagsManagementScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
 
-  // Form state
   const [formName, setFormName] = useState("");
   const [formColor, setFormColor] = useState(EVENT_COLORS[0]);
   const [formIsEvent, setFormIsEvent] = useState(false);
   const [formEventType, setFormEventType] = useState<string>("other");
-  const [formEventDate, setFormEventDate] = useState("");
+  const [formEventDate, setFormEventDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [formBudget, setFormBudget] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const loadTags = async () => {
+  const loadTags = useCallback(async () => {
     if (!user) return;
     const data = await getTagsByUser(user.id);
     setTags(data);
-  };
+  }, [user, getTagsByUser]);
 
   useEffect(() => {
     loadTags();
-  }, [user]);
+  }, [loadTags]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -82,7 +84,7 @@ export default function QSTagsManagementScreen() {
     setFormColor(EVENT_COLORS[0]);
     setFormIsEvent(false);
     setFormEventType("other");
-    setFormEventDate("");
+    setFormEventDate(null);
     setFormBudget("");
     setFormDescription("");
     setShowCreateModal(true);
@@ -94,7 +96,7 @@ export default function QSTagsManagementScreen() {
     setFormColor(tag.color);
     setFormIsEvent(tag.is_event);
     setFormEventType(tag.event_type || "other");
-    setFormEventDate(tag.event_date ? new Date(tag.event_date).toISOString().split("T")[0] : "");
+    setFormEventDate(tag.event_date ? new Date(tag.event_date) : null);
     setFormBudget(tag.budget ? String(tag.budget) : "");
     setFormDescription(tag.description || "");
     setShowCreateModal(true);
@@ -110,7 +112,7 @@ export default function QSTagsManagementScreen() {
           color: formColor,
           is_event: formIsEvent,
           event_type: formIsEvent ? formEventType : null,
-          event_date: formIsEvent && formEventDate ? new Date(formEventDate).toISOString() : null,
+          event_date: formIsEvent && formEventDate ? formEventDate.toISOString() : null,
           budget: formIsEvent && formBudget ? parseFloat(formBudget) : null,
           description: formIsEvent ? formDescription : null,
         };
@@ -125,7 +127,7 @@ export default function QSTagsManagementScreen() {
           color: formColor,
           is_event: formIsEvent,
           event_type: formIsEvent ? (formEventType as any) : null,
-          event_date: formIsEvent && formEventDate ? new Date(formEventDate).toISOString() : null,
+          event_date: formIsEvent && formEventDate ? formEventDate.toISOString() : null,
           budget: formIsEvent && formBudget ? parseFloat(formBudget) : null,
           description: formIsEvent ? formDescription : null,
         });
@@ -177,44 +179,65 @@ export default function QSTagsManagementScreen() {
   const renderTagCard = (tag: Tag) => (
     <Animated.View key={tag.id} entering={FadeInUp.delay(50).springify()}>
       <TouchableOpacity
-        style={[styles.tagCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-        // @ts-ignore
-        onPress={() => router.push({ pathname: `/tag-details/[id]`, params: { id: tag.id } })}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          padding: 16,
+          borderRadius: 20,
+          marginBottom: 10,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+        }}
+        onPress={() => router.push({ pathname: `/tag-details/[id]`, params: { id: tag.id } } as any)}
         onLongPress={() => openEdit(tag)}
       >
-        <View style={[styles.tagColorDot, { backgroundColor: tag.color }]} />
-        <View style={styles.tagCardBody}>
-          <View style={styles.tagCardHeader}>
-            <Text style={[styles.tagCardName, { color: theme.colors.text }]}>{tag.name}</Text>
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            backgroundColor: tag.color + "18",
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: tag.color + "30",
+            marginRight: 14,
+          }}
+        >
+          <MaterialCommunityIcons
+            name={tag.is_event ? "calendar-star" : "tag"}
+            size={22}
+            color={tag.color}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: "600", color: theme.colors.text }}>
+              {tag.name}
+            </Text>
             {tag.is_event && (
-              <Text style={styles.eventEmoji}>{getEventImage(tag.event_type)}</Text>
+              <Text style={{ fontSize: 16 }}>{getEventImage(tag.event_type)}</Text>
             )}
           </View>
           {tag.is_event ? (
-            <View style={styles.eventMeta}>
+            <View style={{ marginTop: 4, gap: 2 }}>
               {tag.event_date && (
-                <Text style={[styles.eventMetaText, { color: theme.colors.textSecondary }]}>
+                <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>
                   {formatDate(tag.event_date)} • {getCountdown(tag.event_date)}
                 </Text>
               )}
-              {tag.budget && (
-                <View style={styles.budgetRow}>
-                  <View style={[styles.miniBar, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                    <View style={[styles.miniBarFill, { width: "0%", backgroundColor: tag.color }]} />
-                  </View>
-                  <Text style={[styles.eventMetaText, { color: theme.colors.textSecondary }]}>
-                    Budget: {formatCurrency(tag.budget)}
-                  </Text>
-                </View>
-              )}
             </View>
           ) : (
-            <Text style={[styles.tagTypeLabel, { color: theme.colors.textTertiary }]}>
+            <Text style={{ fontSize: 12, color: theme.colors.textTertiary, marginTop: 2 }}>
               Simple Tag
             </Text>
           )}
         </View>
-        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(tag)}>
+        <TouchableOpacity
+          style={{ padding: 6, marginLeft: 8 }}
+          onPress={() => handleDelete(tag)}
+        >
           <MaterialCommunityIcons name="trash-can-outline" size={18} color={theme.colors.error} />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -222,49 +245,139 @@ export default function QSTagsManagementScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
-      <QSHeader title="Tags & Events" showBack onBackPress={() => router.back()} style={{ marginHorizontal: -16 }} />
+      <QSHeader
+        title="Tags & Events"
+        showBack
+        onBackPress={() => router.back()}
+        style={{ marginHorizontal: -16 }}
+      />
 
-      {/* Tab Switcher */}
-      <View style={styles.tabRow}>
+      {/* Pill-style Tabs */}
+      <View style={{ flexDirection: "row", paddingHorizontal: 24, marginBottom: 16, gap: 8 }}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "tags" && { borderBottomColor: theme.colors.primary, borderBottomWidth: 2 }]}
+          style={{
+            flex: 1,
+            paddingVertical: 10,
+            borderRadius: 30,
+            borderWidth: 1,
+            borderColor: activeTab === "tags" ? theme.colors.primary : theme.colors.border,
+            backgroundColor: activeTab === "tags" ? theme.colors.primary : theme.colors.card,
+            alignItems: "center",
+          }}
           onPress={() => setActiveTab("tags")}
         >
-          <Text style={[styles.tabText, { color: activeTab === "tags" ? theme.colors.primary : theme.colors.textSecondary }]}>
-            Simple Tags ({simpleTags.length})
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: "600",
+              color: activeTab === "tags" ? "#FFFFFF" : theme.colors.textSecondary,
+            }}
+          >
+            Tags ({simpleTags.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "events" && { borderBottomColor: theme.colors.primary, borderBottomWidth: 2 }]}
+          style={{
+            flex: 1,
+            paddingVertical: 10,
+            borderRadius: 30,
+            borderWidth: 1,
+            borderColor: activeTab === "events" ? theme.colors.primary : theme.colors.border,
+            backgroundColor: activeTab === "events" ? theme.colors.primary : theme.colors.card,
+            alignItems: "center",
+          }}
           onPress={() => setActiveTab("events")}
         >
-          <Text style={[styles.tabText, { color: activeTab === "events" ? theme.colors.primary : theme.colors.textSecondary }]}>
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: "600",
+              color: activeTab === "events" ? "#FFFFFF" : theme.colors.textSecondary,
+            }}
+          >
             Events ({eventTags.length})
           </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 4, paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+        }
       >
         {loading && tags.length === 0 ? (
           <ActivityIndicator color={theme.colors.primary} style={{ marginTop: 40 }} />
         ) : activeTab === "tags" && simpleTags.length === 0 ? (
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No simple tags yet. Tap + to create one.</Text>
+          <View style={{ alignItems: "center", marginTop: 60 }}>
+            <View
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: theme.colors.primary + "15",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}
+            >
+              <MaterialCommunityIcons name="tag-outline" size={32} color={theme.colors.primary} />
+            </View>
+            <Text style={{ fontSize: 16, fontWeight: "600", color: theme.colors.text, marginBottom: 4 }}>
+              No tags yet
+            </Text>
+            <Text style={{ fontSize: 14, color: theme.colors.textSecondary, textAlign: "center" }}>
+              Tap + to create your first tag
+            </Text>
+          </View>
         ) : activeTab === "events" && eventTags.length === 0 ? (
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No events yet. Tap + to create an event.</Text>
+          <View style={{ alignItems: "center", marginTop: 60 }}>
+            <View
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: theme.colors.primary + "15",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}
+            >
+              <MaterialCommunityIcons name="calendar-star" size={32} color={theme.colors.primary} />
+            </View>
+            <Text style={{ fontSize: 16, fontWeight: "600", color: theme.colors.text, marginBottom: 4 }}>
+              No events yet
+            </Text>
+            <Text style={{ fontSize: 14, color: theme.colors.textSecondary, textAlign: "center" }}>
+              Tap + to create your first event
+            </Text>
+          </View>
         ) : (
           (activeTab === "tags" ? simpleTags : eventTags).map(renderTagCard)
         )}
-        <View style={{ height: 80 }} />
       </ScrollView>
 
       {/* FAB */}
       <Pressable
-        style={({ pressed }) => [styles.fab, { backgroundColor: theme.colors.primary }, pressed && { opacity: 0.8 }]}
+        style={({ pressed }) => ({
+          position: "absolute",
+          right: 24,
+          bottom: 24,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: theme.colors.primary,
+          alignItems: "center",
+          justifyContent: "center",
+          elevation: 6,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+          opacity: pressed ? 0.8 : 1,
+        })}
         onPress={openCreate}
       >
         <MaterialCommunityIcons name="tag-plus" size={24} color={theme.colors.onPrimary} />
@@ -272,214 +385,403 @@ export default function QSTagsManagementScreen() {
 
       {/* Create/Edit Modal */}
       <Modal transparent visible={showCreateModal} animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.modal }]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-              {editingTag ? "Edit Tag" : "Create Tag"}
-            </Text>
-
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Name</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text, borderColor: theme.colors.border }]}
-              value={formName}
-              onChangeText={setFormName}
-              placeholder="e.g. reimbursable, wedding"
-              placeholderTextColor={theme.colors.textTertiary}
-            />
-
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Color</Text>
-            <View style={styles.colorRow}>
-              {EVENT_COLORS.map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  style={[styles.colorSwatch, { backgroundColor: c }, formColor === c && { borderWidth: 3, borderColor: theme.colors.text }]}
-                  onPress={() => setFormColor(c)}
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={() => setShowCreateModal(false)}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ flex: 1, justifyContent: "flex-end" }}
+          >
+            <Pressable
+              style={({ pressed }) => ({
+                backgroundColor: theme.colors.modal,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                maxHeight: "90%",
+              })}
+              onPress={() => {}}
+            >
+              {/* Drag Handle */}
+              <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 4 }}>
+                <View
+                  style={{
+                    width: 36,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: theme.colors.textTertiary,
+                    opacity: 0.4,
+                  }}
                 />
-              ))}
-            </View>
+              </View>
 
-            <View style={styles.switchRow}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary, marginTop: 0 }]}>Mark as Event</Text>
-              <TouchableOpacity
-                style={[styles.toggle, formIsEvent && { backgroundColor: theme.colors.primary }]}
-                onPress={() => setFormIsEvent(!formIsEvent)}
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ padding: 24 }}
+                showsVerticalScrollIndicator={false}
               >
-                <View style={[styles.toggleKnob, formIsEvent && { alignSelf: "flex-end" }]} />
-              </TouchableOpacity>
-            </View>
+                <Text
+                  style={{
+                    fontSize: 20,
+                    fontWeight: "700",
+                    color: theme.colors.text,
+                    marginBottom: 20,
+                    textAlign: "center",
+                  }}
+                >
+                  {editingTag ? "Edit Tag" : "Create Tag"}
+                </Text>
 
-            {formIsEvent && (
-              <>
-                <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Event Type</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventTypeRow}>
-                  {["birthday", "marriage", "anniversary", "festival", "travel", "other"].map((type) => (
+                {/* Name */}
+                <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Name
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    backgroundColor: theme.colors.card,
+                    borderRadius: 16,
+                    padding: 16,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                    marginBottom: 16,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: theme.colors.backgroundSecondary,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <MaterialCommunityIcons name="tag-outline" size={20} color={theme.colors.primary} />
+                  </View>
+                  <TextInput
+                    style={{ flex: 1, fontSize: 16, fontWeight: "500", color: theme.colors.text, padding: 0 }}
+                    value={formName}
+                    onChangeText={setFormName}
+                    placeholder="e.g. reimbursable, wedding"
+                    placeholderTextColor={theme.colors.textTertiary}
+                  />
+                </View>
+
+                {/* Color */}
+                <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Color
+                </Text>
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+                  {EVENT_COLORS.map((c) => (
                     <TouchableOpacity
-                      key={type}
-                      style={[styles.eventTypeChip, { backgroundColor: formEventType === type ? theme.colors.primary : theme.colors.backgroundSecondary }]}
-                      onPress={() => setFormEventType(type)}
+                      key={c}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: c,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderWidth: formColor === c ? 3 : 0,
+                        borderColor: theme.colors.text,
+                      }}
+                      onPress={() => setFormColor(c)}
                     >
-                      <Text style={[styles.eventTypeText, { color: formEventType === type ? theme.colors.onPrimary : theme.colors.text }]}>
-                        {getEventImage(type)} {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </Text>
+                      {formColor === c && (
+                        <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+                      )}
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
+                </View>
 
-                <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Event Date</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text, borderColor: theme.colors.border }]}
-                  value={formEventDate}
-                  onChangeText={setFormEventDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={theme.colors.textTertiary}
-                />
+                {/* Mark as Event Toggle */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    backgroundColor: theme.colors.card,
+                    borderRadius: 16,
+                    padding: 16,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                    marginBottom: 16,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: formIsEvent ? "#FBBF2415" : theme.colors.backgroundSecondary,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="calendar-star"
+                        size={20}
+                        color={formIsEvent ? "#FBBF24" : theme.colors.textSecondary}
+                      />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 15, fontWeight: "600", color: theme.colors.text }}>
+                        Mark as Event
+                      </Text>
+                      <Text style={{ fontSize: 12, color: theme.colors.textTertiary, marginTop: 1 }}>
+                        Adds date, budget & countdown
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={{
+                      width: 48,
+                      height: 28,
+                      borderRadius: 14,
+                      backgroundColor: formIsEvent ? theme.colors.primary : theme.colors.border,
+                      padding: 3,
+                      justifyContent: "center",
+                    }}
+                    onPress={() => setFormIsEvent(!formIsEvent)}
+                  >
+                    <View
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        backgroundColor: "#FFFFFF",
+                        alignSelf: formIsEvent ? "flex-end" : "flex-start",
+                      }}
+                    />
+                  </TouchableOpacity>
+                </View>
 
-                <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Budget (₹)</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text, borderColor: theme.colors.border }]}
-                  value={formBudget}
-                  onChangeText={setFormBudget}
-                  placeholder="e.g. 50000"
-                  keyboardType="numeric"
-                  placeholderTextColor={theme.colors.textTertiary}
-                />
+                {/* Event Fields */}
+                {formIsEvent && (
+                  <>
+                    {/* Event Type */}
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Event Type
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {["birthday", "marriage", "anniversary", "festival", "travel", "other"].map((type) => (
+                          <TouchableOpacity
+                            key={type}
+                            style={{
+                              paddingHorizontal: 16,
+                              paddingVertical: 10,
+                              borderRadius: 20,
+                              borderWidth: 1,
+                              borderColor: formEventType === type ? theme.colors.primary : theme.colors.border,
+                              backgroundColor: formEventType === type ? theme.colors.primary + "15" : theme.colors.card,
+                            }}
+                            onPress={() => setFormEventType(type)}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "600",
+                                color: formEventType === type ? theme.colors.primary : theme.colors.textSecondary,
+                              }}
+                            >
+                              {getEventImage(type)} {type.charAt(0).toUpperCase() + type.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
 
-                <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Description</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text, borderColor: theme.colors.border, minHeight: 60 }]}
-                  value={formDescription}
-                  onChangeText={setFormDescription}
-                  placeholder="Brief description of the event..."
-                  multiline
-                  placeholderTextColor={theme.colors.textTertiary}
-                />
-              </>
-            )}
+                    {/* Event Date with Date Picker */}
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Event Date
+                    </Text>
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                        backgroundColor: theme.colors.card,
+                        borderRadius: 16,
+                        padding: 16,
+                        borderWidth: 1,
+                        borderColor: formEventDate ? theme.colors.primary + "40" : theme.colors.border,
+                        marginBottom: 16,
+                      }}
+                      onPress={() => setShowDatePicker(true)}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: "#FB923C15",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <MaterialCommunityIcons name="calendar" size={20} color="#FB923C" />
+                      </View>
+                      <Text
+                        style={{
+                          flex: 1,
+                          fontSize: 16,
+                          fontWeight: formEventDate ? "600" : "500",
+                          color: formEventDate ? theme.colors.text : theme.colors.textTertiary,
+                        }}
+                      >
+                        {formEventDate
+                          ? formEventDate.toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })
+                          : "Select event date"}
+                      </Text>
+                      {formEventDate && (
+                        <TouchableOpacity
+                          onPress={() => setFormEventDate(null)}
+                          style={{ padding: 4 }}
+                        >
+                          <MaterialCommunityIcons name="close-circle" size={20} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                      )}
+                      <MaterialCommunityIcons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: theme.colors.backgroundSecondary }]}
-                onPress={() => setShowCreateModal(false)}
-              >
-                <Text style={[styles.modalBtnText, { color: theme.colors.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: theme.colors.primary }]}
-                onPress={handleSave}
-                disabled={saving || !formName.trim()}
-              >
-                {saving ? (
-                  <ActivityIndicator color={theme.colors.onPrimary} />
-                ) : (
-                  <Text style={[styles.modalBtnText, { color: theme.colors.onPrimary }]}>
-                    {editingTag ? "Update" : "Create"}
-                  </Text>
+                    {/* Budget */}
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Budget
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                        backgroundColor: theme.colors.card,
+                        borderRadius: 16,
+                        padding: 16,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: "#10B98115",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <MaterialCommunityIcons name="currency-inr" size={20} color="#10B981" />
+                      </View>
+                      <TextInput
+                        style={{ flex: 1, fontSize: 16, fontWeight: "500", color: theme.colors.text, padding: 0 }}
+                        value={formBudget}
+                        onChangeText={setFormBudget}
+                        placeholder="e.g. 50000"
+                        keyboardType="numeric"
+                        placeholderTextColor={theme.colors.textTertiary}
+                      />
+                    </View>
+
+                    {/* Description */}
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Description
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        backgroundColor: theme.colors.card,
+                        borderRadius: 16,
+                        padding: 16,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                        marginBottom: 16,
+                        minHeight: 80,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: "#A78BFA15",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <MaterialCommunityIcons name="note-edit" size={20} color="#A78BFA" />
+                      </View>
+                      <TextInput
+                        style={{ flex: 1, fontSize: 16, fontWeight: "500", color: theme.colors.text, padding: 0, minHeight: 48 }}
+                        value={formDescription}
+                        onChangeText={setFormDescription}
+                        placeholder="Brief description of the event..."
+                        multiline
+                        placeholderTextColor={theme.colors.textTertiary}
+                      />
+                    </View>
+                  </>
                 )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+
+                {/* Action Buttons */}
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 8, marginBottom: 20 }}>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      paddingVertical: 14,
+                      borderRadius: 16,
+                      backgroundColor: theme.colors.backgroundSecondary,
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                    }}
+                    onPress={() => setShowCreateModal(false)}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: theme.colors.text }}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      paddingVertical: 14,
+                      borderRadius: 16,
+                      backgroundColor: theme.colors.primary,
+                      alignItems: "center",
+                      opacity: saving || !formName.trim() ? 0.6 : 1,
+                    }}
+                    onPress={handleSave}
+                    disabled={saving || !formName.trim()}
+                  >
+                    {saving ? (
+                      <ActivityIndicator color={theme.colors.onPrimary} />
+                    ) : (
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: theme.colors.onPrimary }}>
+                        {editingTag ? "Update" : "Create"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
+
+      {/* Date Picker Sheet */}
+      <QSDatePicker
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        selectedDate={formEventDate || new Date()}
+        onSelect={(d) => {
+          setFormEventDate(d);
+          setShowDatePicker(false);
+        }}
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  tabRow: { flexDirection: "row", marginHorizontal: 16, marginBottom: 8 },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
-  tabText: { fontSize: 14, fontWeight: "600" },
-  list: { paddingHorizontal: 16, paddingTop: 8 },
-  tagCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  tagColorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
-  tagCardBody: { flex: 1 },
-  tagCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  tagCardName: { fontSize: 15, fontWeight: "600" },
-  eventEmoji: { fontSize: 16 },
-  tagTypeLabel: { fontSize: 12, marginTop: 2 },
-  eventMeta: { marginTop: 4, gap: 4 },
-  eventMetaText: { fontSize: 12 },
-  budgetRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  miniBar: { flex: 1, height: 4, borderRadius: 2, overflow: "hidden" },
-  miniBarFill: { height: "100%", borderRadius: 2 },
-  deleteBtn: { padding: 6, marginLeft: 8 },
-  emptyText: { textAlign: "center", marginTop: 40, fontSize: 14 },
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: "90%",
-  },
-  modalTitle: { fontSize: 20, fontWeight: "700", marginBottom: 16, textAlign: "center" },
-  label: { fontSize: 13, fontWeight: "600", marginTop: 12, marginBottom: 6 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 15,
-  },
-  colorRow: { flexDirection: "row", gap: 10, marginVertical: 4 },
-  colorSwatch: { width: 32, height: 32, borderRadius: 16 },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 12,
-  },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#475569",
-    padding: 2,
-    justifyContent: "center",
-  },
-  toggleKnob: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#FFF",
-  },
-  eventTypeRow: { marginBottom: 4 },
-  eventTypeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  eventTypeText: { fontSize: 13, fontWeight: "600" },
-  modalActions: { flexDirection: "row", gap: 12, marginTop: 20 },
-  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: "center" },
-  modalBtnText: { fontSize: 15, fontWeight: "700" },
-});
