@@ -29,10 +29,10 @@ export default function RootLayout() {
       />
 
       <Tabs.Screen
-        name="accounts"
+        name="portfolio"
         options={{
-          title: "Accounts",
-          tabBarLabel: "Accounts",
+          title: "Portfolio",
+          tabBarLabel: "Portfolio",
         }}
       />
       <Tabs.Screen

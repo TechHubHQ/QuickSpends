@@ -84,19 +84,21 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                         }
                     };
 
-                    const getIcon = (name: string, focused: boolean) => {
+                    const getIcon = (name: string) => {
                         switch (name.toLowerCase()) {
                             case 'home': return "home";
-
                             case 'analytics': return "chart-bar";
+                            case 'portfolio': return "briefcase-variant-outline";
                             case 'accounts': return "credit-card";
                             case 'settings': return "cog";
                             default: return "circle";
                         }
                     };
 
-                    // We still keep the side spacing for the floating FAB
-                    const isRightSide = index >= 2;
+                    const tabCount = state.routes.length;
+                    const fabOffset = 44;
+                    const isLeftFabSide = index < Math.floor(tabCount / 2) && index === Math.floor(tabCount / 2) - 1;
+                    const isRightFabSide = index >= Math.ceil(tabCount / 2) && index === Math.ceil(tabCount / 2);
 
                     return (
                         <Pressable
@@ -104,12 +106,13 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                             onPress={onPress}
                             style={({ pressed }) => [
                                 styles.tabItem,
-                                isRightSide ? { marginLeft: index === 2 ? 40 : 0 } : { marginRight: index === 1 ? 40 : 0 },
+                                isLeftFabSide ? { marginRight: fabOffset } : {},
+                                isRightFabSide ? { marginLeft: fabOffset } : {},
                                 pressed && { opacity: 0.7 }
                             ]}
                         >
                             <MaterialCommunityIcons
-                                name={getIcon(route.name, isFocused) as any}
+                                name={getIcon(route.name) as any}
                                 size={24}
                                 color={isFocused ? theme.colors.primary : (isDark ? "#9FB3C8" : "#64748B")}
                             />

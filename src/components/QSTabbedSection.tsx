@@ -13,15 +13,19 @@ interface QSTabbedSectionProps {
   tabs: Tab[];
   activeTab: string;
   onTabChange: (key: string) => void;
+  variant?: "underline" | "pill";
 }
 
 export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
   tabs,
   activeTab,
   onTabChange,
+  variant = "underline",
 }) => {
   const { theme } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
+
+  const isPill = variant === "pill";
 
   return (
     <ScrollView
@@ -31,9 +35,9 @@ export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
       contentContainerStyle={{
         flexDirection: "row",
         paddingHorizontal: theme.spacing.m,
-        gap: theme.spacing.xs,
+        gap: isPill ? theme.spacing.s : theme.spacing.xs,
       }}
-      style={{
+      style={isPill ? undefined : {
         borderBottomWidth: 1,
         borderBottomColor: `${theme.colors.textTertiary}30`,
       }}
@@ -44,7 +48,18 @@ export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
           <Pressable
             key={tab.key}
             onPress={() => onTabChange(tab.key)}
-            style={{
+            style={isPill ? {
+              paddingVertical: theme.spacing.s,
+              paddingHorizontal: theme.spacing.m,
+              borderRadius: 20,
+              backgroundColor: isActive ? `${theme.colors.primary}15` : "transparent",
+              borderWidth: 1,
+              borderColor: isActive ? `${theme.colors.primary}30` : "transparent",
+              opacity: isActive ? 1 : 0.6,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+            } : {
               paddingVertical: theme.spacing.m,
               paddingHorizontal: theme.spacing.m,
               borderBottomWidth: 2.5,
@@ -56,7 +71,11 @@ export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
             }}
           >
             <Text
-              style={{
+              style={isPill ? {
+                fontSize: theme.typography.bodySmall.fontSize,
+                fontWeight: isActive ? "700" : "500",
+                color: isActive ? theme.colors.primary : theme.colors.textTertiary,
+              } : {
                 fontSize: theme.typography.bodySmall.fontSize,
                 fontWeight: isActive ? "700" : "500",
                 color: isActive ? theme.colors.primary : theme.colors.textSecondary,
