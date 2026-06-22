@@ -46,6 +46,8 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
 
     const toggleMenu = () => setIsMenuVisible(!isMenuVisible);
 
+    const visibleRoutes = state.routes.filter(r => r.name !== 'accounts');
+
     return (
         <View style={[styles.container, { height: FULL_HEIGHT }]}>
             {/* Solid Background */}
@@ -62,7 +64,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
 
             {/* Tab Items */}
             <View style={styles.tabsContainer}>
-                {state.routes.map((route, index) => {
+                {visibleRoutes.map((route, index) => {
                     const { options } = descriptors[route.key];
                     const label = options.tabBarLabel !== undefined
                         ? options.tabBarLabel
@@ -70,7 +72,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                             ? options.title
                             : route.name;
 
-                    const isFocused = state.index === index;
+                    const isFocused = state.routes[state.index]?.key === route.key;
 
                     const onPress = () => {
                         const event = navigation.emit({
@@ -89,13 +91,12 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                             case 'home': return "home";
                             case 'analytics': return "chart-bar";
                             case 'portfolio': return "briefcase-variant-outline";
-                            case 'accounts': return "credit-card";
                             case 'settings': return "cog";
                             default: return "circle";
                         }
                     };
 
-                    const tabCount = state.routes.length;
+                    const tabCount = visibleRoutes.length;
                     const fabOffset = 36;
                     const isLeftFabSide = index < Math.floor(tabCount / 2) && index === Math.floor(tabCount / 2) - 1;
                     const isRightFabSide = index >= Math.ceil(tabCount / 2) && index === Math.ceil(tabCount / 2);

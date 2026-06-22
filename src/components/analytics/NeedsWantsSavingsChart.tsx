@@ -326,10 +326,15 @@ export const NeedsWantsSavingsChart = ({
 
       {/* 50/30/20 Rule Analysis */}
       <View style={styles.analysisContainer}>
+        <View style={[styles.analysisBar, { backgroundColor: `${theme.colors.textTertiary}15` }]}>
+          <View style={[styles.analysisSeg, { flex: 50, backgroundColor: "#4F46E5" }]} />
+          <View style={[styles.analysisSeg, { flex: 30, backgroundColor: "#EC4899" }]} />
+          <View style={[styles.analysisSeg, { flex: 20, backgroundColor: "#10B981" }]} />
+        </View>
         <Text
           style={[styles.analysisText, { color: theme.colors.textSecondary }]}
         >
-          Ideal: 50% Needs, 30% Wants, 20% Savings
+          50% Needs · 30% Wants · 20% Savings
         </Text>
       </View>
     </View>
@@ -338,7 +343,7 @@ export const NeedsWantsSavingsChart = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 8, // Reduced margin
+    marginBottom: 8,
   },
   headerRow: {
     flexDirection: "row",
@@ -431,6 +436,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(150, 150, 150, 0.1)",
     alignItems: "center",
+    gap: 8,
+  },
+  analysisBar: {
+    flexDirection: "row",
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden",
+    width: "100%",
+  },
+  analysisSeg: {
+    height: "100%",
   },
   analysisText: {
     fontSize: 12,

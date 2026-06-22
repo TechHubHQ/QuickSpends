@@ -828,7 +828,7 @@ export default function QSMonthlyPlannerScreen() {
         tabs={TABS}
         activeTab={activeTab}
         onTabChange={(key) => setActiveTab(key as PlannerTab)}
-        variant="pill"
+        variant="segmented"
       />
       {activeTab === "plan" && renderPlanTab()}
       {activeTab === "forecast" && renderForecastTab()}

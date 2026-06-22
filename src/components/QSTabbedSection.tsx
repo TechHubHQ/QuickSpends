@@ -13,7 +13,7 @@ interface QSTabbedSectionProps {
   tabs: Tab[];
   activeTab: string;
   onTabChange: (key: string) => void;
-  variant?: "underline" | "pill";
+  variant?: "underline" | "pill" | "segmented";
 }
 
 export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
@@ -24,6 +24,50 @@ export const QSTabbedSection: React.FC<QSTabbedSectionProps> = ({
 }) => {
   const { theme } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
+
+  if (variant === "segmented") {
+    return (
+      <View
+        style={{
+          flexDirection: "row",
+          marginHorizontal: theme.spacing.m,
+          marginVertical: theme.spacing.s,
+          backgroundColor: theme.colors.backgroundSecondary,
+          borderRadius: 14,
+          padding: 4,
+          gap: 4,
+        }}
+      >
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              onPress={() => onTabChange(tab.key)}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                alignItems: "center",
+                borderRadius: 11,
+                backgroundColor: isActive ? theme.colors.primary : "transparent",
+                ...(isActive ? theme.shadows.small : {}),
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: isActive ? "700" : "600",
+                  color: isActive ? "#FFFFFF" : theme.colors.textSecondary,
+                }}
+              >
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  }
 
   const isPill = variant === "pill";
 
