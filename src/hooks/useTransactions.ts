@@ -25,6 +25,10 @@ export interface Transaction {
   savings_id?: string;
   savings_name?: string;
   loan_id?: string;
+  tag_id?: string;
+  tag_name?: string;
+  tag_color?: string;
+  tag_is_event?: boolean;
 }
 
 export const useTransactions = () => {
@@ -112,7 +116,8 @@ export const useTransactions = () => {
                     accounts!transactions_account_id_fkey (name),
                     trips (name),
                     savings (name),
-                    recurring_configs (frequency)
+                    recurring_configs (frequency),
+                    tags (name, color, is_event)
                 `,
           )
           .eq("user_id", userId)
@@ -133,6 +138,9 @@ export const useTransactions = () => {
           trip_name: t.trips?.name,
           savings_name: t.savings?.name,
           recurring_frequency: t.recurring_configs?.frequency,
+          tag_name: t.tags?.name,
+          tag_color: t.tags?.color,
+          tag_is_event: t.tags?.is_event,
         })) as Transaction[];
       } catch (err: any) {
         setError(err.message);
@@ -156,7 +164,8 @@ export const useTransactions = () => {
           `
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name)
+                    accounts!transactions_account_id_fkey (name),
+                    tags (name, color, is_event)
                 `,
         )
         .eq("trip_id", tripId)
@@ -172,6 +181,9 @@ export const useTransactions = () => {
         category_icon: t.categories?.icon,
         category_color: t.categories?.color,
         account_name: t.accounts?.name,
+        tag_name: t.tags?.name,
+        tag_color: t.tags?.color,
+        tag_is_event: t.tags?.is_event,
       })) as Transaction[];
     } catch (err: any) {
       setError(err.message);
@@ -193,7 +205,8 @@ export const useTransactions = () => {
           `
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name)
+                    accounts!transactions_account_id_fkey (name),
+                    tags (name, color, is_event)
                 `,
         )
         .eq("savings_id", savingId)
@@ -231,6 +244,9 @@ export const useTransactions = () => {
           category_icon: t.categories?.icon,
           category_color: t.categories?.color,
           account_name: t.accounts?.name,
+          tag_name: t.tags?.name,
+          tag_color: t.tags?.color,
+          tag_is_event: t.tags?.is_event,
         })) as Transaction[];
     } catch (err: any) {
       setError(err.message);
@@ -250,7 +266,8 @@ export const useTransactions = () => {
           `
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name)
+                    accounts!transactions_account_id_fkey (name),
+                    tags (name, color, is_event)
                 `,
         )
         .eq("loan_id", loanId)
@@ -266,6 +283,9 @@ export const useTransactions = () => {
         category_icon: t.categories?.icon,
         category_color: t.categories?.color,
         account_name: t.accounts?.name,
+        tag_name: t.tags?.name,
+        tag_color: t.tags?.color,
+        tag_is_event: t.tags?.is_event,
       })) as Transaction[];
     } catch (err: any) {
       setError(err.message);
@@ -285,7 +305,8 @@ export const useTransactions = () => {
           `
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name)
+                    accounts!transactions_account_id_fkey (name),
+                    tags (name, color, is_event)
                 `,
         )
         .eq("account_id", accountId)
@@ -301,6 +322,9 @@ export const useTransactions = () => {
         category_icon: t.categories?.icon,
         category_color: t.categories?.color,
         account_name: t.accounts?.name,
+        tag_name: t.tags?.name,
+        tag_color: t.tags?.color,
+        tag_is_event: t.tags?.is_event,
       })) as Transaction[];
     } catch (err: any) {
       setError(err.message);
@@ -326,7 +350,8 @@ export const useTransactions = () => {
             `
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name)
+                    accounts!transactions_account_id_fkey (name),
+                    tags (name, color, is_event)
                 `,
           )
           .eq("user_id", userId)
@@ -347,6 +372,9 @@ export const useTransactions = () => {
           category_icon: t.categories?.icon,
           category_color: t.categories?.color,
           account_name: t.accounts?.name,
+          tag_name: t.tags?.name,
+          tag_color: t.tags?.color,
+          tag_is_event: t.tags?.is_event,
         })) as Transaction[];
       } catch (err: any) {
         setError(err.message);
@@ -374,7 +402,8 @@ export const useTransactions = () => {
             `
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name)
+                    accounts!transactions_account_id_fkey (name),
+                    tags (name, color, is_event)
                 `,
           )
           .eq("user_id", userId)
@@ -396,6 +425,9 @@ export const useTransactions = () => {
           category_icon: t.categories?.icon,
           category_color: t.categories?.color,
           account_name: t.accounts?.name,
+          tag_name: t.tags?.name,
+          tag_color: t.tags?.color,
+          tag_is_event: t.tags?.is_event,
         })) as Transaction[];
       } catch (err: any) {
         setError(err.message);
@@ -422,7 +454,8 @@ export const useTransactions = () => {
             `
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name)
+                    accounts!transactions_account_id_fkey (name),
+                    tags (name, color, is_event)
                 `,
           )
           .eq("user_id", userId)
@@ -460,6 +493,9 @@ export const useTransactions = () => {
             category_icon: t.categories?.icon,
             category_color: t.categories?.color,
             account_name: t.accounts?.name,
+            tag_name: t.tags?.name,
+            tag_color: t.tags?.color,
+            tag_is_event: t.tags?.is_event,
           })) as Transaction[];
       } catch (err: any) {
         setError(err.message);
@@ -645,6 +681,7 @@ export const useTransactions = () => {
             recurring_id: recurringId || null,
             savings_id: transaction.savings_id || null,
             loan_id: transaction.loan_id || null,
+            tag_id: transaction.tag_id || null,
           })
           .select()
           .single();

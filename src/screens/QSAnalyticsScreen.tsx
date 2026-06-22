@@ -37,7 +37,8 @@ import {
   useAnalytics,
 } from "../hooks/useAnalytics";
 import { useTransactions } from "../hooks/useTransactions";
-
+import { useTags, TagWithSpending } from "../hooks/useTags";
+ 
 import CashFlowTrendChart from "../components/analytics/CashFlowTrendChart";
 import { DebtHealthCard } from "../components/analytics/DebtHealthCard";
 import { MerchantInsightsCard } from "../components/analytics/MerchantInsightsCard";
@@ -65,6 +66,7 @@ export default function QSAnalyticsScreen() {
     getUpcomingBills,
     getDebtHealth,
   } = useAnalytics();
+  const { getAllTagsWithSpending } = useTags();
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -92,6 +94,7 @@ export default function QSAnalyticsScreen() {
     useState<SpendingVelocity | null>(null);
   const [upcomingBills, setUpcomingBills] = useState<UpcomingBill[]>([]);
   const [debtHealth, setDebtHealth] = useState<DebtHealth | null>(null);
+  const [tagSpending, setTagSpending] = useState<TagWithSpending[]>([]);
 
   // Category transactions modal state
   const { getTransactionsByCategory, getTransactionsByMerchant } =
@@ -241,6 +244,10 @@ export default function QSAnalyticsScreen() {
       setSpendingVelocity(velocity);
       setUpcomingBills(bills);
       setDebtHealth(debt);
+
+      // Fetch tag spending
+      const tagData = await getAllTagsWithSpending(user.id);
+      setTagSpending(tagData);
     } catch (error) {
       console.error("Error fetching analytics data:", error);
     } finally {
@@ -1232,6 +1239,70 @@ export default function QSAnalyticsScreen() {
                 formatCurrency={formatCurrency}
               />
             </Animated.View>
+
+            {/* Spends by Tag & Event */}
+            {tagSpending.length > 0 && (
+              <Animated.View entering={FadeInUp.delay(500).springify()}>
+                <View style={[styles.sectionCard, { backgroundColor: theme.colors.card }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Spend by Tag & Event</Text>
+                    <TouchableOpacity onPress={() => {
+                      // @ts-ignore
+                      router.push('/tags-management');
+                    }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.primary }}>Manage</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ gap: 4 }}>
+                    {tagSpending
+                      .sort((a, b) => b.spent - a.spent)
+                      .slice(0, 5)
+                      .map((tag) => (
+                        <TouchableOpacity
+                          key={tag.id}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 }}
+                          onPress={() => {
+                            // @ts-ignore
+                            router.push({ pathname: `/tag-details/[id]`, params: { id: tag.id } });
+                          }}
+                        >
+                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: tag.color }} />
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '500', color: theme.colors.text }} numberOfLines={1}>
+                                {tag.name}
+                              </Text>
+                              {tag.is_event && (
+                                <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3, backgroundColor: theme.colors.success + '20' }}>
+                                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: theme.colors.success, textTransform: 'uppercase' }}>
+                                    {tag.event_type || 'EVENT'}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: theme.colors.text }}>
+                            {formatCurrency(tag.spent)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                  </View>
+                  {tagSpending.length > 5 && (
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', justifyContent: 'center', paddingTop: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: theme.colors.border }}
+                      onPress={() => {
+                        // @ts-ignore
+                        router.push('/tags-management');
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.primary }}>
+                        View All ({tagSpending.length} tags)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </Animated.View>
+            )}
           </View>
         )}
 

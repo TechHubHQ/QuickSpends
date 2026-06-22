@@ -7,6 +7,9 @@ interface QSTransactionIndicatorsProps {
     savingsId?: string | number | null;
     loanId?: string | number | null;
     hideTrip?: boolean;
+    tagName?: string | null;
+    tagColor?: string | null;
+    tagIsEvent?: boolean | null;
 }
 
 export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = ({
@@ -14,8 +17,11 @@ export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = (
     savingsId,
     loanId,
     hideTrip = false,
+    tagName,
+    tagColor,
+    tagIsEvent,
 }) => {
-    if ((!tripId || hideTrip) && !savingsId && !loanId) return null;
+    if ((!tripId || hideTrip) && !savingsId && !loanId && !tagName) return null;
 
     return (
         <View style={styles.container}>
@@ -35,6 +41,18 @@ export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = (
                 <View style={[styles.badge, { backgroundColor: '#FF572220' }]}>
                     <MaterialCommunityIcons name="handshake" size={10} color="#FF5722" />
                     <Text style={[styles.badgeText, { color: '#FF5722' }]}>LOAN</Text>
+                </View>
+            )}
+            {!!tagName && (
+                <View style={[styles.badge, { backgroundColor: (tagColor || '#6366F1') + '20' }]}>
+                    <MaterialCommunityIcons 
+                        name={tagIsEvent ? "calendar-star" : "tag"} 
+                        size={10} 
+                        color={tagColor || '#6366F1'} 
+                    />
+                    <Text style={[styles.badgeText, { color: tagColor || '#6366F1' }]}>
+                        {tagName.toUpperCase()}
+                    </Text>
                 </View>
             )}
         </View>

@@ -5,6 +5,13 @@ import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "rea
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { QSAccountPicker } from "../components/QSAccountPicker";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import Toast from "react-native-toast-message";
+import { QSAccountPicker } from "../components/QSAccountPicker";
 import { QSButton } from "../components/QSButton";
 import { QSCategoryPicker } from "../components/QSCategoryPicker";
 import { QSCreateCategorySheet } from "../components/QSCreateCategorySheet";
@@ -13,6 +20,7 @@ import { QSHeader } from "../components/QSHeader";
 import { QSLoanPicker } from "../components/QSLoanPicker";
 import { QSSavingsPicker } from "../components/QSSavingsPicker";
 import { QSTripPicker } from "../components/QSTripPicker";
+import { QSTagPicker } from "../components/QSTagPicker";
 import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../hooks/useAccounts";
 import { useCategories } from "../hooks/useCategories";
@@ -93,6 +101,15 @@ export default function QSAddTransactionScreen() {
     const [isSavings, setIsSavings] = useState(!!editTransaction?.savings_id);
     const [savingsAction, setSavingsAction] = useState<'contribute' | 'withdraw'>('contribute'); // New State
     const [isLoan, setIsLoan] = useState(!!editTransaction?.loan_id);
+    const [selectedTag, setSelectedTag] = useState<any>(
+        editTransaction?.tag_id ? {
+            id: editTransaction.tag_id,
+            name: editTransaction.tag_name || '',
+            color: editTransaction.tag_color || '#6366F1',
+            is_event: editTransaction.tag_is_event || false
+        } : null
+    );
+    const [showTagPicker, setShowTagPicker] = useState(false);
 
     // Pre-fill data if editing - cleanup redundant useEffect
     useEffect(() => {
@@ -280,6 +297,7 @@ export default function QSAddTransactionScreen() {
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
+                tag_id: selectedTag?.id || undefined,
             });
 
             if (success) {
@@ -328,6 +346,7 @@ export default function QSAddTransactionScreen() {
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
+                tag_id: selectedTag?.id || undefined,
             }, recurringOptions);
 
             if (success) {
@@ -557,6 +576,29 @@ export default function QSAddTransactionScreen() {
                                 >
                                     <Text style={styles.selectText}>
                                         {date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                    </Text>
+                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                </TouchableOpacity>
+                            </View>
+                        </Animated.View>
+
+                        {/* Tag/Event Selector */}
+                        <Animated.View entering={FadeInDown.delay(850).springify()} style={styles.inputGroup}>
+                            <Text style={styles.label}>Tag / Event</Text>
+                            <View style={styles.inputWrapper}>
+                                <View style={styles.iconContainer}>
+                                    <MaterialCommunityIcons 
+                                        name={selectedTag?.is_event ? "calendar-star" : "tag"} 
+                                        size={20} 
+                                        color={selectedTag ? selectedTag.color : (theme.isDark ? '#64748B' : '#94A3B8')} 
+                                    />
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.selectButton}
+                                    onPress={() => setShowTagPicker(true)}
+                                >
+                                    <Text style={selectedTag ? styles.selectText : styles.selectPlaceholder}>
+                                        {selectedTag ? `#${selectedTag.name}` : 'Attach a tag or event'}
                                     </Text>
                                     <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
                                 </TouchableOpacity>
@@ -957,6 +999,13 @@ export default function QSAddTransactionScreen() {
                 loans={loans}
                 selectedId={loanId}
                 onSelect={(loan) => setLoanId(loan.id)}
+            />
+
+            <QSTagPicker
+                visible={showTagPicker}
+                onClose={() => setShowTagPicker(false)}
+                selectedId={selectedTag?.id}
+                onSelect={(tag) => setSelectedTag(tag)}
             />
         </>
     );

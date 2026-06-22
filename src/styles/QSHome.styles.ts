@@ -413,4 +413,42 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         backgroundColor: theme.colors.primary,
         borderRadius: 2,
     },
+    eventsScroll: {
+        paddingLeft: theme.spacing.l,
+    },
+    eventCard: {
+        width: 160,
+        padding: 16,
+        borderRadius: theme.borderRadius.l,
+        marginRight: 12,
+        gap: 4,
+        ...theme.shadows.medium,
+    },
+    eventCardName: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#FFFFFF",
+    },
+    eventCardDate: {
+        fontSize: 12,
+        color: "rgba(255,255,255,0.8)",
+        fontWeight: "600",
+    },
+    eventMiniProgress: {
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: "rgba(255,255,255,0.3)",
+        overflow: "hidden",
+        marginTop: 4,
+    },
+    eventMiniProgressFill: {
+        height: "100%",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 2,
+    },
+    eventCardBudget: {
+        fontSize: 11,
+        color: "rgba(255,255,255,0.7)",
+        fontWeight: "500",
+    },
 });

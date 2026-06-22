@@ -29,6 +29,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { Trip, useTrips } from "../hooks/useTrips";
 import { useUpcomingBills } from "../hooks/useUpcomingBills";
 import { useCategories } from "../hooks/useCategories";
+import { useTags } from "../hooks/useTags";
 import { createStyles } from "../styles/QSHome.styles";
 import { useTheme } from "../theme/ThemeContext";
 import { getSafeIconName } from "../utils/iconMapping";
@@ -47,6 +48,7 @@ export default function QSHomeScreen() {
   const { getLoans } = useLoans();
   const { bills, fetchBills } = useUpcomingBills();
   const { categories } = useCategories();
+  const { getAllTagsWithSpending } = useTags();
 
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,6 +67,7 @@ export default function QSHomeScreen() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [savings, setSavings] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
+  const [activeEvents, setActiveEvents] = useState<any[]>([]);
   const sortedBills = React.useMemo(() => {
     return [...bills].sort((a, b) => {
       if (a.is_active !== b.is_active) {
@@ -167,6 +170,13 @@ export default function QSHomeScreen() {
       setTrips(tripsData);
       setSavings(savingsData);
       setLoans(loansData);
+
+      // Fetch active events (events with future dates and budgets)
+      const allTagSpending = await getAllTagsWithSpending(user.id);
+      const events = allTagSpending
+        .filter((t: any) => t.is_event && t.event_date)
+        .sort((a: any, b: any) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+      setActiveEvents(events);
     } catch (error) {
     } finally {
       setRefreshing(false);
@@ -331,6 +341,77 @@ export default function QSHomeScreen() {
             </View>
           </LinearGradient>
         </Animated.View>
+
+        {/* Active Events Carousel */}
+        {activeEvents.filter((e: any) => new Date(e.event_date).getTime() > Date.now() - 86400000).length > 0 && (
+          <Animated.View entering={FadeInUp.delay(150).springify()}>
+            <View style={[styles.sectionHeader, { paddingRight: theme.spacing.l }]}>
+              <Text style={styles.sectionTitle}>Active Events</Text>
+              {/* @ts-ignore */}
+              <Pressable onPress={() => router.push('/tags-management')}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.primary }}>View All</Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.eventsScroll}
+              snapToInterval={180}
+              decelerationRate="fast"
+            >
+              {activeEvents
+                .filter((e: any) => new Date(e.event_date).getTime() > Date.now() - 86400000)
+                .map((event: any, index: number) => {
+                  const progressPercent = event.budget > 0 ? Math.min((event.spent / event.budget) * 100, 100) : 0;
+                  const daysLeft = Math.ceil((new Date(event.event_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const eventImage = (() => {
+                    switch (event.event_type) {
+                      case 'birthday': return '🎂';
+                      case 'marriage': return '💒';
+                      case 'anniversary': return '💍';
+                      case 'festival': return '🎉';
+                      case 'travel': return '✈️';
+                      default: return '📌';
+                    }
+                  })();
+                  const eventBg = (() => {
+                    switch (event.event_type) {
+                      case 'birthday': return '#FF6B6B';
+                      case 'marriage': return '#A29BFE';
+                      case 'anniversary': return '#FDCB6E';
+                      case 'festival': return '#55EFC4';
+                      case 'travel': return '#74B9FF';
+                      default: return '#6366F1';
+                    }
+                  })();
+
+                  return (
+                    <Animated.View key={event.id} entering={FadeInRight.delay(200 + index * 50).springify()}>
+                      <Pressable
+                        style={({ pressed }) => [styles.eventCard, { backgroundColor: eventBg, opacity: pressed ? 0.85 : 1 }]}
+                        // @ts-ignore
+                        onPress={() => router.push({ pathname: `/tag-details/[id]`, params: { id: event.id } })}
+                      >
+                        <Text style={{ fontSize: 32, marginBottom: 8 }}>{eventImage}</Text>
+                        <Text style={styles.eventCardName} numberOfLines={1}>{event.name}</Text>
+                        <Text style={styles.eventCardDate}>
+                          {daysLeft > 0 ? `${daysLeft}d left` : daysLeft === 0 ? 'Today!' : 'Past'}
+                        </Text>
+                        {event.budget > 0 && (
+                          <View style={styles.eventMiniProgress}>
+                            <View style={[styles.eventMiniProgressFill, { width: `${Math.min(progressPercent, 100)}%` }]} />
+                          </View>
+                        )}
+                        <Text style={styles.eventCardBudget}>
+                          ₹{event.spent.toLocaleString('en-IN')}{event.budget ? ` / ₹${event.budget.toLocaleString('en-IN')}` : ''}
+                        </Text>
+                      </Pressable>
+                    </Animated.View>
+                  );
+                })}
+            </ScrollView>
+          </Animated.View>
+        )}
 
         {/* Switcher Section (Budgets / Trips / Bills / Savings / Loans) */}
         <View style={[styles.sectionHeader, { paddingRight: 0 }]}>
