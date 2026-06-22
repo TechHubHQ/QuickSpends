@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,6 +15,7 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import { PieChart } from "react-native-gifted-charts";
 import { QSButton } from "../components/QSButton";
 import { QSHeader } from "../components/QSHeader";
 import { QSMonthSelector } from "../components/QSMonthSelector";
@@ -38,8 +42,24 @@ const TABS = [
 const formatCurrency = (amount: number) =>
   `₹${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+const formatCurrencyCompact = (amount: number) => {
+  if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+  if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
+  return `₹${amount}`;
+};
+
 const getMonthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+const getPastMonths = (count: number): string[] => {
+  const months: string[] = [];
+  const now = new Date();
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(getMonthKey(d));
+  }
+  return months;
+};
 
 export default function QSMonthlyPlannerScreen() {
   const router = useRouter();
@@ -50,9 +70,12 @@ export default function QSMonthlyPlannerScreen() {
     getOrCreatePlan,
     getPlanItems,
     addManualItem,
+    updateItem,
+    deleteItem,
     settleItem,
     getForecast,
     getPlanVsActual,
+    getPlanVsActualBatch,
     getPlansByUser,
   } = useMonthlyPlans();
 
@@ -64,13 +87,24 @@ export default function QSMonthlyPlannerScreen() {
   const [analyticsData, setAnalyticsData] = useState<{
     planVsActual: PlanVsActual | null;
     pastPlans: any[];
-  }>({ planVsActual: null, pastPlans: [] });
+    history: PlanVsActual[];
+  }>({ planVsActual: null, pastPlans: [], history: [] });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddIncome, setShowAddIncome] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [newItemLabel, setNewItemLabel] = useState("");
   const [newItemAmount, setNewItemAmount] = useState("");
+
+  // Edit state
+  const [editingItem, setEditingItem] = useState<PlanItem | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Simulator state
+  const [simAdjustments, setSimAdjustments] = useState<Record<string, number>>({});
+  const [simEnabled, setSimEnabled] = useState(false);
 
   const monthKey = getMonthKey(currentMonth);
 
@@ -99,8 +133,10 @@ export default function QSMonthlyPlannerScreen() {
     if (!user) return;
     const planVsActual = await getPlanVsActual(user.id, monthKey);
     const pastPlans = await getPlansByUser(user.id);
-    setAnalyticsData({ planVsActual, pastPlans });
-  }, [user, monthKey, getPlanVsActual, getPlansByUser]);
+    const pastMonths = getPastMonths(6);
+    const history = await getPlanVsActualBatch(user.id, pastMonths);
+    setAnalyticsData({ planVsActual, pastPlans, history });
+  }, [user, monthKey, getPlanVsActual, getPlanVsActualBatch, getPlansByUser]);
 
   useEffect(() => {
     loadPlan();
@@ -118,12 +154,16 @@ export default function QSMonthlyPlannerScreen() {
   };
 
   const handlePrevMonth = () => {
+    setSimAdjustments({});
+    setSimEnabled(false);
     setCurrentMonth(
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
     );
   };
 
   const handleNextMonth = () => {
+    setSimAdjustments({});
+    setSimEnabled(false);
     setCurrentMonth(
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
     );
@@ -144,6 +184,51 @@ export default function QSMonthlyPlannerScreen() {
     setShowAddIncome(false);
     setShowAddExpense(false);
     await loadPlan();
+  };
+
+  const openEditItem = (item: PlanItem) => {
+    setEditingItem(item);
+    setEditLabel(item.label);
+    setEditAmount(String(item.amount));
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem || !editLabel.trim() || !editAmount) return;
+    const amount = parseFloat(editAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    const updates: any = { label: editLabel.trim(), amount };
+    // If editing an auto-generated item, switch to manual so edits persist
+    if (editingItem.source_type !== "manual") {
+      updates.source_type = "manual";
+    }
+
+    const ok = await updateItem(editingItem.id, updates);
+    if (ok) {
+      setShowEditModal(false);
+      setEditingItem(null);
+      await loadPlan();
+    }
+  };
+
+  const handleDeleteItem = (item: PlanItem) => {
+    const isAuto = item.source_type !== "manual";
+    const warning = isAuto
+      ? "This removes the plan entry only. It won't affect the original bill, recurring config, or savings goal."
+      : "Delete this manual entry?";
+
+    Alert.alert("Delete Item", `Remove "${item.label}"?\n\n${warning}`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const ok = await deleteItem(item.id);
+          if (ok) await loadPlan();
+        },
+      },
+    ]);
   };
 
   const handleSettleItem = async (item: PlanItem) => {
@@ -287,9 +372,23 @@ export default function QSMonthlyPlannerScreen() {
                   : ""}
               </Text>
             </View>
-            <Text style={[styles.itemAmount, { color }]}>
+            <Text style={[styles.itemAmount, { color, marginRight: 4 }]}>
               {formatCurrency(item.amount)}
             </Text>
+            <View style={styles.itemActions}>
+              <Pressable
+                onPress={() => openEditItem(item)}
+                style={{ padding: 4 }}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={16} color={theme.colors.textSecondary} />
+              </Pressable>
+              <Pressable
+                onPress={() => handleDeleteItem(item)}
+                style={{ padding: 4 }}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={16} color={theme.colors.error} />
+              </Pressable>
+            </View>
           </View>
         ))}
         {showAdd && (
@@ -311,13 +410,13 @@ export default function QSMonthlyPlannerScreen() {
   const renderSummaryCard = () => (
     <Animated.View entering={FadeInDown.duration(500).springify()} style={styles.summaryCard}>
       <View style={styles.summaryRow}>
-        <Text style={styles.summaryLabel}>Total Income</Text>
+        <Text style={styles.summaryLabel}>Expected Income</Text>
         <Text style={[styles.summaryAmount, { color: "#22C55E" }]}>
           +{formatCurrency(totalIncome)}
         </Text>
       </View>
       <View style={styles.summaryRow}>
-        <Text style={styles.summaryLabel}>Total Expenses</Text>
+        <Text style={styles.summaryLabel}>Expected Expenses</Text>
         <Text style={[styles.summaryAmount, { color: theme.colors.error }]}>
           -{formatCurrency(totalExpenses)}
         </Text>
@@ -379,7 +478,7 @@ export default function QSMonthlyPlannerScreen() {
         {renderSummaryCard()}
         {renderAddItemInput("income", showAddIncome, () => setShowAddIncome(false))}
         {renderSection(
-          "Income",
+          "Expected Income",
           totalIncome,
           incomeItems,
           "income",
@@ -394,7 +493,7 @@ export default function QSMonthlyPlannerScreen() {
           "expense",
         )}
         {renderSection(
-          "Estimated Spending",
+          "Expected Expenses",
           manualExpenses.reduce((s, i) => s + i.amount, 0),
           manualExpenses,
           "expense",
@@ -409,6 +508,194 @@ export default function QSMonthlyPlannerScreen() {
             "expense",
           )}
       </ScrollView>
+    );
+  };
+
+  // ---------- Simulator logic ----------
+
+  const getSimulatedTotal = (type: "income" | "expense") => {
+    const pool = type === "income" ? incomeItems : expenseItems;
+    return pool.reduce((sum, item) => {
+      const adj = simAdjustments[item.id];
+      return sum + (adj !== undefined ? adj : item.amount);
+    }, 0);
+  };
+
+  const simIncome = getSimulatedTotal("income");
+  const simExpenses = getSimulatedTotal("expense");
+  const simSurplus = simIncome - simExpenses;
+
+  const generateSuggestions = (): string[] => {
+    const suggestions: string[] = [];
+    const actualSurplus = totalIncome - totalExpenses;
+    const income = totalIncome || 1;
+    const expensePct = (totalExpenses / income) * 100;
+    const savingsPct = (savingsItems.reduce((s, i) => s + i.amount, 0) / income) * 100;
+
+    if (simSurplus < 0 && actualSurplus >= 0) {
+      suggestions.push("Your simulated changes create a deficit. Consider smaller adjustments.");
+    }
+    if (simSurplus >= 0 && actualSurplus < 0) {
+      suggestions.push("Your changes turn a deficit into a surplus — great improvement!");
+    }
+    if (expensePct > 50) {
+      const topExpense = [...expenseItems].sort((a, b) => b.amount - a.amount)[0];
+      if (topExpense) {
+        const reduction = Math.round(topExpense.amount * 0.1);
+        suggestions.push(`Reducing "${topExpense.label}" by 10% saves ${formatCurrency(reduction)}/month.`);
+      }
+    }
+    if (savingsPct < 20) {
+      const target = Math.round(income * 0.2);
+      const current = savingsItems.reduce((s, i) => s + i.amount, 0);
+      const gap = target - current;
+      if (gap > 0) suggestions.push(`Aim to save 20% of income (${formatCurrency(target)}). Increase savings by ${formatCurrency(gap)}.`);
+    }
+    if (simSurplus > 0 && simSurplus < income * 0.05) {
+      suggestions.push("Your surplus is thin (<5% of income). Build a buffer by trimming discretionary expenses.");
+    }
+    if (simSurplus > income * 0.3) {
+      suggestions.push("Healthy surplus! Consider directing extra funds to savings or investments.");
+    }
+    if (suggestions.length === 0) {
+      suggestions.push("Your current plan looks well-balanced. Keep tracking to stay on course.");
+    }
+    return suggestions;
+  };
+
+  const suggestions = generateSuggestions();
+
+  const renderSimulator = () => {
+    const simItems = [...incomeItems, ...expenseItems];
+
+    return (
+      <View>
+        <View style={{ margin: theme.spacing.m }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ fontSize: theme.typography.h3.fontSize, fontWeight: "700", color: theme.colors.text }}>
+              What-If Simulator
+            </Text>
+            <Pressable
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 6,
+                borderRadius: 20,
+                backgroundColor: simEnabled ? theme.colors.primary : theme.colors.backgroundSecondary,
+                borderWidth: 1,
+                borderColor: simEnabled ? theme.colors.primary : theme.colors.border,
+              }}
+              onPress={() => {
+                setSimEnabled(!simEnabled);
+                if (!simEnabled) {
+                  // Reset adjustments when enabling
+                  setSimAdjustments({});
+                }
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: simEnabled ? "#FFF" : theme.colors.textSecondary }}>
+                {simEnabled ? "ON" : "OFF"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {simEnabled && (
+          <>
+            <View style={styles.simulatorCard}>
+              <Text style={[styles.sectionTitle, { marginBottom: theme.spacing.s }]}>
+                Adjust Amounts
+              </Text>
+              {simItems.map((item) => {
+                const origAmount = item.amount;
+                const adjAmount = simAdjustments[item.id] !== undefined ? simAdjustments[item.id] : origAmount;
+                const isIncome = item.type === "income";
+                const itemColor = isIncome ? "#22C55E" : theme.colors.error;
+
+                return (
+                  <View key={item.id} style={styles.simulatorRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.simulatorLabel} numberOfLines={1}>{item.label}</Text>
+                      <Text style={{ fontSize: 11, color: theme.colors.textTertiary }}>
+                        {isIncome ? "Income" : "Expense"}
+                      </Text>
+                    </View>
+                    <View style={styles.simulatorStepper}>
+                      <Pressable
+                        style={styles.stepperBtn}
+                        onPress={() => {
+                          const newVal = Math.max(0, adjAmount - 500);
+                          setSimAdjustments(prev => ({ ...prev, [item.id]: newVal }));
+                        }}
+                      >
+                        <MaterialCommunityIcons name="minus" size={16} color={theme.colors.textSecondary} />
+                      </Pressable>
+                      <Text style={[styles.simulatorAmount, { color: itemColor }]}>
+                        {formatCurrency(adjAmount)}
+                      </Text>
+                      <Pressable
+                        style={styles.stepperBtn}
+                        onPress={() => {
+                          const newVal = adjAmount + 500;
+                          setSimAdjustments(prev => ({ ...prev, [item.id]: newVal }));
+                        }}
+                      >
+                        <MaterialCommunityIcons name="plus" size={16} color={theme.colors.textSecondary} />
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Before vs After */}
+            <View style={styles.comparisonCard}>
+              <Text style={{ fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, color: theme.colors.textSecondary, marginBottom: theme.spacing.s }}>
+                Before vs After
+              </Text>
+              <View style={styles.comparisonRow}>
+                <Text style={styles.comparisonLabel}>Original Surplus</Text>
+                <Text style={[styles.comparisonValue, { color: surplus >= 0 ? "#22C55E" : theme.colors.error }]}>
+                  {surplus >= 0 ? "+" : ""}{formatCurrency(surplus)}
+                </Text>
+              </View>
+              <View style={[styles.summaryDivider, { marginVertical: 4 }]} />
+              <View style={styles.comparisonRow}>
+                <Text style={styles.comparisonLabel}>Simulated Surplus</Text>
+                <Text style={[styles.comparisonValue, { color: simSurplus >= 0 ? "#22C55E" : theme.colors.error }]}>
+                  {simSurplus >= 0 ? "+" : ""}{formatCurrency(simSurplus)}
+                </Text>
+              </View>
+              <View style={[styles.summaryDivider, { marginVertical: 4 }]} />
+              <View style={styles.comparisonRow}>
+                <Text style={styles.comparisonLabel}>Improvement</Text>
+                <Text style={[styles.comparisonValue, { color: simSurplus - surplus >= 0 ? "#22C55E" : theme.colors.error }]}>
+                  {simSurplus - surplus >= 0 ? "+" : ""}{formatCurrency(simSurplus - surplus)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Suggestions */}
+            <View style={styles.suggestionCard}>
+              <Text style={styles.suggestionTitle}>Suggestions</Text>
+              {suggestions.map((s, i) => (
+                <View key={i} style={styles.suggestionItem}>
+                  <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={theme.colors.primary} style={{ marginTop: 1 }} />
+                  <Text style={styles.suggestionText}>{s}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        {!simEnabled && (
+          <View style={[styles.analyticsCard, { alignItems: "center", paddingVertical: 24 }]}>
+            <MaterialCommunityIcons name="tune-variant" size={40} color={theme.colors.textTertiary} />
+            <Text style={[styles.emptyText, { marginTop: 8 }]}>
+              Toggle the switch above to adjust income & expense amounts and see how changes affect your budget.
+            </Text>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -526,12 +813,199 @@ export default function QSMonthlyPlannerScreen() {
             </View>
           );
         })}
+
+        {/* Simulator integrated in Forecast tab */}
+        {renderSimulator()}
       </ScrollView>
+    );
+  };
+
+  const renderPlanVsActualDonut = (pva: PlanVsActual) => {
+    const plannedTotal = pva.plannedIncome + Math.abs(pva.plannedExpenses);
+    const actualTotal = pva.actualIncome + Math.abs(pva.actualExpenses);
+
+    if (plannedTotal === 0 && actualTotal === 0) return null;
+
+    const pieData = [
+      {
+        value: plannedTotal || 1,
+        color: theme.colors.primary,
+        text: "Expected",
+      },
+      {
+        value: actualTotal || 1,
+        color: theme.colors.error,
+        text: "Actual",
+      },
+    ];
+
+    return (
+      <View style={styles.donutContainer}>
+        <Text style={styles.donutTitle}>Expected vs Actual</Text>
+        <PieChart
+          donut
+          sectionAutoFocus
+          isAnimated
+          animationDuration={900}
+          radius={70}
+          innerRadius={45}
+          innerCircleColor={theme.colors.card}
+          data={pieData}
+          centerLabelComponent={() => (
+            <View style={{ justifyContent: "center", alignItems: "center" }}>
+              <Text style={{ fontSize: 14, fontWeight: "bold", color: theme.colors.text }}>
+                {plannedTotal > 0 && actualTotal > 0
+                  ? `${Math.round((Math.min(plannedTotal, actualTotal) / Math.max(plannedTotal, actualTotal)) * 100)}%`
+                  : "N/A"}
+              </Text>
+              <Text style={{ fontSize: 10, color: theme.colors.textSecondary, marginTop: 2 }}>
+                Match
+              </Text>
+            </View>
+          )}
+        />
+        <View style={{ flexDirection: "row", gap: 24, marginTop: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.primary }} />
+            <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>Expected: {formatCurrency(plannedTotal)}</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.error }} />
+            <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>Actual: {formatCurrency(actualTotal)}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderCategoryDonut = (pva: PlanVsActual) => {
+    const cats = pva.categoryBreakdown;
+    if (cats.length === 0) return null;
+    const maxItems = 6;
+    const topCats = cats.slice(0, maxItems);
+    const otherPlanned = cats.slice(maxItems).reduce((s, c) => s + c.planned, 0);
+    const otherActual = cats.slice(maxItems).reduce((s, c) => s + c.actual, 0);
+
+    const plannedData = topCats.map((c) => ({
+      value: c.planned || 1,
+      color: c.categoryColor || theme.colors.primary,
+      text: c.categoryName,
+    }));
+    if (otherPlanned > 0) {
+      plannedData.push({ value: otherPlanned, color: theme.colors.textTertiary, text: "Other" });
+    }
+
+    const actualData = topCats.map((c) => ({
+      value: c.actual || 1,
+      color: c.categoryColor || theme.colors.error,
+      text: c.categoryName,
+    }));
+    if (otherActual > 0) {
+      actualData.push({ value: otherActual, color: theme.colors.textTertiary, text: "Other" });
+    }
+
+    if (plannedData.length === 0 && actualData.length === 0) return null;
+
+    return (
+      <View style={styles.donutContainer}>
+        <Text style={styles.donutTitle}>Category: Expected vs Actual</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-around", width: "100%" }}>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: theme.colors.text, marginBottom: 8 }}>Expected</Text>
+            <PieChart
+              donut
+              isAnimated
+              animationDuration={900}
+              radius={50}
+              innerRadius={32}
+              innerCircleColor={theme.colors.card}
+              data={plannedData}
+              showText={false}
+            />
+          </View>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: theme.colors.text, marginBottom: 8 }}>Actual</Text>
+            <PieChart
+              donut
+              isAnimated
+              animationDuration={900}
+              radius={50}
+              innerRadius={32}
+              innerCircleColor={theme.colors.card}
+              data={actualData}
+              showText={false}
+            />
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 16, justifyContent: "center" }}>
+          {topCats.map((c) => (
+            <View key={c.categoryId} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.categoryColor || theme.colors.primary }} />
+              <Text style={{ fontSize: 10, color: theme.colors.textSecondary }}>{c.categoryName}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderMultiMonthProjection = (history: PlanVsActual[]) => {
+    if (history.length === 0) return null;
+    const maxVal = Math.max(
+      ...history.map((h) => Math.max(Math.abs(h.plannedIncome + Math.abs(h.plannedExpenses)), Math.abs(h.actualIncome + Math.abs(h.actualExpenses)))),
+      1,
+    );
+
+    return (
+      <View style={styles.projectionTable}>
+        <Text style={styles.analyticsTitle}>Projection History</Text>
+        <View style={styles.projectionHeader}>
+          <Text style={[styles.projectionHeaderText, { flex: 1 }]}>Month</Text>
+          <Text style={[styles.projectionHeaderText, { flex: 1, textAlign: "right" }]}>Planned</Text>
+          <Text style={[styles.projectionHeaderText, { flex: 1, textAlign: "right" }]}>Actual</Text>
+          <Text style={[styles.projectionHeaderText, { flex: 0.8, textAlign: "right" }]}>Accuracy</Text>
+        </View>
+        {history.map((h) => {
+          const d = new Date(h.month + "-01");
+          const label = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+          const plannedTotal = h.plannedIncome + Math.abs(h.plannedExpenses);
+          const actualTotal = h.actualIncome + Math.abs(h.actualExpenses);
+          const barWidth = Math.min((plannedTotal / maxVal) * 100, 100);
+          const actualBarWidth = Math.min((actualTotal / maxVal) * 100, 100);
+          const accuracy = h.estimationAccuracy;
+
+          return (
+            <View key={h.month} style={styles.projectionRow}>
+              <Text style={[styles.projectionCell, { flex: 1 }]}>{label}</Text>
+              <View style={{ flex: 1, alignItems: "flex-end" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={styles.projectionBarTrack}>
+                    <View style={[styles.projectionBarFill, { width: `${barWidth}%`, backgroundColor: `${theme.colors.primary}60` }]} />
+                  </View>
+                  <Text style={[styles.projectionCell, { fontSize: 11 }]}>{formatCurrencyCompact(plannedTotal)}</Text>
+                </View>
+              </View>
+              <View style={{ flex: 1, alignItems: "flex-end" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={styles.projectionBarTrack}>
+                    <View style={[styles.projectionBarFill, { width: `${actualBarWidth}%`, backgroundColor: theme.colors.error }]} />
+                  </View>
+                  <Text style={[styles.projectionCell, { fontSize: 11 }]}>{formatCurrencyCompact(actualTotal)}</Text>
+                </View>
+              </View>
+              <Text style={[styles.projectionCell, { flex: 0.8, textAlign: "right", color: accuracy >= 80 ? "#22C55E" : accuracy >= 50 ? theme.colors.warning : theme.colors.error }]}>
+                {accuracy.toFixed(0)}%
+              </Text>
+            </View>
+          );
+        })}
+      </View>
     );
   };
 
   const renderAnalyticsTab = () => {
     const pva = analyticsData.planVsActual;
+    const history = analyticsData.history;
 
     return (
       <ScrollView
@@ -540,6 +1014,10 @@ export default function QSMonthlyPlannerScreen() {
       >
         {pva ? (
           <>
+            {/* Donut: Expected vs Actual */}
+            {renderPlanVsActualDonut(pva)}
+
+            {/* Plan vs Actual Summary */}
             <View style={styles.analyticsCard}>
               <Text style={styles.analyticsTitle}>Plan vs Actual</Text>
               <View style={styles.summaryRow}>
@@ -590,6 +1068,7 @@ export default function QSMonthlyPlannerScreen() {
               </Text>
             </View>
 
+            {/* Category Breakdown */}
             {pva.categoryBreakdown.length > 0 && (
               <View style={styles.analyticsCard}>
                 <Text style={styles.analyticsTitle}>Category Breakdown</Text>
@@ -652,6 +1131,12 @@ export default function QSMonthlyPlannerScreen() {
                 })}
               </View>
             )}
+
+            {/* Category Donut: Expected vs Actual */}
+            {renderCategoryDonut(pva)}
+
+            {/* Multi-month projection */}
+            {renderMultiMonthProjection(history)}
           </>
         ) : (
           <View style={styles.emptyState}>
@@ -680,7 +1165,7 @@ export default function QSMonthlyPlannerScreen() {
                     })}
                   </Text>
                   <Text style={styles.summaryAmount}>
-                    {p.is_locked ? "🔒 Locked" : "Draft"}
+                    {p.is_locked ? "Locked" : "Draft"}
                   </Text>
                 </View>
               );
@@ -834,6 +1319,75 @@ export default function QSMonthlyPlannerScreen() {
       {activeTab === "forecast" && renderForecastTab()}
       {activeTab === "analytics" && renderAnalyticsTab()}
       {activeTab === "settle" && renderSettleTab()}
+
+      {/* Edit Item Modal */}
+      <Modal transparent visible={showEditModal} animationType="slide" onRequestClose={() => setShowEditModal(false)}>
+        <Pressable style={styles.editModalOverlay} onPress={() => setShowEditModal(false)}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ flex: 1, justifyContent: "flex-end" }}
+          >
+            <Pressable
+              style={styles.editModalContent}
+              onPress={() => {}}
+            >
+              <Text style={styles.editModalTitle}>
+                Edit {editingItem?.type === "income" ? "Income" : "Expense"}
+              </Text>
+
+              <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Label
+              </Text>
+              <View style={styles.editFieldRow}>
+                <View style={styles.editFieldIcon}>
+                  <MaterialCommunityIcons name="label-outline" size={20} color={theme.colors.primary} />
+                </View>
+                <TextInput
+                  style={styles.editFieldInput}
+                  value={editLabel}
+                  onChangeText={setEditLabel}
+                  placeholder="Item label"
+                  placeholderTextColor={theme.colors.textTertiary}
+                />
+              </View>
+
+              <Text style={{ fontSize: 11, fontWeight: "700", color: theme.colors.textSecondary, marginBottom: 8, marginLeft: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Amount
+              </Text>
+              <View style={styles.editFieldRow}>
+                <View style={styles.editFieldIcon}>
+                  <MaterialCommunityIcons name="currency-inr" size={20} color="#10B981" />
+                </View>
+                <TextInput
+                  style={styles.editFieldInput}
+                  value={editAmount}
+                  onChangeText={setEditAmount}
+                  keyboardType="numeric"
+                  placeholder="Amount"
+                  placeholderTextColor={theme.colors.textTertiary}
+                />
+              </View>
+
+              <View style={styles.editActions}>
+                <QSButton
+                  title="Cancel"
+                  onPress={() => {
+                    setShowEditModal(false);
+                    setEditingItem(null);
+                  }}
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                />
+                <QSButton
+                  title="Save"
+                  onPress={handleSaveEdit}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

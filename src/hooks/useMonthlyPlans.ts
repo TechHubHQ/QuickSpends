@@ -207,7 +207,7 @@ export const useMonthlyPlans = () => {
   const updateItem = useCallback(
     async (
       itemId: string,
-      updates: { amount?: number; status?: "pending" | "settled" | "paid" },
+      updates: { amount?: number; label?: string; due_date?: string | null; status?: "pending" | "settled" | "paid"; source_type?: string },
     ): Promise<boolean> => {
       try {
         const { error } = await supabase
@@ -703,6 +703,19 @@ export const useMonthlyPlans = () => {
     [],
   );
 
+  const getPlanVsActualBatch = useCallback(
+    async (userId: string, months: string[]): Promise<PlanVsActual[]> => {
+      const results: PlanVsActual[] = [];
+      for (const month of months) {
+        const pva = await getPlanVsActual(userId, month);
+        if (pva) results.push(pva);
+      }
+      results.sort((a, b) => a.month.localeCompare(b.month));
+      return results;
+    },
+    [getPlanVsActual],
+  );
+
   return {
     loading,
     error,
@@ -717,5 +730,6 @@ export const useMonthlyPlans = () => {
     settleItem,
     getForecast,
     getPlanVsActual,
+    getPlanVsActualBatch,
   };
 };
