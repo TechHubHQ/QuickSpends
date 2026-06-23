@@ -407,7 +407,7 @@ export default function QSProfileScreen() {
         >
           <View style={styles.linkCardLeft}>
             <View style={styles.linkCardIcon}>
-              <MaterialCommunityIcons name="calendar-repeat" size={22} color={theme.colors.primary} />
+              <MaterialCommunityIcons name="calendar-refresh-outline" size={22} color={theme.colors.primary} />
             </View>
             <View>
               <Text style={styles.linkCardText}>Recurring Transactions</Text>

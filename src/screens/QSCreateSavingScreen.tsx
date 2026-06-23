@@ -28,6 +28,7 @@ export default function QSAddSavingScreen() {
 
     const [name, setName] = useState("");
     const [targetAmount, setTargetAmount] = useState("");
+    const [initialAmount, setInitialAmount] = useState("");
     const [parentCategoryId, setParentCategoryId] = useState("");
     const [subCategoryId, setSubCategoryId] = useState("");
     const [initialCategoryId, setInitialCategoryId] = useState<string | null>(null);
@@ -122,7 +123,7 @@ export default function QSAddSavingScreen() {
                 category_id: effectiveCategoryId || undefined,
                 target_date: targetDate?.toISOString(),
                 include_in_net_worth: includeInNetWorth
-            });
+            }, initialAmount ? parseFloat(initialAmount) : 0);
         }
 
         if (success) {
@@ -167,6 +168,23 @@ export default function QSAddSavingScreen() {
                         />
                     </View>
                 </Animated.View>
+
+                {!savingId && (
+                    <Animated.View entering={FadeInDown.delay(260).springify()} style={styles.inputGroup}>
+                        <Text style={styles.label}>Already Saved (Optional)</Text>
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.currency}>₹</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="0.00"
+                                placeholderTextColor={theme.isDark ? '#64748B' : '#94A3B8'}
+                                keyboardType="decimal-pad"
+                                value={initialAmount}
+                                onChangeText={setInitialAmount}
+                            />
+                        </View>
+                    </Animated.View>
+                )}
 
                 <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.inputGroup}>
                     <Text style={styles.label}>End Date / Term (Optional)</Text>

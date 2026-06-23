@@ -15,7 +15,8 @@ import { QSHeader } from "../components/QSHeader";
 import { useAlert } from "../context/AlertContext";
 import { useTransactions } from "../hooks/useTransactions";
 import { useTheme } from "../theme/ThemeContext";
-import { getSafeIconName } from "../utils/iconMapping"; // Assuming this exists based on QSHomeScreen
+import { getSafeIconName } from "../utils/iconMapping";
+import { NWS_DISPLAY, NwsType } from "../utils/nwsClassification";
 
 export default function QSTransactionDetailsScreen() {
   const { theme } = useTheme();
@@ -409,6 +410,43 @@ export default function QSTransactionDetailsScreen() {
               {data.type}
             </Text>
           </View>
+
+          {data.nws_type && (
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.rowLabel, { color: theme.colors.textSecondary }]}>
+                NWS
+              </Text>
+              <View
+                style={[
+                  styles.categoryBadge,
+                  {
+                    backgroundColor: NWS_DISPLAY[data.nws_type as NwsType].lightColor,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 999,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.categoryDot,
+                    { backgroundColor: NWS_DISPLAY[data.nws_type as NwsType].color },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.rowValue,
+                    {
+                      color: NWS_DISPLAY[data.nws_type as NwsType].color,
+                      fontSize: 12,
+                    },
+                  ]}
+                >
+                  {NWS_DISPLAY[data.nws_type as NwsType].label}
+                </Text>
+              </View>
+            </View>
+          )}
         </Animated.View>
 
         {/* Tags Card - Only show if we have trip, tag, savings, or recurring info */}

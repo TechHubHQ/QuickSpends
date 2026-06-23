@@ -119,6 +119,7 @@ export interface Database {
           savings_id: string | null;
           loan_id: string | null;
           tag_id: string | null;
+          nws_type: 'needs' | 'wants' | 'savings' | null;
           created_at: string;
         };
         Insert: {
@@ -138,6 +139,7 @@ export interface Database {
           savings_id?: string | null;
           loan_id?: string | null;
           tag_id?: string | null;
+          nws_type?: 'needs' | 'wants' | 'savings' | null;
           created_at?: string;
         };
         Update: {
@@ -157,6 +159,7 @@ export interface Database {
           savings_id?: string | null;
           loan_id?: string | null;
           tag_id?: string | null;
+          nws_type?: 'needs' | 'wants' | 'savings' | null;
           created_at?: string;
         };
       };

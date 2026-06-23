@@ -1,19 +1,27 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
+  Dimensions,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from "react-native";
-import Animated, { FadeInUp } from "react-native-reanimated";
 import { PieChart } from "react-native-gifted-charts";
+import Animated, { FadeInUp } from "react-native-reanimated";
 import { NeedsWantsSavingsData } from "../../hooks/useAnalytics";
 import { Theme } from "../../theme/theme";
 import { formatCurrencyCompact } from "../../utils/format";
 import { QSInfoSheet } from "../QSInfoSheet";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+const NWS_COLORS = {
+  needs: { main: "#4F46E5", light: "#4F46E518", gradient: ["#6366F1", "#4F46E5"] as [string, string] },
+  wants: { main: "#EC4899", light: "#EC489918", gradient: ["#F472B6", "#EC4899"] as [string, string] },
+  savings: { main: "#10B981", light: "#10B98118", gradient: ["#34D399", "#10B981"] as [string, string] },
+};
 
 interface NeedsWantsSavingsChartProps {
   data: NeedsWantsSavingsData | null;
@@ -27,83 +35,105 @@ export const NeedsWantsSavingsChart = ({
   onSegmentPress,
 }: NeedsWantsSavingsChartProps) => {
   const [showInfo, setShowInfo] = useState(false);
-  const { width } = useWindowDimensions();
-  const isNarrow = width < 380;
-  const radius = isNarrow ? 64 : 80;
-  const innerRadius = isNarrow ? 44 : 55;
+
   if (!data || data.total === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <LinearGradient
+        colors={theme.isDark ? [theme.colors.card, theme.colors.backgroundSecondary] : ["#ffffff", "#f0fdf4"]}
+        style={[styles.emptyCard, { borderColor: theme.colors.border }]}
+      >
         <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
           No data for Needs vs Wants
         </Text>
-      </View>
+      </LinearGradient>
     );
   }
 
   const { needs, wants, savings, total } = data;
 
+  const needsPct = total > 0 ? (needs / total) * 100 : 0;
+  const wantsPct = total > 0 ? (wants / total) * 100 : 0;
+  const savingsPct = total > 0 ? (savings / total) * 100 : 0;
+
   const pieData = [
     {
       value: needs,
-      color: "#4F46E5", // Indigo for Needs
+      color: NWS_COLORS.needs.main,
       text: "Needs",
       name: "Needs",
-      type: "needs",
-      percentage: ((needs / total) * 100).toFixed(0),
+      type: "needs" as const,
+      percentage: needsPct.toFixed(0),
       onPress: () => onSegmentPress?.("needs", "Needs Transactions"),
     },
     {
       value: wants,
-      color: "#EC4899", // Pink for Wants
+      color: NWS_COLORS.wants.main,
       text: "Wants",
       name: "Wants",
-      type: "wants",
-      percentage: ((wants / total) * 100).toFixed(0),
+      type: "wants" as const,
+      percentage: wantsPct.toFixed(0),
       onPress: () => onSegmentPress?.("wants", "Wants Transactions"),
     },
     {
       value: savings,
-      color: "#10B981", // Emerald for Savings
+      color: NWS_COLORS.savings.main,
       text: "Savings",
       name: "Savings",
-      type: "savings",
-      percentage: ((savings / total) * 100).toFixed(0),
+      type: "savings" as const,
+      percentage: savingsPct.toFixed(0),
       onPress: () => onSegmentPress?.("savings", "Savings Transactions"),
     },
   ].filter((item) => item.value > 0);
 
-  // Use a safe compact currency formatter that falls back if the environment doesn't support Intl notation
   const formatCurrency = (amount: number) => formatCurrencyCompact(amount);
 
+  const idealSegments = [
+    { label: "Needs", pct: 50, color: NWS_COLORS.needs.main },
+    { label: "Wants", pct: 30, color: NWS_COLORS.wants.main },
+    { label: "Savings", pct: 20, color: NWS_COLORS.savings.main },
+  ];
+
+  const actualSegments = [
+    { label: "Needs", pct: needsPct, color: NWS_COLORS.needs.main },
+    { label: "Wants", pct: wantsPct, color: NWS_COLORS.wants.main },
+    { label: "Savings", pct: savingsPct, color: NWS_COLORS.savings.main },
+  ];
+
+  const getDeviation = (actual: number, ideal: number) => {
+    const diff = actual - ideal;
+    if (Math.abs(diff) < 1) return null;
+    return diff > 0 ? `+${diff.toFixed(0)}%` : `${diff.toFixed(0)}%`;
+  };
+
   return (
-    <View style={styles.container}>
-      {/* Header with toggle */}
-      <TouchableOpacity
-        style={styles.headerRow}
-        onPress={() => setShowInfo(true)}
-        activeOpacity={0.7}
-      >
-        {!isNarrow ? (
-          <>
-            <Text style={[styles.infoLink, { color: theme.colors.primary }]}>
-              How is this calculated?
-            </Text>
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={16}
-              color={theme.colors.primary}
-            />
-          </>
-        ) : (
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={18}
-            color={theme.colors.primary}
-            accessibilityLabel="How is this calculated?"
-          />
-        )}
-      </TouchableOpacity>
+    <LinearGradient
+      colors={
+        theme.isDark
+          ? [theme.colors.card, theme.colors.backgroundSecondary]
+          : ["#ffffff", "#f5f3ff"]
+      }
+      style={[styles.card, { borderColor: theme.colors.border }]}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            Needs vs Wants
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            50/30/20 Rule
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.infoButton}
+          onPress={() => setShowInfo(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.infoText, { color: theme.colors.primary }]}>
+            How?
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <QSInfoSheet
         visible={showInfo}
@@ -112,364 +142,351 @@ export const NeedsWantsSavingsChart = ({
       >
         <View style={styles.sheetContent}>
           <View style={styles.sheetItem}>
-            <MaterialCommunityIcons
-              name="home-city"
-              size={20}
-              color={theme.colors.primary}
-              style={styles.sheetIcon}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.sheetLabel, { color: theme.colors.text }]}>
-                Needs (50%)
-              </Text>
-              <Text
-                style={[
-                  styles.sheetDesc,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Essentials you cannot live without: Housing, Utilities,
-                Groceries, Transport, Health, Education, Bills, Loans.
-              </Text>
-            </View>
+            <Text style={[styles.sheetLabel, { color: NWS_COLORS.needs.main }]}>Needs (50%)</Text>
+            <Text style={[styles.sheetDesc, { color: theme.colors.textSecondary }]}>
+              Essentials: Housing, Utilities, Groceries, Transport, Health, Education, Bills, Insurance, Taxes.
+            </Text>
           </View>
-
           <View style={styles.sheetItem}>
-            <MaterialCommunityIcons
-              name="wallet-giftcard"
-              size={20}
-              color={theme.colors.error}
-              style={styles.sheetIcon}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.sheetLabel, { color: theme.colors.text }]}>
-                Wants (30%)
-              </Text>
-              <Text
-                style={[
-                  styles.sheetDesc,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Discretionary spending: Dining out, Entertainment, Shopping,
-                Hobbies, Vacations.
-              </Text>
-            </View>
+            <Text style={[styles.sheetLabel, { color: NWS_COLORS.wants.main }]}>Wants (30%)</Text>
+            <Text style={[styles.sheetDesc, { color: theme.colors.textSecondary }]}>
+              Discretionary: Dining out, Entertainment, Shopping, Travel, Hobbies, Gifts, Luxury.
+            </Text>
           </View>
-
           <View style={styles.sheetItem}>
-            <MaterialCommunityIcons
-              name="bank"
-              size={20}
-              color={theme.colors.success}
-              style={styles.sheetIcon}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.sheetLabel, { color: theme.colors.text }]}>
-                Savings (20%)
-              </Text>
-              <Text
-                style={[
-                  styles.sheetDesc,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Money transferred to your defined Savings Goals.
-              </Text>
-            </View>
+            <Text style={[styles.sheetLabel, { color: NWS_COLORS.savings.main }]}>Savings (20%)</Text>
+            <Text style={[styles.sheetDesc, { color: theme.colors.textSecondary }]}>
+              Investments, Debt repayment above minimum, Transfers to savings goals.
+            </Text>
           </View>
+          <Text style={[styles.sheetNote, { color: theme.colors.textTertiary }]}>
+            Transactions are auto-classified by category. You can override the classification when adding a transaction.
+          </Text>
         </View>
       </QSInfoSheet>
 
-      {/* Responsive chart + legend: stack on narrow screens */}
-      <View
-        style={[
-          styles.chartRow,
-          isNarrow ? { flexDirection: "column", alignItems: "center" } : {},
-        ]}
-      >
-        <View
-          style={[styles.chartWrapper, isNarrow ? { marginBottom: 12 } : {}]}
-        >
+      {/* Pie + Legend */}
+      <View style={styles.chartRow}>
+        <View style={styles.chartWrapper}>
           <Animated.View entering={FadeInUp.duration(500)}>
             <PieChart
               donut
-              radius={radius}
-              innerRadius={innerRadius}
+              radius={72}
+              innerRadius={50}
               innerCircleColor={theme.colors.card}
               toggleFocusOnPress
               isAnimated
               animationDuration={900}
               data={pieData}
-              centerLabelComponent={() => {
-                return (
-                  <View
-                    style={{ justifyContent: "center", alignItems: "center" }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        color: theme.colors.text,
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {formatCurrency(total)}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: theme.colors.textSecondary,
-                      }}
-                    >
-                      Total
-                    </Text>
-                  </View>
-                );
-              }}
+              centerLabelComponent={() => (
+                <View style={styles.centerLabel}>
+                  <Text style={[styles.centerValue, { color: theme.colors.text }]}>
+                    {formatCurrency(total)}
+                  </Text>
+                  <Text style={[styles.centerLabelText, { color: theme.colors.textSecondary }]}>
+                    Total
+                  </Text>
+                </View>
+              )}
             />
           </Animated.View>
         </View>
 
-        {/* Legend */}
-        {isNarrow ? (
-          <View style={styles.compactLegendRow}>
-            {pieData.map((item, index) => (
-              <Pressable
-                key={index}
-                style={({ pressed }) => [
-                  styles.compactLegendItem,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-                onPress={() =>
-                  onSegmentPress?.(
-                    item.type as any,
-                    `${item.name} Transactions`,
-                  )
-                }
-              >
-                <View
-                  style={[styles.legendDot, { backgroundColor: item.color }]}
-                />
-                <Text
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
-                    styles.compactLegendLabel,
-                    { color: theme.colors.text },
-                  ]}
-                >
+        <View style={styles.legendContainer}>
+          {pieData.map((item, index) => (
+            <Pressable
+              key={index}
+              style={({ pressed }) => [styles.legendItem, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={item.onPress}
+            >
+              <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} style={[styles.legendLabel, { color: theme.colors.text }]}>
                   {item.name}
                 </Text>
-                <Text
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
-                    styles.compactLegendValue,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {item.percentage}% • {formatCurrency(item.value)}
+                <Text style={[styles.legendValue, { color: theme.colors.textSecondary }]}>
+                  {formatCurrency(item.value)} • {item.percentage}%
                 </Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <View
-            style={[
-              styles.legendContainer,
-              isNarrow
-                ? { marginLeft: 0, alignItems: "center", width: "100%" }
-                : {},
-            ]}
-          >
-            {pieData.map((item, index) => (
-              <Pressable
-                key={index}
-                style={({ pressed }) => [
-                  styles.legendItem,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
-                onPress={() =>
-                  onSegmentPress?.(
-                    item.type as any,
-                    `${item.name} Transactions`,
-                  )
-                }
-              >
-                <View
-                  style={[styles.legendDot, { backgroundColor: item.color }]}
-                />
-                <View style={{ maxWidth: isNarrow ? 160 : 220 }}>
-                  <Text
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    style={[styles.legendLabel, { color: theme.colors.text }]}
-                  >
-                    {item.name} ({item.percentage}%)
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    style={[
-                      styles.legendValue,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {formatCurrency(item.value)}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
+              </View>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
-      {/* 50/30/20 Rule Analysis */}
-      <View style={styles.analysisContainer}>
-        <View style={[styles.analysisBar, { backgroundColor: `${theme.colors.textTertiary}15` }]}>
-          <View style={[styles.analysisSeg, { flex: 50, backgroundColor: "#4F46E5" }]} />
-          <View style={[styles.analysisSeg, { flex: 30, backgroundColor: "#EC4899" }]} />
-          <View style={[styles.analysisSeg, { flex: 20, backgroundColor: "#10B981" }]} />
+      {/* 50/30/20 Goal Comparison */}
+      <View style={[styles.goalSection, { borderTopColor: theme.colors.border }]}>
+        <View style={styles.goalRow}>
+          {idealSegments.map((seg, i) => {
+            const actual = actualSegments[i];
+            const dev = getDeviation(actual.pct, seg.pct);
+            return (
+              <View key={seg.label} style={styles.goalColumn}>
+                <Text style={[styles.goalLabel, { color: theme.colors.textSecondary }]}>
+                  {seg.label}
+                </Text>
+                <View style={styles.goalBarOuter}>
+                  <View
+                    style={[
+                      styles.goalBarIdeal,
+                      {
+                        backgroundColor: seg.color + "25",
+                        height: 8,
+                        width: "100%",
+                        borderRadius: 4,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.goalBarActual,
+                        {
+                          backgroundColor: seg.color,
+                          width: `${Math.min(actual.pct / seg.pct * 100, 100)}%`,
+                          height: 8,
+                          borderRadius: 4,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+                <View style={styles.goalPctRow}>
+                  <Text style={[styles.goalIdeal, { color: theme.colors.textTertiary }]}>
+                    {seg.pct}%
+                  </Text>
+                  <Text
+                    style={[
+                      styles.goalDeviation,
+                      {
+                        color: dev ? (dev.startsWith("+") ? NWS_COLORS.wants.main : NWS_COLORS.needs.main) : theme.colors.textTertiary,
+                      },
+                    ]}
+                  >
+                    {dev || "✓"}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
         </View>
-        <Text
-          style={[styles.analysisText, { color: theme.colors.textSecondary }]}
-        >
-          50% Needs · 30% Wants · 20% Savings
-        </Text>
       </View>
-    </View>
+
+      {/* Quick Stats */}
+      <View style={[styles.statsRow, { borderTopColor: theme.colors.border }]}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: NWS_COLORS.needs.main }]}>
+            {needsPct.toFixed(0)}%
+          </Text>
+          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+            Needs
+          </Text>
+        </View>
+        <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: NWS_COLORS.wants.main }]}>
+            {wantsPct.toFixed(0)}%
+          </Text>
+          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+            Wants
+          </Text>
+        </View>
+        <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: NWS_COLORS.savings.main }]}>
+            {savingsPct.toFixed(0)}%
+          </Text>
+          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+            Savings
+          </Text>
+        </View>
+      </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 8,
+  card: {
+    borderRadius: 24,
+    padding: 24,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+    overflow: "hidden",
   },
-  headerRow: {
-    flexDirection: "row",
+  emptyCard: {
+    borderRadius: 24,
+    padding: 24,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderWidth: 1,
     alignItems: "center",
-    justifyContent: "flex-end",
-    marginBottom: 8,
-    gap: 4,
+    justifyContent: "center",
+    height: 120,
   },
-  infoLink: {
-    fontSize: 12,
+  emptyText: {
+    fontSize: 14,
     fontWeight: "500",
   },
-  infoBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-    gap: 6,
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  subtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 0.2,
+  },
+  infoButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(99,102,241,0.3)",
   },
   infoText: {
     fontSize: 12,
-    lineHeight: 18,
+    fontWeight: "600",
   },
   chartRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between", // Ensure space is used
-    paddingHorizontal: 0, // Remove padding to use full width
+    gap: 16,
   },
   chartWrapper: {
     alignItems: "center",
     justifyContent: "center",
-    flex: 1, // Allow chart to take space
   },
-  emptyContainer: {
-    height: 150,
+  centerLabel: {
     justifyContent: "center",
     alignItems: "center",
   },
-  emptyText: {
-    fontSize: 14,
+  centerValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  centerLabelText: {
+    fontSize: 10,
   },
   legendContainer: {
     flex: 1,
-    marginLeft: 16, // Reduced margin
     justifyContent: "center",
     gap: 12,
-  },
-  /* Compact legend (narrow screens) */
-  compactLegendRow: {
-    flexDirection: "row",
-    width: "100%",
-    justifyContent: "space-between",
-    gap: 8,
-    marginTop: 8,
-  },
-  compactLegendItem: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  compactLegendLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  compactLegendValue: {
-    fontSize: 12,
-    marginTop: 4,
   },
   legendItem: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
   legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   legendLabel: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   legendValue: {
     fontSize: 12,
+    marginTop: 1,
   },
-  analysisContainer: {
-    marginTop: 12,
-    paddingTop: 12,
+  goalSection: {
+    marginTop: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "rgba(150, 150, 150, 0.1)",
-    alignItems: "center",
-    gap: 8,
   },
-  analysisBar: {
+  goalRow: {
     flexDirection: "row",
-    height: 6,
-    borderRadius: 3,
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  goalColumn: {
+    flex: 1,
+    gap: 6,
+  },
+  goalLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  goalBarOuter: {
     overflow: "hidden",
-    width: "100%",
   },
-  analysisSeg: {
-    height: "100%",
+  goalBarIdeal: {
+    overflow: "hidden",
   },
-  analysisText: {
-    fontSize: 12,
-    fontStyle: "italic",
+  goalBarActual: {},
+  goalPctRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  goalIdeal: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  goalDeviation: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
+    opacity: 0.3,
   },
   sheetContent: {
     gap: 16,
   },
   sheetItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  sheetIcon: {
-    marginTop: 2,
+    gap: 4,
   },
   sheetLabel: {
     fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
+    fontWeight: "700",
   },
   sheetDesc: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  sheetNote: {
+    fontSize: 12,
+    fontStyle: "italic",
+    marginTop: 8,
   },
 });

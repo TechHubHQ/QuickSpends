@@ -11,11 +11,15 @@ export interface MonthlyPlan {
   updated_at: string;
 }
 
+export type CoverMethod = "credit_card" | "loan" | "savings" | "overdraft" | "borrowed" | "other";
+
 export interface PlanItem {
   id: string;
   plan_id: string;
-  source_type: "bill" | "recurring" | "loan" | "savings" | "manual";
+  source_type: "bill" | "recurring" | "loan" | "savings" | "manual" | "deficit_cover";
   source_id?: string;
+  cover_method?: CoverMethod;
+  reference_id?: string;
   label: string;
   type: "income" | "expense";
   amount: number;
@@ -199,6 +203,58 @@ export const useMonthlyPlans = () => {
       } catch (err: any) {
         setError(err.message);
         return null;
+      }
+    },
+    [],
+  );
+
+  const addDeficitCover = useCallback(
+    async (
+      planId: string,
+      item: {
+        method: CoverMethod;
+        amount: number;
+        label: string;
+        reference_id?: string;
+      },
+    ): Promise<PlanItem | null> => {
+      try {
+        const { data, error } = await supabase
+          .from("plan_items")
+          .insert({
+            plan_id: planId,
+            source_type: "deficit_cover",
+            cover_method: item.method,
+            reference_id: item.reference_id || null,
+            label: item.label,
+            type: "income",
+            amount: item.amount,
+            status: "pending",
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        return data as PlanItem;
+      } catch (err: any) {
+        setError(err.message);
+        return null;
+      }
+    },
+    [],
+  );
+
+  const removeDeficitCover = useCallback(
+    async (itemId: string): Promise<boolean> => {
+      try {
+        const { error } = await supabase
+          .from("plan_items")
+          .delete()
+          .eq("id", itemId);
+        if (error) throw error;
+        return true;
+      } catch (err: any) {
+        setError(err.message);
+        return false;
       }
     },
     [],
@@ -725,6 +781,8 @@ export const useMonthlyPlans = () => {
     updatePlanNotes,
     getPlanItems,
     addManualItem,
+    addDeficitCover,
+    removeDeficitCover,
     updateItem,
     deleteItem,
     settleItem,

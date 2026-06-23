@@ -745,7 +745,7 @@ export const useAnalytics = () => {
           .from("transactions")
           .select(
             `
-            id, amount, type, date, savings_id, name,
+            id, amount, type, date, savings_id, name, nws_type,
             category:categories!transactions_category_id_fkey(name, icon, color, parent:parent_id(name))
           `,
           )
@@ -788,8 +788,11 @@ export const useAnalytics = () => {
             category_color: cat?.color,
           };
 
+          // Use nws_type if set, otherwise fall back to old logic
+          const nwsType = t.nws_type;
+
           // 1. Savings
-          if (t.type === "transfer" && t.savings_id) {
+          if (nwsType === 'savings' || (t.type === "transfer" && t.savings_id)) {
             savings += t.amount;
             savingsTransactions.push(txnForList);
             return;
@@ -797,7 +800,7 @@ export const useAnalytics = () => {
 
           // 2. Expenses -> Needs vs Wants
           if (t.type === "expense") {
-            if (isNeed(catName, parentName)) {
+            if (nwsType === 'needs' || (!nwsType && isNeed(catName, parentName))) {
               needs += t.amount;
               needsTransactions.push(txnForList);
             } else {
@@ -1296,6 +1299,63 @@ export const useAnalytics = () => {
     }
   }, []);
 
+  const getTrendProjection = useCallback(async (userId: string, months: number = 3): Promise<TrendProjection> => {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - months);
+
+      const { data: transactions } = await supabase
+        .from("transactions")
+        .select(`
+          amount, type, date,
+          category:categories!transactions_category_id_fkey (name, icon, color)
+        `)
+        .eq("user_id", userId)
+        .eq("type", "expense")
+        .gte("date", startDate.toISOString())
+        .lte("date", endDate.toISOString());
+
+      if (!transactions || transactions.length === 0) {
+        return { categories: [], projectedTotal: 0, monthlyAverage: 0 };
+      }
+
+      const categoryTotals: Record<string, { name: string; icon?: string; color?: string; total: number; count: number }> = {};
+      let grandTotal = 0;
+
+      for (const txn of transactions) {
+        const t = txn as any;
+        const catName = t.category?.name || "Uncategorized";
+        if (!categoryTotals[catName]) {
+          categoryTotals[catName] = { name: catName, icon: t.category?.icon, color: t.category?.color, total: 0, count: 0 };
+        }
+        categoryTotals[catName].total += t.amount;
+        categoryTotals[catName].count += 1;
+        grandTotal += t.amount;
+      }
+
+      const categories = Object.values(categoryTotals)
+        .map((c) => ({
+          name: c.name,
+          icon: c.icon,
+          color: c.color,
+          monthlyAverage: c.total / months,
+          transactionCount: c.count,
+          percentage: grandTotal > 0 ? (c.total / grandTotal) * 100 : 0,
+        }))
+        .sort((a, b) => b.monthlyAverage - a.monthlyAverage);
+
+      return {
+        categories,
+        projectedTotal: grandTotal / months,
+        monthlyAverage: grandTotal / months,
+      };
+    } catch (err: any) {
+      setError(err.message);
+      return { categories: [], projectedTotal: 0, monthlyAverage: 0 };
+    }
+  }, []);
+
   return useMemo(
     () => ({
       getNetWorth,
@@ -1309,6 +1369,7 @@ export const useAnalytics = () => {
       getSpendingVelocity,
       getUpcomingBills,
       getDebtHealth,
+      getTrendProjection,
       loading,
       error,
     }),
@@ -1324,6 +1385,7 @@ export const useAnalytics = () => {
       getSpendingVelocity,
       getUpcomingBills,
       getDebtHealth,
+      getTrendProjection,
       loading,
       error,
     ],
@@ -1347,4 +1409,17 @@ export interface SpendingInsights {
   } | null;
   trendMessage: string;
   suggestion: string;
+}
+
+export interface TrendProjection {
+  categories: {
+    name: string;
+    icon?: string;
+    color?: string;
+    monthlyAverage: number;
+    transactionCount: number;
+    percentage: number;
+  }[];
+  projectedTotal: number;
+  monthlyAverage: number;
 }

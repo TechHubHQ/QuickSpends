@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
@@ -24,6 +24,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { useTrips } from "../hooks/useTrips";
 import { createStyles } from "../styles/QSAddTransaction.styles";
 import { useTheme } from "../theme/ThemeContext";
+import { NwsType, NWS_DISPLAY, classifyNws } from "../utils/nwsClassification";
 
 type TransactionType = 'income' | 'expense' | 'transfer';
 type RecurringType = 'one-time' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -107,6 +108,22 @@ export default function QSAddTransactionScreen() {
         } : null
     );
     const [showTagPicker, setShowTagPicker] = useState(false);
+
+    const [nwsType, setNwsType] = useState<NwsType | null>(editTransaction?.nws_type || null);
+
+    const autoNwsType = useMemo(() => {
+      if (editTransaction?.nws_type) return editTransaction.nws_type;
+      if (isSavings) return 'savings' as NwsType;
+      const selCat = getSelectedCategory();
+      const selSub = getSelectedSubCategory();
+      return classifyNws(selCat?.name, selSub?.name, savingsId || null);
+    }, [categoryId, subCategoryId, savingsId, isSavings, editTransaction]);
+
+    useEffect(() => {
+      if (!nwsType) {
+        setNwsType(autoNwsType);
+      }
+    }, [autoNwsType]);
 
     // Track which link pills are active
     const [activeLinks, setActiveLinks] = useState<Record<string, boolean>>({
@@ -289,6 +306,7 @@ export default function QSAddTransactionScreen() {
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
                 tag_id: selectedTag?.id || undefined,
+                nws_type: nwsType,
             });
 
             if (success) {
@@ -337,6 +355,7 @@ export default function QSAddTransactionScreen() {
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
                 tag_id: selectedTag?.id || undefined,
+                nws_type: nwsType,
             }, recurringOptions);
 
             if (success) {
@@ -490,8 +509,43 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
+                        {/* NWS Type */}
+                        <Animated.View entering={FadeInDown.delay(470).springify()} style={styles.inputGroup}>
+                            <Text style={styles.label}>Type</Text>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                {(['needs', 'wants', 'savings'] as NwsType[]).map((t) => {
+                                    const info = NWS_DISPLAY[t];
+                                    const isActive = nwsType === t;
+                                    return (
+                                        <TouchableOpacity
+                                            key={t}
+                                            style={[
+                                                styles.typeButton,
+                                                {
+                                                    flex: 1,
+                                                    borderWidth: 2,
+                                                    borderColor: isActive ? info.color : theme.colors.border,
+                                                    backgroundColor: isActive ? info.lightColor : theme.colors.card,
+                                                },
+                                            ]}
+                                            onPress={() => setNwsType(t === nwsType ? null : t)}
+                                        >
+                                            <Text style={[styles.typeText, { color: isActive ? info.color : theme.colors.textSecondary, fontWeight: isActive ? '700' : '500' }]}>
+                                                {info.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                            {nwsType !== autoNwsType && nwsType !== null && (
+                                <Text style={{ fontSize: 11, color: theme.colors.textTertiary, marginTop: 4, marginLeft: 4, fontStyle: 'italic' }}>
+                                    Overridden (auto: {NWS_DISPLAY[autoNwsType]?.label?.toLowerCase() ?? 'none'})
+                                </Text>
+                            )}
+                        </Animated.View>
+
                         {/* Description */}
-                        <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputGroup}>
+                        <Animated.View entering={FadeInDown.delay(520).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Description</Text>
                             <View style={styles.toolbar}>
                                 <TouchableOpacity

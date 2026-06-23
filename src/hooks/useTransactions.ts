@@ -1,6 +1,7 @@
 import { endOfDay, startOfDay } from "date-fns";
 import { useCallback, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { classifyNws, NwsType } from "../utils/nwsClassification";
 
 export interface Transaction {
   id: string;
@@ -29,6 +30,7 @@ export interface Transaction {
   tag_name?: string;
   tag_color?: string;
   tag_is_event?: boolean;
+  nws_type?: NwsType | null;
 }
 
 export const useTransactions = () => {
@@ -663,7 +665,27 @@ export const useTransactions = () => {
           recurringId = recConfig.id;
         }
 
-        // 2. Insert transaction
+        // 2a. Auto-classify NWS type
+        let nwsType: NwsType | null = transaction.nws_type ?? null;
+        if (!nwsType && transaction.type !== 'income') {
+          if (transaction.savings_id) {
+            nwsType = 'savings';
+          } else if (transaction.category_id) {
+            const { data: cat } = await supabase
+              .from("categories")
+              .select("name, parent:parent_id(name)")
+              .eq("id", transaction.category_id)
+              .maybeSingle();
+            const catData = cat as any;
+            nwsType = classifyNws(
+              catData?.parent?.name || catData?.name,
+              catData?.parent ? catData?.name : null,
+              null,
+            );
+          }
+        }
+
+        // 2b. Insert transaction
         const { data: newTrans, error: transError } = await supabase
           .from("transactions")
           .insert({
@@ -682,6 +704,7 @@ export const useTransactions = () => {
             savings_id: transaction.savings_id || null,
             loan_id: transaction.loan_id || null,
             tag_id: transaction.tag_id || null,
+            nws_type: nwsType,
           })
           .select()
           .single();

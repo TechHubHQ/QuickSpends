@@ -51,7 +51,7 @@ export const useSavings = () => {
         }
     }, []);
 
-    const addSavingsGoal = useCallback(async (goal: Omit<SavingsGoal, 'id' | 'current_amount' | 'created_at'>) => {
+    const addSavingsGoal = useCallback(async (goal: Omit<SavingsGoal, 'id' | 'current_amount' | 'created_at'>, initialAmount?: number) => {
         setLoading(true);
         setError(null);
         try {
@@ -60,7 +60,7 @@ export const useSavings = () => {
                 .insert({
                     ...goal,
                     user_id: (await supabase.auth.getUser()).data.user?.id,
-                    current_amount: 0
+                    current_amount: initialAmount ?? 0
                 })
                 .select()
                 .single();

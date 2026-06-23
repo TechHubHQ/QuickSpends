@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { format } from "date-fns";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
@@ -17,6 +17,7 @@ import {
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { LineChart } from "react-native-gifted-charts";
 import { useAlert } from "../context/AlertContext";
 import { useAuth } from "../context/AuthContext";
 import { SavingsGoal, useSavings } from "../hooks/useSavings";
@@ -116,6 +117,20 @@ export default function QSSavingDetailsScreen() {
 
     const progress = getSavingsProgress(goal);
     const color = goal.category_color || theme.colors.primary;
+
+    const chartData = useMemo(() => {
+      if (transactions.length === 0) return [];
+      const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let balance = 0;
+      return sorted.map((t) => {
+        const change = (t.type === 'income' || t.type === 'transfer') ? t.amount : -t.amount;
+        balance += change;
+        return {
+          value: Math.max(0, balance),
+          label: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        };
+      });
+    }, [transactions]);
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -229,13 +244,49 @@ export default function QSSavingDetailsScreen() {
                     </View>
                 </Animated.View>
 
+                    {chartData.length > 1 && (
+                      <Animated.View entering={FadeInUp.delay(200).springify()} style={[styles.chartCard, { backgroundColor: theme.colors.surface, borderColor: theme.isDark ? '#334155' : '#E2E8F0' }]}>
+                        <Text style={[styles.chartTitle, { color: theme.colors.text }]}>Balance History</Text>
+                        <LineChart
+                          data={chartData}
+                          height={100}
+                          width={width - 80}
+                          color={color}
+                          thickness={2}
+                          hideDataPoints
+                          hideRules
+                          hideYAxisText
+                          xAxisThickness={0}
+                          yAxisThickness={0}
+                          xAxisLabelTextStyle={{ color: 'transparent', fontSize: 1 }}
+                          curved
+                          isAnimated
+                          animationDuration={800}
+                          areaChart
+                          startFillColor={color}
+                          startOpacity={0.2}
+                          endFillColor={color}
+                          endOpacity={0.02}
+                          initialSpacing={10}
+                          endSpacing={10}
+                        />
+                      </Animated.View>
+                    )}
+
                 <View style={styles.actionButtons}>
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: theme.colors.primary, flex: 1 }]}
+                        style={[styles.actionButton, { backgroundColor: theme.colors.success, flex: 1 }]}
                         onPress={() => router.push({ pathname: "/add-transaction", params: { initialType: 'transfer', savingsId: goal.id } })}
                     >
-                        <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
+                        <MaterialCommunityIcons name="bank-transfer-in" size={20} color={theme.colors.onPrimary} />
                         <Text style={[styles.actionText, { color: theme.colors.onPrimary }]}>Add Funds</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: theme.colors.error, flex: 1 }]}
+                        onPress={() => router.push({ pathname: "/add-transaction", params: { initialType: 'expense', savingsId: goal.id } })}
+                    >
+                        <MaterialCommunityIcons name="cash-minus" size={20} color={theme.colors.onPrimary} />
+                        <Text style={[styles.actionText, { color: theme.colors.onPrimary }]}>Add Expense</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -428,6 +479,19 @@ const styles = StyleSheet.create({
     detailValue: {
         fontSize: 14,
         fontWeight: '700',
+    },
+    chartCard: {
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 24,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    chartTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        marginBottom: 12,
+        alignSelf: 'flex-start',
     },
     actionButtons: {
         flexDirection: 'row',

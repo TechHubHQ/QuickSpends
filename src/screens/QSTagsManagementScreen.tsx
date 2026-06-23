@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -21,6 +20,7 @@ import Toast from "react-native-toast-message";
 import { QSDatePicker } from "../components/QSDatePicker";
 import { QSHeader } from "../components/QSHeader";
 import { useAuth } from "../context/AuthContext";
+import { useAlert } from "../context/AlertContext";
 import { Tag, useTags } from "../hooks/useTags";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -144,8 +144,10 @@ export default function QSTagsManagementScreen() {
     }
   };
 
+  const { showAlert } = useAlert();
+
   const handleDelete = (tag: Tag) => {
-    Alert.alert("Delete Tag", `Permanently delete "${tag.name}"? Transactions linked will be unlinked.`, [
+    showAlert("Delete Tag", `Permanently delete "${tag.name}"? Transactions linked will be unlinked.`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",

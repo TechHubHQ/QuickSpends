@@ -1,10 +1,10 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { Settlement, useSettlements } from "../hooks/useSettlements";
+import { TrendProjection, useAnalytics } from "../hooks/useAnalytics";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
+  ActivityIndicator, KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -17,11 +17,16 @@ import {
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { PieChart } from "react-native-gifted-charts";
 import { QSButton } from "../components/QSButton";
+import { QSDatePicker } from "../components/QSDatePicker";
 import { QSHeader } from "../components/QSHeader";
 import { QSMonthSelector } from "../components/QSMonthSelector";
 import { QSTabbedSection } from "../components/QSTabbedSection";
+import { useAlert } from "../context/AlertContext";
 import { useAuth } from "../context/AuthContext";
+import { Account, useAccounts } from "../hooks/useAccounts";
+import { Loan, useLoans } from "../hooks/useLoans";
 import {
+  CoverMethod,
   ForecastMonth,
   PlanItem,
   PlanVsActual,
@@ -66,10 +71,13 @@ export default function QSMonthlyPlannerScreen() {
   const { theme } = useTheme();
   const styles = createStyles(theme);
   const { user } = useAuth();
+  const { showAlert } = useAlert();
   const {
     getOrCreatePlan,
     getPlanItems,
     addManualItem,
+    addDeficitCover,
+    removeDeficitCover,
     updateItem,
     deleteItem,
     settleItem,
@@ -96,6 +104,24 @@ export default function QSMonthlyPlannerScreen() {
   const [newItemLabel, setNewItemLabel] = useState("");
   const [newItemAmount, setNewItemAmount] = useState("");
 
+  const { getSettlements } = useSettlements();
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
+
+  const { getTrendProjection } = useAnalytics();
+  const [trendProjection, setTrendProjection] = useState<TrendProjection | null>(null);
+
+  const { getAccountsByUser } = useAccounts();
+  const { getLoans } = useLoans();
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [borrowedLoans, setBorrowedLoans] = useState<Loan[]>([]);
+
+  // Bill/EMI add state
+  const [showAddBill, setShowAddBill] = useState(false);
+  const [newBillLabel, setNewBillLabel] = useState("");
+  const [newBillAmount, setNewBillAmount] = useState("");
+  const [newBillDueDate, setNewBillDueDate] = useState(new Date());
+  const [showBillDatePicker, setShowBillDatePicker] = useState(false);
+
   // Edit state
   const [editingItem, setEditingItem] = useState<PlanItem | null>(null);
   const [editLabel, setEditLabel] = useState("");
@@ -105,6 +131,15 @@ export default function QSMonthlyPlannerScreen() {
   // Simulator state
   const [simAdjustments, setSimAdjustments] = useState<Record<string, number>>({});
   const [simEnabled, setSimEnabled] = useState(false);
+
+  // Deficit cover state
+  const [showCoverSheet, setShowCoverSheet] = useState(false);
+  const [coverMethod, setCoverMethod] = useState<CoverMethod | null>(null);
+  const [coverAmount, setCoverAmount] = useState("");
+  const [coverSourceId, setCoverSourceId] = useState<string | null>(null);
+  const [coverLabel, setCoverLabel] = useState("");
+  const [accountsModal, setAccountsModal] = useState(false);
+  const [loansModal, setLoansModal] = useState(false);
 
   const monthKey = getMonthKey(currentMonth);
 
@@ -127,7 +162,9 @@ export default function QSMonthlyPlannerScreen() {
     if (!user) return;
     const data = await getForecast(user.id, 6);
     setForecast(data);
-  }, [user, getForecast]);
+    const proj = await getTrendProjection(user.id, 3);
+    setTrendProjection(proj);
+  }, [user, getForecast, getTrendProjection]);
 
   const loadAnalytics = useCallback(async () => {
     if (!user) return;
@@ -145,7 +182,14 @@ export default function QSMonthlyPlannerScreen() {
   useEffect(() => {
     if (activeTab === "forecast") loadForecast();
     if (activeTab === "analytics") loadAnalytics();
-  }, [activeTab, loadForecast, loadAnalytics]);
+    if (activeTab === "settle" && user) {
+      getSettlements(user.id).then(setSettlements);
+    }
+    if (activeTab === "plan" && user) {
+      getAccountsByUser(user.id).then(setAccounts);
+      getLoans(user.id).then(setBorrowedLoans);
+    }
+  }, [activeTab, loadForecast, loadAnalytics, user, getSettlements, getAccountsByUser, getLoans]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -186,6 +230,24 @@ export default function QSMonthlyPlannerScreen() {
     await loadPlan();
   };
 
+  const handleAddBill = async () => {
+    if (!plan || !newBillLabel.trim() || !newBillAmount) return;
+    const amount = parseFloat(newBillAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    await addManualItem(plan.id, {
+      label: newBillLabel.trim(),
+      type: "expense",
+      amount,
+      due_date: newBillDueDate.toISOString(),
+    });
+    setNewBillLabel("");
+    setNewBillAmount("");
+    setNewBillDueDate(new Date());
+    setShowAddBill(false);
+    await loadPlan();
+  };
+
   const openEditItem = (item: PlanItem) => {
     setEditingItem(item);
     setEditLabel(item.label);
@@ -218,7 +280,7 @@ export default function QSMonthlyPlannerScreen() {
       ? "This removes the plan entry only. It won't affect the original bill, recurring config, or savings goal."
       : "Delete this manual entry?";
 
-    Alert.alert("Delete Item", `Remove "${item.label}"?\n\n${warning}`, [
+    showAlert("Delete Item", `Remove "${item.label}"?\n\n${warning}`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -231,8 +293,98 @@ export default function QSMonthlyPlannerScreen() {
     ]);
   };
 
+  const handleOpenCoverSheet = (method: CoverMethod) => {
+    setCoverMethod(method);
+    const deficitAmount = Math.abs(surplus) - totalCovered;
+    setCoverAmount(String(Math.max(0, deficitAmount)));
+    setCoverSourceId(null);
+
+    if (method === "credit_card") {
+      setAccountsModal(true);
+    } else if (method === "loan" || method === "borrowed") {
+      setLoansModal(true);
+    } else if (method === "savings") {
+      setAccountsModal(true);
+    } else if (method === "overdraft") {
+      setAccountsModal(true);
+      setCoverLabel("Overdraft");
+      setShowCoverSheet(true);
+    } else {
+      setCoverLabel("");
+      setShowCoverSheet(true);
+    }
+  };
+
+  const handleAccountSelected = (account: Account) => {
+    setCoverSourceId(account.id);
+    setAccountsModal(false);
+    if (coverMethod === "credit_card") {
+      const avail = (account.credit_limit || 0) - Math.max(0, account.balance);
+      setCoverLabel(`Cover via ${account.name} (Credit Card)`);
+      if (!coverAmount || parseFloat(coverAmount) === 0) {
+        setCoverAmount(String(Math.max(0, Math.min(Math.abs(surplus) - totalCovered, avail))));
+      }
+    } else if (coverMethod === "savings") {
+      setCoverLabel(`Withdraw from ${account.name}`);
+      if (!coverAmount || parseFloat(coverAmount) === 0) {
+        setCoverAmount(String(Math.max(0, Math.abs(surplus) - totalCovered)));
+      }
+    } else if (coverMethod === "overdraft") {
+      setCoverLabel(`Overdraft: ${account.name}`);
+      if (!coverAmount || parseFloat(coverAmount) === 0) {
+        setCoverAmount(String(Math.max(0, Math.abs(surplus) - totalCovered)));
+      }
+    }
+    setShowCoverSheet(true);
+  };
+
+  const handleLoanSelected = (loan: Loan) => {
+    setCoverSourceId(loan.id);
+    setLoansModal(false);
+    setCoverLabel(`Borrow from ${loan.person_name}`);
+    if (!coverAmount || parseFloat(coverAmount) === 0) {
+      setCoverAmount(String(Math.max(0, Math.abs(surplus) - totalCovered)));
+    }
+    setShowCoverSheet(true);
+  };
+
+  const handleAddCoverItem = async () => {
+    if (!plan || !coverMethod || !coverAmount) return;
+    const amount = parseFloat(coverAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    const label = coverLabel || `Cover via ${coverMethod.replace("_", " ")}`;
+    await addDeficitCover(plan.id, {
+      method: coverMethod,
+      amount,
+      label,
+      reference_id: coverSourceId || undefined,
+    });
+
+    setCoverMethod(null);
+    setCoverAmount("");
+    setCoverSourceId(null);
+    setCoverLabel("");
+    setShowCoverSheet(false);
+    await loadPlan();
+  };
+
+  const handleDeleteCoverItem = (item: PlanItem) => {
+    showAlert("Remove Cover Item", `Remove "${item.label}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          await removeDeficitCover(item.id);
+          await loadPlan();
+        },
+      },
+    ]);
+  };
+
   const handleSettleItem = async (item: PlanItem) => {
-    Alert.alert(
+    showAlert(
       `Settle: ${item.label}`,
       `Amount: ${formatCurrency(item.amount)}\n\nMark this as paid? You can add a transaction separately.`,
       [
@@ -271,6 +423,14 @@ export default function QSMonthlyPlannerScreen() {
   const totalSettled = settledItems.reduce((s, i) => s + i.amount, 0);
   const settleProgress = totalDue + totalSettled > 0
     ? (totalSettled / (totalDue + totalSettled)) * 100
+    : 0;
+
+  const deficitCoverItems = items.filter((i) => i.source_type === "deficit_cover");
+  const totalCovered = deficitCoverItems.reduce((s, i) => s + i.amount, 0);
+  const isDeficit = surplus < 0;
+  const remainingDeficit = isDeficit ? surplus + totalCovered : 0;
+  const coverProgress = isDeficit && totalCovered > 0
+    ? Math.min(Math.abs(totalCovered / surplus), 1) * 100
     : 0;
 
   const renderAddItemInput = (
@@ -317,6 +477,64 @@ export default function QSMonthlyPlannerScreen() {
     );
   };
 
+  const renderAddBillInput = () => {
+    if (!showAddBill) return null;
+    return (
+      <Animated.View entering={FadeInDown.duration(300)} style={styles.inputCard}>
+        <TextInput
+          placeholder="Bill/EMI name (e.g. Electricity Bill)"
+          placeholderTextColor={theme.colors.textTertiary}
+          value={newBillLabel}
+          onChangeText={setNewBillLabel}
+          style={styles.inputField}
+        />
+        <TextInput
+          placeholder="Amount"
+          placeholderTextColor={theme.colors.textTertiary}
+          value={newBillAmount}
+          onChangeText={setNewBillAmount}
+          keyboardType="numeric"
+          style={styles.inputField}
+        />
+        <Pressable
+          onPress={() => setShowBillDatePicker(true)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingVertical: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: `${theme.colors.textTertiary}30`,
+            marginBottom: 12,
+          }}
+        >
+          <MaterialCommunityIcons name="calendar" size={18} color={theme.colors.primary} style={{ marginRight: 8 }} />
+          <Text style={{ fontSize: 14, color: theme.colors.text, flex: 1 }}>
+            Due: {newBillDueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+          </Text>
+          <MaterialCommunityIcons name="chevron-down" size={18} color={theme.colors.textTertiary} />
+        </Pressable>
+        <View style={styles.inputActions}>
+          <QSButton
+            title="Cancel"
+            onPress={() => {
+              setShowAddBill(false);
+              setNewBillLabel("");
+              setNewBillAmount("");
+              setNewBillDueDate(new Date());
+            }}
+            variant="secondary"
+            style={{ flex: 1 }}
+          />
+          <QSButton
+            title="Add Bill/EMI"
+            onPress={handleAddBill}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </Animated.View>
+    );
+  };
+
   const renderSection = (
     title: string,
     total: number,
@@ -354,7 +572,7 @@ export default function QSMonthlyPlannerScreen() {
                       : item.source_type === "savings"
                         ? "piggy-bank-outline"
                         : item.source_type === "recurring"
-                          ? "calendar-repeat"
+                          ? "calendar-refresh-outline"
                           : type === "income"
                             ? "cash-plus"
                             : "cash-minus"
@@ -447,7 +665,326 @@ export default function QSMonthlyPlannerScreen() {
           {formatCurrency(totalIncome - totalBills)}
         </Text>
       </View>
+      {isDeficit && totalCovered > 0 && (
+        <>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Covering via</Text>
+            <Text style={[styles.summaryAmount, { color: "#22C55E" }]}>
+              +{formatCurrency(totalCovered)}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Remaining deficit</Text>
+            <Text
+              style={[
+                styles.summaryAmount,
+                { color: remainingDeficit >= 0 ? "#22C55E" : theme.colors.error },
+              ]}
+            >
+              {remainingDeficit >= 0 ? "+" : ""}{formatCurrency(remainingDeficit)}
+            </Text>
+          </View>
+        </>
+      )}
     </Animated.View>
+  );
+
+  const renderCoverDeficit = () => {
+    if (!isDeficit) return null;
+
+    const coverMethodEntries: { method: CoverMethod; icon: string; label: string; color: string }[] = [
+      { method: "credit_card", icon: "credit-card-outline", label: "Credit Card", color: "#6366F1" },
+      { method: "loan", icon: "bank-outline", label: "Loan", color: "#F59E0B" },
+      { method: "savings", icon: "piggy-bank-outline", label: "Savings", color: "#22C55E" },
+      { method: "overdraft", icon: "bank-transfer-out", label: "Overdraft", color: "#EF4444" },
+      { method: "borrowed", icon: "handshake-outline", label: "Borrow", color: "#8B5CF6" },
+      { method: "other", icon: "dots-horizontal", label: "Custom", color: "#6B7280" },
+    ];
+
+    return (
+      <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.deficitCoverCard}>
+        <View style={styles.deficitCoverHeader}>
+          <Text style={styles.deficitCoverTitle}>Cover Your Deficit</Text>
+          <Text style={styles.deficitCoverAmount}>{formatCurrency(surplus)}</Text>
+        </View>
+        <Text style={styles.deficitCoverSubtext}>
+          Your plan has a deficit. Choose how to cover the shortfall below.
+        </Text>
+
+        {totalCovered > 0 && (
+          <View style={styles.coverProgressRow}>
+            <View style={styles.coverProgressBar}>
+              <View
+                style={[
+                  styles.coverProgressFill,
+                  {
+                    width: `${coverProgress}%`,
+                    backgroundColor: coverProgress >= 100 ? "#22C55E" : "#F59E0B",
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.coverProgressLabel}>
+              {formatCurrency(totalCovered)} / {formatCurrency(Math.abs(surplus))}
+            </Text>
+          </View>
+        )}
+
+        {deficitCoverItems.map((item) => (
+          <View key={item.id} style={styles.coverItemCard}>
+            <View style={[styles.coverItemIcon, { backgroundColor: "#22C55E18" }]}>
+              <MaterialCommunityIcons
+                name={
+                  item.cover_method === "credit_card"
+                    ? "credit-card-outline"
+                    : item.cover_method === "loan"
+                      ? "bank-outline"
+                      : item.cover_method === "savings"
+                        ? "piggy-bank-outline"
+                        : item.cover_method === "overdraft"
+                          ? "bank-transfer-out"
+                          : item.cover_method === "borrowed"
+                            ? "handshake-outline"
+                            : "dots-horizontal"
+                }
+                size={20}
+                color="#22C55E"
+              />
+            </View>
+            <View style={styles.coverItemInfo}>
+              <Text style={styles.coverItemLabel}>{item.label}</Text>
+              <Text style={styles.coverItemSubtext}>
+                {item.cover_method
+                  ? item.cover_method.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                  : "Cover item"}
+              </Text>
+            </View>
+            <Text style={styles.coverItemAmount}>+{formatCurrency(item.amount)}</Text>
+            <Pressable onPress={() => handleDeleteCoverItem(item)} style={{ padding: 4 }}>
+              <MaterialCommunityIcons name="trash-can-outline" size={16} color={theme.colors.error} />
+            </Pressable>
+          </View>
+        ))}
+
+        {remainingDeficit < 0 && (
+          <View style={styles.coverMethodGrid}>
+            {coverMethodEntries.map((entry) => (
+              <Pressable
+                key={entry.method}
+                style={styles.coverMethodButton}
+                onPress={() => handleOpenCoverSheet(entry.method)}
+              >
+                <View style={[styles.coverMethodIcon, { backgroundColor: `${entry.color}18` }]}>
+                  <MaterialCommunityIcons name={entry.icon as any} size={22} color={entry.color} />
+                </View>
+                <Text style={styles.coverMethodLabel}>{entry.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {remainingDeficit >= 0 && (
+          <View style={styles.coveredBadge}>
+            <MaterialCommunityIcons name="check-circle" size={18} color="#22C55E" />
+            <Text style={styles.coveredBadgeText}>
+              Deficit Covered — {formatCurrency(totalCovered)}
+            </Text>
+          </View>
+        )}
+
+        {renderCoverSheet()}
+        {renderSourcePickerModals()}
+      </Animated.View>
+    );
+  };
+
+  const renderCoverSheet = () => {
+    if (!showCoverSheet || !coverMethod) return null;
+
+    const methodLabels: Record<CoverMethod, string> = {
+      credit_card: "Credit Card",
+      loan: "Loan",
+      savings: "Savings Withdrawal",
+      overdraft: "Overdraft",
+      borrowed: "Borrow from Someone",
+      other: "Custom",
+    };
+
+    const showLabelInput = coverMethod === "borrowed" || coverMethod === "other";
+
+    return (
+      <Modal visible={showCoverSheet} transparent animationType="slide" onRequestClose={() => setShowCoverSheet(false)}>
+        <Pressable style={styles.coverSheetOverlay} onPress={() => setShowCoverSheet(false)}>
+          <Pressable style={styles.coverSheetContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.coverSheetTitle}>Cover via {methodLabels[coverMethod]}</Text>
+
+            {showLabelInput && (
+              <TextInput
+                placeholder="Label (e.g. Borrow from Mom)"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={coverLabel}
+                onChangeText={setCoverLabel}
+                style={styles.coverInput}
+              />
+            )}
+
+            <TextInput
+              placeholder="Amount"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={coverAmount}
+              onChangeText={setCoverAmount}
+              keyboardType="numeric"
+              style={styles.coverInput}
+            />
+
+            {coverMethod === "credit_card" && coverSourceId && (
+              <Text style={[styles.coverItemSubtext, { marginBottom: 12 }]}>
+                Available credit: {
+                  (() => {
+                    const acct = accounts.find(a => a.id === coverSourceId);
+                    if (acct) {
+                      return formatCurrency((acct.credit_limit || 0) - Math.max(0, acct.balance));
+                    }
+                    return "";
+                  })()
+                }
+              </Text>
+            )}
+
+            {coverMethod === "savings" && coverSourceId && (
+              <Text style={[styles.coverItemSubtext, { marginBottom: 12, color: theme.colors.error }]}>
+                {(() => {
+                  const acct = accounts.find(a => a.id === coverSourceId);
+                  if (acct && parseFloat(coverAmount) > acct.balance) {
+                    return `Warning: Balance (${formatCurrency(acct.balance)}) is less than cover amount`;
+                  }
+                  return "";
+                })()}
+              </Text>
+            )}
+
+            <View style={styles.inputActions}>
+              <QSButton title="Cancel" onPress={() => setShowCoverSheet(false)} variant="secondary" style={{ flex: 1 }} />
+              <QSButton title="Add Cover" onPress={handleAddCoverItem} style={{ flex: 1 }} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    );
+  };
+
+  const renderSourcePickerModals = () => (
+    <>
+      {/* Accounts Picker Modal */}
+      <Modal visible={accountsModal} transparent animationType="slide" onRequestClose={() => setAccountsModal(false)}>
+        <Pressable style={styles.coverSheetOverlay} onPress={() => setAccountsModal(false)}>
+          <Pressable style={styles.coverSheetContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.coverSheetTitle}>
+              {coverMethod === "credit_card" ? "Select Credit Card" : coverMethod === "savings" ? "Select Account" : "Select Account"}
+            </Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {accounts
+                .filter((a) => {
+                  if (coverMethod === "credit_card") return a.type === "card" && a.card_type === "credit";
+                  if (coverMethod === "savings") return a.type === "bank" || a.type === "cash";
+                  if (coverMethod === "overdraft") return a.type === "bank";
+                  return false;
+                })
+                .map((account) => {
+                  const isCredit = account.type === "card" && account.card_type === "credit";
+                  const availCredit = isCredit ? (account.credit_limit || 0) - Math.max(0, account.balance) : 0;
+                  return (
+                    <Pressable
+                      key={account.id}
+                      style={[
+                        styles.coverSheetRow,
+                        coverSourceId === account.id && styles.coverSheetRowSelected,
+                      ]}
+                      onPress={() => handleAccountSelected(account)}
+                    >
+                      <MaterialCommunityIcons
+                        name={isCredit ? "credit-card-outline" : "bank-outline"}
+                        size={22}
+                        color={theme.colors.primary}
+                        style={{ marginRight: 12 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.coverSheetRowText}>{account.name}</Text>
+                        <Text style={styles.coverSheetRowSubtext}>
+                          {isCredit
+                            ? `Available: ${formatCurrency(availCredit)}`
+                            : `Balance: ${formatCurrency(account.balance)}`
+                          }
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+            </ScrollView>
+            <QSButton title="Cancel" onPress={() => setAccountsModal(false)} variant="secondary" style={{ marginTop: 12 }} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Loans Picker Modal */}
+      <Modal visible={loansModal} transparent animationType="slide" onRequestClose={() => setLoansModal(false)}>
+        <Pressable style={styles.coverSheetOverlay} onPress={() => setLoansModal(false)}>
+          <Pressable style={styles.coverSheetContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.coverSheetTitle}>
+              {coverMethod === "loan" ? "Select Loan" : "Borrow from Someone"}
+            </Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {coverMethod === "loan" && borrowedLoans
+                .filter((l) => l.type === "borrowed")
+                .map((loan) => (
+                  <Pressable
+                    key={loan.id}
+                    style={[
+                      styles.coverSheetRow,
+                      coverSourceId === loan.id && styles.coverSheetRowSelected,
+                    ]}
+                    onPress={() => handleLoanSelected(loan)}
+                  >
+                    <MaterialCommunityIcons
+                      name="bank-outline"
+                      size={22}
+                      color={theme.colors.primary}
+                      style={{ marginRight: 12 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.coverSheetRowText}>{loan.person_name}</Text>
+                      <Text style={styles.coverSheetRowSubtext}>
+                        Outstanding: {formatCurrency(loan.remaining_amount)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              {(coverMethod === "borrowed" || borrowedLoans.filter(l => l.type === "borrowed").length === 0) && (
+                <Pressable
+                  style={[styles.coverSheetRow, !coverSourceId && styles.coverSheetRowSelected]}
+                  onPress={() => {
+                    setCoverSourceId(null);
+                    setLoansModal(false);
+                    setCoverLabel("Borrow from someone");
+                    setShowCoverSheet(true);
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="account-plus-outline"
+                    size={22}
+                    color={theme.colors.primary}
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text style={styles.coverSheetRowText}>New borrowing (free-text)</Text>
+                </Pressable>
+              )}
+            </ScrollView>
+            <QSButton title="Cancel" onPress={() => setLoansModal(false)} variant="secondary" style={{ marginTop: 12 }} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 
   const renderPlanTab = () => {
@@ -476,6 +1013,7 @@ export default function QSMonthlyPlannerScreen() {
         }
       >
         {renderSummaryCard()}
+        {renderCoverDeficit()}
         {renderAddItemInput("income", showAddIncome, () => setShowAddIncome(false))}
         {renderSection(
           "Expected Income",
@@ -486,11 +1024,14 @@ export default function QSMonthlyPlannerScreen() {
           () => setShowAddIncome(true),
         )}
         {renderAddItemInput("expense", showAddExpense, () => setShowAddExpense(false))}
+        {renderAddBillInput()}
         {renderSection(
           "Bills & EMIs",
           totalBills,
           billItems,
           "expense",
+          true,
+          () => setShowAddBill(true),
         )}
         {renderSection(
           "Expected Expenses",
@@ -744,6 +1285,78 @@ export default function QSMonthlyPlannerScreen() {
             </Text>
           </View>
         </View>
+
+        {trendProjection && (
+          <View
+            style={{
+              margin: theme.spacing.m,
+              padding: theme.spacing.m,
+              backgroundColor: theme.isDark ? "#1E293B" : "#F8FAFC",
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: theme.isDark ? "#334155" : "#E2E8F0",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 15,
+                fontWeight: "700",
+                color: theme.colors.text,
+                marginBottom: 12,
+              }}
+            >
+              Spending Trends (Last 3 Months)
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginBottom: 12,
+                paddingBottom: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.isDark ? "#334155" : "#E2E8F0",
+              }}
+            >
+              <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>Monthly Avg</Text>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.error }}>
+                {formatCurrency(trendProjection.monthlyAverage)}
+              </Text>
+            </View>
+            {trendProjection.categories.slice(0, 5).map((cat, idx) => (
+              <View
+                key={cat.name}
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingVertical: 6,
+                  alignItems: "center",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                  {cat.color && (
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: cat.color,
+                      }}
+                    />
+                  )}
+                  <Text
+                    style={{ fontSize: 13, color: theme.colors.text }}
+                    numberOfLines={1}
+                  >
+                    {cat.name}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: theme.colors.textSecondary }}>
+                  {formatCurrency(cat.monthlyAverage)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {forecast.map((fm) => {
           const fmDate = new Date(fm.month + "-01");
@@ -1184,16 +1797,49 @@ export default function QSMonthlyPlannerScreen() {
 
     if (pendingExpenses.length === 0 && paidItems.length === 0) {
       return (
-        <View style={styles.emptyState}>
-          <MaterialCommunityIcons
-            name="check-circle-outline"
-            size={64}
-            color={theme.colors.textTertiary}
-          />
-          <Text style={styles.emptyText}>
-            No items to settle this month.
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}>
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons
+              name="check-circle-outline"
+              size={64}
+              color={theme.colors.textTertiary}
+            />
+            <Text style={styles.emptyText}>
+              No items to settle this month.
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.section, { marginHorizontal: theme.spacing.m, marginTop: 8 }]}
+            onPress={() => router.push("/settlements" as any)}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: 16,
+                backgroundColor: theme.isDark ? "#1E293B" : "#F8FAFC",
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.isDark ? "#334155" : "#E2E8F0",
+                borderStyle: "dashed",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <MaterialCommunityIcons name="handshake-outline" size={24} color={theme.colors.primary} />
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: theme.colors.text }}>
+                    Settlements
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>
+                    {settlements.filter((s) => s.status === "active").length} active
+                  </Text>
+                </View>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
+            </View>
+          </Pressable>
+        </ScrollView>
       );
     }
 
@@ -1297,6 +1943,38 @@ export default function QSMonthlyPlannerScreen() {
             ))}
           </View>
         )}
+
+        <Pressable
+          style={[styles.section, { marginTop: 8 }]}
+          onPress={() => router.push("/settlements" as any)}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: 16,
+              backgroundColor: theme.isDark ? "#1E293B" : "#F8FAFC",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.isDark ? "#334155" : "#E2E8F0",
+              borderStyle: "dashed",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <MaterialCommunityIcons name="handshake-outline" size={24} color={theme.colors.primary} />
+              <View>
+                <Text style={{ fontSize: 15, fontWeight: "600", color: theme.colors.text }}>
+                  Settlements
+                </Text>
+                <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>
+                  {settlements.filter((s) => s.status === "active").length} active
+                </Text>
+              </View>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
+          </View>
+        </Pressable>
       </ScrollView>
     );
   };
@@ -1319,6 +1997,17 @@ export default function QSMonthlyPlannerScreen() {
       {activeTab === "forecast" && renderForecastTab()}
       {activeTab === "analytics" && renderAnalyticsTab()}
       {activeTab === "settle" && renderSettleTab()}
+
+      {/* Bill/EMI Date Picker */}
+      <QSDatePicker
+        visible={showBillDatePicker}
+        onClose={() => setShowBillDatePicker(false)}
+        selectedDate={newBillDueDate}
+        onSelect={(d) => {
+          setNewBillDueDate(d);
+          setShowBillDatePicker(false);
+        }}
+      />
 
       {/* Edit Item Modal */}
       <Modal transparent visible={showEditModal} animationType="slide" onRequestClose={() => setShowEditModal(false)}>

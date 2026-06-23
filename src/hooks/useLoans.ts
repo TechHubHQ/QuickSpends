@@ -55,20 +55,23 @@ export const useLoans = () => {
         }
     }, []);
 
-    const addLoan = useCallback(async (loan: Omit<Loan, 'id' | 'remaining_amount' | 'created_at' | 'status'>, schedule?: Omit<RepaymentSchedule, 'id' | 'loan_id' | 'status'>[]) => {
+    const addLoan = useCallback(async (loan: Omit<Loan, 'id' | 'remaining_amount' | 'created_at' | 'status'>, schedule?: Omit<RepaymentSchedule, 'id' | 'loan_id' | 'status'>[], alreadyPaidAmount?: number) => {
         setLoading(true);
         setError(null);
         try {
             const userId = (await supabase.auth.getUser()).data.user?.id;
             if (!userId) throw new Error("User not found");
 
+            const paid = alreadyPaidAmount ?? 0;
+            const remaining = Math.max(0, loan.total_amount - paid);
+
             const { data: newLoan, error: loanError } = await supabase
                 .from('loans')
                 .insert({
                     ...loan,
                     user_id: userId,
-                    remaining_amount: loan.total_amount,
-                    status: 'active'
+                    remaining_amount: remaining,
+                    status: remaining <= 0 ? 'closed' : 'active'
                 })
                 .select()
                 .single();
@@ -80,7 +83,7 @@ export const useLoans = () => {
                     loan_id: newLoan.id,
                     due_date: s.due_date,
                     amount: s.amount,
-                    status: 'pending',
+                    status: index < Math.ceil(paid / (s.amount || 1)) ? 'paid' : 'pending',
                     installment_number: index + 1
                 }));
 

@@ -12,6 +12,7 @@ import {
     View
 } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { QSDatePicker } from '../components/QSDatePicker';
 import { QSHeader } from '../components/QSHeader';
 import { useAlert } from '../context/AlertContext';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +22,7 @@ import { useTransactions } from '../hooks/useTransactions';
 import { Theme } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
 import { getNextDueDate } from '../utils/dateUtils';
+import { getSafeIconName } from '../utils/iconMapping';
 
 const QSRecurringTransactionsScreen = () => {
     const { theme } = useTheme();
@@ -43,7 +45,11 @@ const QSRecurringTransactionsScreen = () => {
     const [editName, setEditName] = useState('');
     const [editFrequency, setEditFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
     const [editInterval, setEditInterval] = useState('1');
-    const [isActive, setIsActive] = useState(true); // For pausing/resuming if we support it, otherwise just delete.
+    const [isActive, setIsActive] = useState(true);
+
+    // Schedule state
+    const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+    const [scheduleDate, setScheduleDate] = useState(new Date());
 
     useEffect(() => {
         if (user) {
@@ -183,6 +189,56 @@ const QSRecurringTransactionsScreen = () => {
         }
     };
 
+    const handleScheduleTransaction = async () => {
+        if (!selectedConfig || !user) return;
+
+        setActionLoading(true);
+        try {
+            const transactionId = await addTransaction({
+                user_id: user.id,
+                account_id: selectedConfig.account_id,
+                category_id: selectedConfig.category_id || undefined,
+                name: selectedConfig.name,
+                description: "Scheduled from recurring transaction",
+                amount: selectedConfig.amount,
+                type: selectedConfig.type === 'income' ? 'income' : 'expense',
+                date: scheduleDate.toISOString(),
+                recurring_id: selectedConfig.id,
+            });
+
+            if (transactionId) {
+                const currentCount = selectedConfig.execution_count || 0;
+                await updateRecurringConfig(selectedConfig.id, {
+                    last_executed: scheduleDate.toISOString(),
+                    execution_count: currentCount + 1
+                });
+
+                Toast.show({
+                    type: 'success',
+                    text1: 'Scheduled',
+                    text2: `Transaction scheduled for ${scheduleDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                });
+                setEditModalVisible(false);
+                fetchConfigs();
+            } else {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Failed to schedule transaction.'
+                });
+            }
+        } catch (error) {
+            console.error('Error scheduling transaction:', error);
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'An unexpected error occurred.'
+            });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     const renderItem = ({ item }: { item: RecurringConfig }) => {
         const nextDate = new Date(item.last_executed || item.start_date);
         const isIncome = item.type === 'income';
@@ -200,7 +256,7 @@ const QSRecurringTransactionsScreen = () => {
             >
                 <View style={[styles.iconContainer, { backgroundColor: item.category?.color ? item.category.color + '20' : theme.colors.backgroundSecondary }]}>
                     <MaterialCommunityIcons
-                        name={(item.category?.icon as any) || "repeat"}
+                        name={getSafeIconName(item.category?.icon) || "repeat"}
                         size={24}
                         color={item.category?.color || theme.colors.text}
                     />
@@ -331,6 +387,19 @@ const QSRecurringTransactionsScreen = () => {
                         </View>
                         <View style={styles.modalActions}>
                             <TouchableOpacity
+                                style={[styles.modalButton, styles.scheduleButton]}
+                                onPress={() => {
+                                    setScheduleDate(new Date());
+                                    setShowSchedulePicker(true);
+                                }}
+                                disabled={actionLoading}
+                            >
+                                <MaterialCommunityIcons name="calendar-clock" size={20} color={theme.colors.primary} style={{ marginRight: 4 }} />
+                                <Text style={styles.scheduleButtonText}>Schedule</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
                                 style={[styles.modalButton, styles.deleteButton]}
                                 onPress={() => {
                                     setEditModalVisible(false);
@@ -351,6 +420,18 @@ const QSRecurringTransactionsScreen = () => {
                     </View>
                 </View>
             </Modal>
+
+            {/* Schedule Date Picker */}
+            <QSDatePicker
+                visible={showSchedulePicker}
+                onClose={() => setShowSchedulePicker(false)}
+                selectedDate={scheduleDate}
+                onSelect={(d) => {
+                    setScheduleDate(d);
+                    setShowSchedulePicker(false);
+                    handleScheduleTransaction();
+                }}
+            />
         </View>
     );
 };
@@ -526,6 +607,16 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     saveText: {
         ...theme.typography.button,
         color: theme.colors.onPrimary,
+    },
+    scheduleButton: {
+        backgroundColor: theme.colors.backgroundSecondary,
+        borderWidth: 1,
+        borderColor: theme.colors.primary,
+        flexDirection: 'row',
+    },
+    scheduleButtonText: {
+        ...theme.typography.button,
+        color: theme.colors.primary,
     },
 });
 
