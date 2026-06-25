@@ -8,7 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSettlements, Settlement } from "../hooks/useSettlements";
 import { useTheme } from "../theme/ThemeContext";
 import { createStyles } from "../styles/QSSettlement.styles";
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 
 export default function QSSettlementsScreen() {
     const { theme } = useTheme();

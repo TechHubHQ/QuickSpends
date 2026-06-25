@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { NWS_DISPLAY } from '../utils/nwsClassification';
 
 export interface Tag {
     id: string;
@@ -7,6 +8,7 @@ export interface Tag {
     name: string;
     color: string;
     is_event: boolean;
+    is_system: boolean;
     event_type?: 'birthday' | 'marriage' | 'anniversary' | 'festival' | 'travel' | 'other' | null;
     event_date?: string | null;
     budget?: number | null;
@@ -18,6 +20,14 @@ export interface TagWithSpending extends Tag {
     spent: number;
     transactions: any[];
 }
+
+export const SYSTEM_TAG_NAMES = ['Need', 'Want', 'Savings'] as const;
+
+export const SYSTEM_TAG_DEFINITIONS = [
+    { name: 'Need', color: NWS_DISPLAY.needs.color },
+    { name: 'Want', color: NWS_DISPLAY.wants.color },
+    { name: 'Savings', color: NWS_DISPLAY.savings.color },
+];
 
 export const useTags = () => {
     const [loading, setLoading] = useState(false);
@@ -31,6 +41,7 @@ export const useTags = () => {
                 .from('tags')
                 .select('*')
                 .eq('user_id', userId)
+                .order('is_system', { ascending: false })
                 .order('name', { ascending: true });
 
             if (error) throw error;
@@ -43,10 +54,42 @@ export const useTags = () => {
         }
     }, []);
 
+    const ensureSystemTags = useCallback(async (userId: string) => {
+        try {
+            const { data: existing } = await supabase
+                .from('tags')
+                .select('name')
+                .eq('user_id', userId)
+                .in('name', SYSTEM_TAG_NAMES);
+
+            const existingNames = new Set((existing || []).map(t => t.name));
+
+            const toCreate = SYSTEM_TAG_DEFINITIONS.filter(t => !existingNames.has(t.name));
+
+            if (toCreate.length === 0) return;
+
+            await supabase.from('tags').insert(
+                toCreate.map(t => ({
+                    user_id: userId,
+                    name: t.name,
+                    color: t.color,
+                    is_event: false,
+                    is_system: true,
+                }))
+            );
+        } catch (err) {
+            console.error('Error ensuring system tags:', err);
+        }
+    }, []);
+
     const addTag = useCallback(async (tag: Omit<Tag, 'id' | 'created_at'>) => {
         setLoading(true);
         setError(null);
         try {
+            if (SYSTEM_TAG_NAMES.includes(tag.name as any)) {
+                throw new Error('Cannot create a tag with a reserved system name');
+            }
+
             const { data, error } = await supabase
                 .from('tags')
                 .insert({
@@ -54,6 +97,7 @@ export const useTags = () => {
                     name: tag.name,
                     color: tag.color,
                     is_event: tag.is_event,
+                    is_system: false,
                     event_type: tag.event_type || null,
                     event_date: tag.event_date || null,
                     budget: tag.budget || null,
@@ -76,6 +120,16 @@ export const useTags = () => {
         setLoading(true);
         setError(null);
         try {
+            const { data: existing } = await supabase
+                .from('tags')
+                .select('is_system')
+                .eq('id', tagId)
+                .single();
+
+            if (existing?.is_system) {
+                throw new Error('System tags cannot be edited');
+            }
+
             const { data, error } = await supabase
                 .from('tags')
                 .update(updates)
@@ -97,6 +151,16 @@ export const useTags = () => {
         setLoading(true);
         setError(null);
         try {
+            const { data: existing } = await supabase
+                .from('tags')
+                .select('is_system')
+                .eq('id', tagId)
+                .single();
+
+            if (existing?.is_system) {
+                throw new Error('System tags cannot be deleted');
+            }
+
             const { error } = await supabase
                 .from('tags')
                 .delete()
@@ -116,7 +180,6 @@ export const useTags = () => {
         setLoading(true);
         setError(null);
         try {
-            // 1. Fetch tag details
             const { data: tag, error: tagError } = await supabase
                 .from('tags')
                 .select('*')
@@ -126,7 +189,6 @@ export const useTags = () => {
             if (tagError) throw tagError;
             if (!tag) return null;
 
-            // 2. Fetch all transactions for this tag
             const { data: txs, error: txsError } = await supabase
                 .from('transactions')
                 .select(`
@@ -139,7 +201,6 @@ export const useTags = () => {
 
             if (txsError) throw txsError;
 
-            // Flatten/format transactions
             const formattedTxs = (txs || []).map((t: any) => ({
                 ...t,
                 category_name: t.categories?.parent
@@ -150,7 +211,6 @@ export const useTags = () => {
                 account_name: t.accounts?.name,
             }));
 
-            // 3. Sum expenses for this tag
             const spent = formattedTxs
                 .filter((t) => t.type === 'expense')
                 .reduce((sum, t) => sum + t.amount, 0);
@@ -188,7 +248,6 @@ export const useTags = () => {
 
             if (txsError) throw txsError;
 
-            // Build tag_id -> transactions map
             const txMap: Record<string, any[]> = {};
             (txs || []).forEach((t: any) => {
                 if (!txMap[t.tag_id]) txMap[t.tag_id] = [];
@@ -216,6 +275,19 @@ export const useTags = () => {
         }
     }, []);
 
+    const getSystemTags = useCallback(async (userId: string) => {
+        try {
+            const { data } = await supabase
+                .from('tags')
+                .select('*')
+                .eq('user_id', userId)
+                .in('name', SYSTEM_TAG_NAMES);
+            return (data || []) as Tag[];
+        } catch {
+            return [];
+        }
+    }, []);
+
     return {
         getTagsByUser,
         addTag,
@@ -223,6 +295,8 @@ export const useTags = () => {
         deleteTag,
         getTagWithSpending,
         getAllTagsWithSpending,
+        ensureSystemTags,
+        getSystemTags,
         loading,
         error,
     };

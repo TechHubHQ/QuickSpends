@@ -161,7 +161,7 @@ export default function QSLoginScreen() {
                         {/* Signup Link */}
                         <View style={styles.signupContainer}>
                             <Text style={styles.signupText}>
-                                Don't have an account?{" "}
+                                {`Don't have an account?`}{" "}
                                 <Text
                                     style={styles.signupLink}
                                     onPress={() => router.push("/registration")}

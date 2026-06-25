@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -18,6 +18,7 @@ import { useLoans } from "../hooks/useLoans";
 import { useMonthlyPlans } from "../hooks/useMonthlyPlans";
 import { useSavings } from "../hooks/useSavings";
 import { useUpcomingBills } from "../hooks/useUpcomingBills";
+import { INVESTMENT_TYPE_META } from "../config/investmentTypes";
 import { createStyles } from "../styles/QSProfile.styles";
 import { useTheme } from "../theme/ThemeContext";
 import { getSafeIconName } from "../utils/iconMapping";
@@ -213,9 +214,9 @@ export default function QSProfileScreen() {
           </View>
         </Animated.View>
 
-        {/* Savings Section */}
+        {/* Savings & Investments Section */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Savings Goals</Text>
+          <Text style={styles.sectionTitle}>Savings & Investments</Text>
           <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
             <Pressable onPress={() => router.push("/portfolio/savings")} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
               <Text style={styles.sectionAction}>View All</Text>
@@ -234,26 +235,32 @@ export default function QSProfileScreen() {
             savings.map((goal, index) => {
               const percentage = goal.target_amount > 0
                 ? Math.min(Math.round((goal.current_amount / goal.target_amount) * 100), 100) : 0;
+              const isInvestment = goal.is_investment && goal.investment_type;
+              const invMeta = isInvestment ? INVESTMENT_TYPE_META[goal.investment_type as keyof typeof INVESTMENT_TYPE_META] : null;
+              const badgeLabel = isInvestment ? (invMeta?.label || "Investment") : "Saving";
+              const badgeColor = isInvestment ? (invMeta?.color || theme.colors.primary) : theme.colors.textTertiary;
               return (
                 <Animated.View key={goal.id} entering={FadeInRight.delay(200 + index * 50).springify()}>
                   <Pressable
                     style={({ pressed }) => [styles.card, { opacity: pressed ? 0.7 : 1 }]}
                     onPress={() => router.push({ pathname: "/saving-details/[id]", params: { id: goal.id } })}
                   >
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <View style={styles.cardHeaderRow}>
                       <View style={[styles.cardIconWrapper, { backgroundColor: `${goal.category_color || theme.colors.primary}20` }]}>
                         <MaterialCommunityIcons
-                          name={getSafeIconName(goal.category_icon || "piggy-bank")}
+                          name={getSafeIconName(goal.category_icon || (isInvestment ? "chart-line" : "piggy-bank"))}
                           size={20} color={goal.category_color || theme.colors.primary}
                         />
                       </View>
-                      <View style={styles.cardBadge}>
-                        <Text style={styles.cardBadgeText}>{percentage}%</Text>
+                      <View style={[styles.typeBadge, { backgroundColor: `${badgeColor}20` }]}>
+                        <Text style={[styles.typeBadgeText, { color: badgeColor }]}>{badgeLabel}</Text>
                       </View>
                     </View>
                     <View>
                       <Text style={styles.cardName}>{goal.name}</Text>
-                      <Text style={styles.cardSubtext}>₹{goal.current_amount.toLocaleString()} saved</Text>
+                      <Text style={styles.cardSubtext}>
+                        ₹{goal.current_amount ? goal.current_amount.toLocaleString() : 0} {isInvestment ? "invested" : "saved"}
+                      </Text>
                     </View>
                     <View style={[styles.cardProgressBg, { backgroundColor: `${goal.category_color || theme.colors.primary}20` }]}>
                       <View style={[styles.cardProgressFill, { backgroundColor: goal.category_color || theme.colors.primary, width: `${percentage}%` }]} />
@@ -265,7 +272,7 @@ export default function QSProfileScreen() {
           ) : (
             <View style={styles.emptyCard}>
               <MaterialCommunityIcons name="piggy-bank-outline" size={28} color={theme.colors.textTertiary} />
-              <Text style={styles.emptyText}>No savings goals</Text>
+              <Text style={styles.emptyText}>No savings or investments</Text>
             </View>
           )}
         </ScrollView>
@@ -395,6 +402,23 @@ export default function QSProfileScreen() {
             <View>
               <Text style={styles.linkCardText}>Accounts</Text>
               <Text style={styles.linkCardSubtext}>Manage bank, cash & card accounts</Text>
+            </View>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textTertiary} />
+        </Pressable>
+
+        {/* Future Vision Link */}
+        <Pressable
+          style={({ pressed }) => [styles.linkCard, { opacity: pressed ? 0.7 : 1 }]}
+          onPress={() => router.push("/portfolio/vision")}
+        >
+          <View style={styles.linkCardLeft}>
+            <View style={[styles.linkCardIcon, { backgroundColor: "#8b5cf620" }]}>
+              <MaterialCommunityIcons name="rocket-launch" size={22} color="#8b5cf6" />
+            </View>
+            <View>
+              <Text style={styles.linkCardText}>Future Vision</Text>
+              <Text style={styles.linkCardSubtext}>Plan life goals with smart projections</Text>
             </View>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textTertiary} />

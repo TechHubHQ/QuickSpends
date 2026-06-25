@@ -10,7 +10,6 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import Animated, { FadeInUp } from "react-native-reanimated";
 import { LineChart } from "react-native-gifted-charts";
 import { NetWorthData } from "../../hooks/useAnalytics";
 import { useTheme } from "../../theme/ThemeContext";
@@ -171,117 +170,113 @@ const NetWorthCard = ({ data, loading }: NetWorthCardProps) => {
       </Pressable>
 
       <View style={styles.chartWrapper}>
-        <Animated.View entering={FadeInUp.duration(500)}>
-          <LineChart
-            key={`networth-chart-${pointerResetKey}`}
-            data={chartDataForRender}
-            height={140}
-            width={chartWidth}
-            color={primaryColor}
-            thickness={3}
-            hideRules
-            hideDataPoints={false}
-            dataPointsColor={primaryColor}
-            dataPointsRadius={Math.max(
-              3,
-              Math.min(6, Math.round((containerWidth || 320) / 80)),
-            )}
-            focusedDataPointColor={theme.colors.card}
-            focusedDataPointRadius={8}
-            showDataPointOnFocus
-            showStripOnFocus
-            stripHeight={160}
-            stripWidth={2}
-            stripColor={primaryColor}
-            stripOpacity={0.3}
-            hideYAxisText
-            xAxisThickness={0}
-            yAxisThickness={0}
-            xAxisLabelTextStyle={{
-              color: "transparent",
-              fontSize: 1,
-              lineHeight: 1,
-              fontWeight: "500",
-            }}
-            xAxisLabelsVerticalShift={4}
-            curved
-            curveType={1}
-            spacing={spacing}
-            initialSpacing={initialSpacing}
-            endSpacing={computedEndSpacing}
-            disableScroll
-            isAnimated
-            animateOnDataChange
-            onDataChangeAnimationDuration={1200}
-            animationDuration={1200}
-            areaChart
-            startFillColor={primaryColor}
-            startOpacity={0.25}
-            endFillColor={primaryColor}
-            endOpacity={0.02}
-            pointerConfig={{
-              pointerStripColor: primaryColor,
-              pointerStripWidth: 2,
-              pointerStripHeight: 130,
-              pointerColor: primaryColor,
-              radius: 6,
-              pointerLabelWidth: 120,
-              pointerLabelHeight: 60,
-              activatePointersOnLongPress: false,
-              autoAdjustPointerLabelPosition: true,
-              persistPointer: true,
-              pointerVanishDelay: 5000,
-              pointerLabelComponent: (items: any) => {
-                return (
-                  <LinearGradient
-                    colors={
-                      theme.isDark
-                        ? ["#1e293b", "#0f172a"]
-                        : ["#ffffff", "#f8fafc"]
-                    }
+        <LineChart
+          key={`networth-chart-${pointerResetKey}`}
+          data={chartDataForRender}
+          height={150}
+          width={chartWidth}
+          color={primaryColor}
+          thickness={3}
+          hideRules
+          hideDataPoints={false}
+          dataPointsColor={primaryColor}
+          dataPointsRadius={Math.max(
+            3,
+            Math.min(6, Math.round((containerWidth || 320) / 80)),
+          )}
+          focusedDataPointColor={theme.colors.card}
+          focusedDataPointRadius={8}
+          showDataPointOnFocus
+          showStripOnFocus
+          stripHeight={160}
+          stripWidth={2}
+          stripColor={primaryColor}
+          stripOpacity={0.3}
+          hideYAxisText
+          xAxisThickness={0}
+          yAxisThickness={0}
+          xAxisLabelTextStyle={{
+            color: "transparent",
+            fontSize: 1,
+            lineHeight: 1,
+            fontWeight: "500",
+          }}
+          xAxisLabelsVerticalShift={4}
+          curved
+          curveType={1}
+          spacing={spacing}
+          initialSpacing={initialSpacing}
+          endSpacing={computedEndSpacing}
+          disableScroll
+          isAnimated
+          animationDuration={1200}
+          areaChart
+          startFillColor={primaryColor}
+          startOpacity={0.25}
+          endFillColor={primaryColor}
+          endOpacity={0.02}
+          pointerConfig={{
+            pointerStripColor: primaryColor,
+            pointerStripWidth: 2,
+            pointerStripHeight: 130,
+            pointerColor: primaryColor,
+            radius: 6,
+            pointerLabelWidth: 120,
+            pointerLabelHeight: 60,
+            activatePointersOnLongPress: false,
+            autoAdjustPointerLabelPosition: true,
+            persistPointer: true,
+            pointerVanishDelay: 5000,
+            pointerLabelComponent: (items: any) => {
+              return (
+                <LinearGradient
+                  colors={
+                    theme.isDark
+                      ? ["#1e293b", "#0f172a"]
+                      : ["#ffffff", "#f8fafc"]
+                  }
+                  style={[
+                    styles.pointerLabel,
+                    {
+                      borderColor: primaryColor + "40",
+                      ...Platform.select({
+                        ios: {
+                          shadowColor: primaryColor,
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.2,
+                          shadowRadius: 12,
+                        },
+                        android: {
+                          elevation: 8,
+                        },
+                      }),
+                    },
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.pointerLabel,
-                      {
-                        borderColor: primaryColor + "40",
-                        ...Platform.select({
-                          ios: {
-                            shadowColor: primaryColor,
-                            shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: 0.2,
-                            shadowRadius: 12,
-                          },
-                          android: {
-                            elevation: 8,
-                          },
-                        }),
-                      },
+                      styles.pointerLabelText,
+                      { color: theme.colors.text },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.pointerLabelText,
-                        { color: theme.colors.text },
-                      ]}
-                    >
-                      {formatCurrency(items[0].value)}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: theme.colors.textSecondary,
-                        textAlign: "center",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {items[0]?.label || ""}
-                    </Text>
-                  </LinearGradient>
-                );
-              },
-            }}
-            yAxisOffset={-(maxValue * 0.2)}
-          />
-        </Animated.View>
+                    {formatCurrency(items[0].value)}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: theme.colors.textSecondary,
+                      textAlign: "center",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {items[0]?.label || ""}
+                  </Text>
+                </LinearGradient>
+              );
+            },
+          }}
+          yAxisOffset={-(maxValue * 0.2)}
+        />
 
         {chartData.length > 1 && (
           <View style={[styles.customXAxis, { width: chartWidth }]}>

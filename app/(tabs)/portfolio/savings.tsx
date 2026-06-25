@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { QSButton } from "../../../src/components/QSButton";
@@ -26,9 +26,9 @@ export default function SavingsScreen() {
         setLoading(false);
     };
 
-    useEffect(() => {
+    useFocusEffect(useCallback(() => {
         fetchGoals();
-    }, [user]);
+    }, [user]));
 
     const renderGoal = ({ item, index }: { item: SavingsGoal; index: number }) => {
         const progress = getSavingsProgress(item);

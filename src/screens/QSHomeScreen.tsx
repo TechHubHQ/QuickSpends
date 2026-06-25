@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -42,7 +42,7 @@ export default function QSHomeScreen() {
   const { getRecentTransactions, getBalanceTrend } = useTransactions();
   const { getBudgetsWithSpending } = useBudgets();
   const { getTripsByUser } = useTrips();
-  const { getAllTagsWithSpending } = useTags();
+  const { getAllTagsWithSpending, ensureSystemTags } = useTags();
 
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -99,6 +99,7 @@ export default function QSHomeScreen() {
 
     setRefreshing(true);
     try {
+      ensureSystemTags(user.id);
       const [
         accountsData,
         transactionsData,
@@ -772,8 +773,18 @@ export default function QSHomeScreen() {
                           tripId={item.trip_id}
                           savingsId={item.savings_id}
                           loanId={item.loan_id}
+                          tags={item.tags}
                         />
                       </View>
+                      {item.tags && item.tags.length > 0 && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                          {item.tags.map((tag: any, i: number) => (
+                            <Text key={i} style={{ fontSize: 10, color: tag.color, fontWeight: '500' }}>
+                              {tag.name}{i < item.tags.length - 1 ? ', ' : ''}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   </View>
                   <Text

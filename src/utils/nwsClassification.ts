@@ -2,14 +2,19 @@ export type NwsType = 'needs' | 'wants' | 'savings';
 
 export const PARENT_CATEGORY_NWS: Record<string, NwsType> = {
   Housing: 'needs',
+  Transport: 'needs',
   Utilities: 'needs',
   Groceries: 'needs',
   Health: 'needs',
   Education: 'needs',
   'Bills & Fees': 'needs',
+  'Bill Payment': 'needs',
   Insurance: 'needs',
   Taxes: 'needs',
   'Postal & Courier': 'needs',
+  Family: 'needs',
+  Pets: 'needs',
+  Business: 'needs',
   'Food & Dining': 'wants',
   Shopping: 'wants',
   Entertainment: 'wants',
@@ -19,6 +24,7 @@ export const PARENT_CATEGORY_NWS: Record<string, NwsType> = {
   'Sports & Athletics': 'wants',
   Subscriptions: 'wants',
   Investment: 'savings',
+  Investments: 'savings',
   'Loans & Debt': 'savings',
 };
 

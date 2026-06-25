@@ -3,6 +3,14 @@ import { useCallback, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { classifyNws, NwsType } from "../utils/nwsClassification";
 
+export interface TransactionTag {
+  id: string;
+  name: string;
+  color: string;
+  is_event?: boolean;
+  event_type?: string | null;
+}
+
 export interface Transaction {
   id: string;
   user_id: string;
@@ -30,7 +38,84 @@ export interface Transaction {
   tag_name?: string;
   tag_color?: string;
   tag_is_event?: boolean;
+  tag_ids?: string[];
+  tags?: TransactionTag[];
   nws_type?: NwsType | null;
+}
+
+// Batch-fetch tags from transaction_tags junction table and attach to transactions
+async function attachTags(transactions: any[]): Promise<void> {
+  if (transactions.length === 0) return;
+  try {
+    const ids = transactions.map(t => t.id);
+    const { data: links } = await supabase
+      .from("transaction_tags")
+      .select("transaction_id, tag_id")
+      .in("transaction_id", ids);
+    if (!links || links.length === 0) return;
+
+    const tagIds = [...new Set(links.map((l: any) => l.tag_id))];
+    const { data: tagData } = await supabase
+      .from("tags")
+      .select("id, name, color, is_event, event_type")
+      .in("id", tagIds);
+    if (!tagData) return;
+
+    const tagById: Record<string, TransactionTag> = {};
+    tagData.forEach((t: any) => { tagById[t.id] = t; });
+
+    const tagMap: Record<string, TransactionTag[]> = {};
+    links.forEach((l: any) => {
+      if (!tagMap[l.transaction_id]) tagMap[l.transaction_id] = [];
+      if (tagById[l.tag_id]) tagMap[l.transaction_id].push(tagById[l.tag_id]);
+    });
+    transactions.forEach(t => { t.tags = tagMap[t.id] || []; });
+  } catch (_e) { /* table may not exist yet */ }
+}
+
+async function setTransactionTags(transactionId: string, tagIds: string[]) {
+  await supabase.from("transaction_tags").delete().eq("transaction_id", transactionId);
+  if (tagIds.length > 0) {
+    await supabase.from("transaction_tags").insert(
+      tagIds.map(tag_id => ({ transaction_id: transactionId, tag_id }))
+    );
+  }
+}
+
+async function fetchTransactionTags(transactionId: string): Promise<TransactionTag[]> {
+  const { data } = await supabase
+    .from("transaction_tags")
+    .select("tag_id, tags!inner(id, name, color, is_event, event_type)")
+    .eq("transaction_id", transactionId);
+  return (data || []).map((t: any) => t.tags).filter(Boolean);
+}
+
+const TRANSACTION_SELECT = `
+  *,
+  categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
+  accounts!transactions_account_id_fkey (name),
+  trips (name),
+  savings (name),
+  recurring_configs (frequency),
+  tags!transactions_tag_id_fkey (name, color, is_event)
+`;
+
+function flattenTransaction(t: any): Transaction {
+  return {
+    ...t,
+    category_name: t.categories?.parent
+      ? `${t.categories.parent.name} > ${t.categories.name}`
+      : t.categories?.name,
+    category_icon: t.categories?.icon,
+    category_color: t.categories?.color,
+    account_name: t.accounts?.name,
+    trip_name: t.trips?.name,
+    savings_name: t.savings?.name,
+    recurring_frequency: t.recurring_configs?.frequency,
+    tag_name: t.tags?.name,
+    tag_color: t.tags?.color,
+    tag_is_event: t.tags?.is_event,
+  } as Transaction;
 }
 
 export const useTransactions = () => {
@@ -111,39 +196,18 @@ export const useTransactions = () => {
       try {
         const { data, error } = await supabase
           .from("transactions")
-          .select(
-            `
-                    *,
-                    categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
-                    accounts!transactions_account_id_fkey (name),
-                    trips (name),
-                    savings (name),
-                    recurring_configs (frequency),
-                    tags (name, color, is_event)
-                `,
-          )
+          .select(TRANSACTION_SELECT)
           .eq("user_id", userId)
           .order("date", { ascending: false })
           .limit(limit);
 
         if (error) throw error;
 
-        // Flatten data to match expected interface
-        return (data || []).map((t) => ({
-          ...t,
-          category_name: t.categories?.parent
-            ? `${t.categories.parent.name} > ${t.categories.name}`
-            : t.categories?.name,
-          category_icon: t.categories?.icon,
-          category_color: t.categories?.color,
-          account_name: t.accounts?.name,
-          trip_name: t.trips?.name,
-          savings_name: t.savings?.name,
-          recurring_frequency: t.recurring_configs?.frequency,
-          tag_name: t.tags?.name,
-          tag_color: t.tags?.color,
-          tag_is_event: t.tags?.is_event,
-        })) as Transaction[];
+        const transactions = (data || []).map(flattenTransaction);
+
+        await attachTags(transactions);
+
+        return transactions;
       } catch (err: any) {
         setError(err.message);
         return [];
@@ -167,7 +231,7 @@ export const useTransactions = () => {
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
-                    tags (name, color, is_event)
+                    tags!transactions_tag_id_fkey (name, color, is_event)
                 `,
         )
         .eq("trip_id", tripId)
@@ -175,7 +239,7 @@ export const useTransactions = () => {
 
       if (error) throw error;
 
-      return (data || []).map((t) => ({
+      const result = (data || []).map((t) => ({
         ...t,
         category_name: t.categories?.parent
           ? `${t.categories.parent.name} > ${t.categories.name}`
@@ -187,6 +251,8 @@ export const useTransactions = () => {
         tag_color: t.tags?.color,
         tag_is_event: t.tags?.is_event,
       })) as Transaction[];
+      await attachTags(result);
+      return result;
     } catch (err: any) {
       setError(err.message);
       return [];
@@ -194,8 +260,6 @@ export const useTransactions = () => {
       setLoading(false);
     }
   }, []);
-
-  // ... (skipping unchanged parts)
 
   const getTransactionsBySaving = useCallback(async (savingId: string) => {
     setLoading(true);
@@ -208,7 +272,7 @@ export const useTransactions = () => {
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
-                    tags (name, color, is_event)
+                    tags!transactions_tag_id_fkey (name, color, is_event)
                 `,
         )
         .eq("savings_id", savingId)
@@ -216,7 +280,7 @@ export const useTransactions = () => {
 
       if (error) throw error;
 
-      return (data || [])
+      const savingsResult = (data || [])
         .filter((t: any) => {
           const categoryData = t.categories as any;
           const cat = Array.isArray(categoryData)
@@ -250,6 +314,8 @@ export const useTransactions = () => {
           tag_color: t.tags?.color,
           tag_is_event: t.tags?.is_event,
         })) as Transaction[];
+      await attachTags(savingsResult);
+      return savingsResult;
     } catch (err: any) {
       setError(err.message);
       return [];
@@ -269,7 +335,7 @@ export const useTransactions = () => {
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
-                    tags (name, color, is_event)
+                    tags!transactions_tag_id_fkey (name, color, is_event)
                 `,
         )
         .eq("loan_id", loanId)
@@ -277,7 +343,7 @@ export const useTransactions = () => {
 
       if (error) throw error;
 
-      return (data || []).map((t) => ({
+      const result = (data || []).map((t) => ({
         ...t,
         category_name: t.categories?.parent
           ? `${t.categories.parent.name} > ${t.categories.name}`
@@ -289,6 +355,8 @@ export const useTransactions = () => {
         tag_color: t.tags?.color,
         tag_is_event: t.tags?.is_event,
       })) as Transaction[];
+      await attachTags(result);
+      return result;
     } catch (err: any) {
       setError(err.message);
       return [];
@@ -308,7 +376,7 @@ export const useTransactions = () => {
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
-                    tags (name, color, is_event)
+                    tags!transactions_tag_id_fkey (name, color, is_event)
                 `,
         )
         .eq("account_id", accountId)
@@ -316,7 +384,7 @@ export const useTransactions = () => {
 
       if (error) throw error;
 
-      return (data || []).map((t) => ({
+      const result = (data || []).map((t) => ({
         ...t,
         category_name: t.categories?.parent
           ? `${t.categories.parent.name} > ${t.categories.name}`
@@ -328,6 +396,8 @@ export const useTransactions = () => {
         tag_color: t.tags?.color,
         tag_is_event: t.tags?.is_event,
       })) as Transaction[];
+      await attachTags(result);
+      return result;
     } catch (err: any) {
       setError(err.message);
       return [];
@@ -353,7 +423,7 @@ export const useTransactions = () => {
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
-                    tags (name, color, is_event)
+                    tags!transactions_tag_id_fkey (name, color, is_event)
                 `,
           )
           .eq("user_id", userId)
@@ -366,7 +436,7 @@ export const useTransactions = () => {
 
         if (error) throw error;
 
-        return (data || []).map((t) => ({
+        const result = (data || []).map((t) => ({
           ...t,
           category_name: t.categories?.parent
             ? `${t.categories.parent.name} > ${t.categories.name}`
@@ -378,6 +448,8 @@ export const useTransactions = () => {
           tag_color: t.tags?.color,
           tag_is_event: t.tags?.is_event,
         })) as Transaction[];
+        await attachTags(result);
+        return result;
       } catch (err: any) {
         setError(err.message);
         return [];
@@ -405,7 +477,7 @@ export const useTransactions = () => {
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
-                    tags (name, color, is_event)
+                    tags!transactions_tag_id_fkey (name, color, is_event)
                 `,
           )
           .eq("user_id", userId)
@@ -419,7 +491,7 @@ export const useTransactions = () => {
 
         if (error) throw error;
 
-        return (data || []).map((t) => ({
+        const result = (data || []).map((t) => ({
           ...t,
           category_name: t.categories?.parent
             ? `${t.categories.parent.name} > ${t.categories.name}`
@@ -431,6 +503,8 @@ export const useTransactions = () => {
           tag_color: t.tags?.color,
           tag_is_event: t.tags?.is_event,
         })) as Transaction[];
+        await attachTags(result);
+        return result;
       } catch (err: any) {
         setError(err.message);
         return [];
@@ -457,7 +531,7 @@ export const useTransactions = () => {
                     *,
                     categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
                     accounts!transactions_account_id_fkey (name),
-                    tags (name, color, is_event)
+                    tags!transactions_tag_id_fkey (name, color, is_event)
                 `,
           )
           .eq("user_id", userId)
@@ -468,7 +542,7 @@ export const useTransactions = () => {
 
         if (error) throw error;
 
-        return (data || [])
+        const flowResult = (data || [])
           .filter((t: any) => {
             const cat = t.categories as any;
             const catName = cat?.name?.toLowerCase() || "";
@@ -499,6 +573,8 @@ export const useTransactions = () => {
             tag_color: t.tags?.color,
             tag_is_event: t.tags?.is_event,
           })) as Transaction[];
+        await attachTags(flowResult);
+        return flowResult;
       } catch (err: any) {
         setError(err.message);
         return [];
@@ -710,6 +786,17 @@ export const useTransactions = () => {
           .single();
 
         if (transError) throw transError;
+
+        // 2c. Insert transaction_tags junction records
+        const allTagIds = [...new Set([
+          ...(transaction.tag_ids || []),
+          ...(transaction.tag_id ? [transaction.tag_id] : []),
+        ])];
+        if (allTagIds.length > 0) {
+          await supabase.from("transaction_tags").insert(
+            allTagIds.map(tag_id => ({ transaction_id: newTrans.id, tag_id }))
+          );
+        }
 
         // 3. Update Savings if linked (Exclude Reconciliations)
         if (transaction.savings_id) {
@@ -1154,6 +1241,75 @@ export const useTransactions = () => {
     [],
   );
 
+  const getTransactionsByDate = useCallback(
+    async (userId: string, date: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const dateObj = new Date(date);
+        const start = startOfDay(dateObj).toISOString();
+        const end = endOfDay(dateObj).toISOString();
+
+        const { data, error } = await supabase
+          .from("transactions")
+          .select(
+            `
+                    *,
+                    categories!transactions_category_id_fkey (name, icon, color, parent:parent_id(name)),
+                    accounts!transactions_account_id_fkey (name),
+                    tags!transactions_tag_id_fkey (name, color, is_event)
+                `,
+          )
+          .eq("user_id", userId)
+          .gte("date", start)
+          .lte("date", end)
+          .order("amount", { ascending: false });
+
+        if (error) throw error;
+
+        const result = (data || [])
+          .filter((t: any) => {
+            const cat = t.categories as any;
+            const catName = cat?.name?.toLowerCase() || "";
+            const parentName = cat?.parent?.name?.toLowerCase() || "";
+            const txName = t.name?.toLowerCase() || "";
+
+            const isReconciliation =
+              txName.includes("balance correction") ||
+              txName.includes("opening balance") ||
+              catName.includes("adjustment") ||
+              catName.includes("reconciliation") ||
+              catName.includes("opening balance") ||
+              parentName.includes("adjustment") ||
+              parentName.includes("reconciliation") ||
+              parentName.includes("opening balance");
+
+            return !isReconciliation;
+          })
+          .map((t) => ({
+            ...t,
+            category_name: t.categories?.parent
+              ? `${t.categories.parent.name} > ${t.categories.name}`
+              : t.categories?.name,
+            category_icon: t.categories?.icon,
+            category_color: t.categories?.color,
+            account_name: t.accounts?.name,
+            tag_name: t.tags?.name,
+            tag_color: t.tags?.color,
+            tag_is_event: t.tags?.is_event,
+          })) as Transaction[];
+        await attachTags(result);
+        return result;
+      } catch (err: any) {
+        setError(err.message);
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
   return {
     getRecentTransactions,
     getMonthlyStats,
@@ -1170,6 +1326,7 @@ export const useTransactions = () => {
     getTransactionsByCategory,
     getTransactionsByMerchant,
     getTransactionsByFlow,
+    getTransactionsByDate,
     linkTransactionsToLoan,
     loading,
     error,

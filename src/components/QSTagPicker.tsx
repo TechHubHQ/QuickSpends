@@ -2,21 +2,21 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
-import { useTags, Tag } from "../hooks/useTags";
+import { useTags, Tag, SYSTEM_TAG_NAMES } from "../hooks/useTags";
 import { useAuth } from "../context/AuthContext";
 import { QSBottomSheet } from "./QSBottomSheet";
 
 interface QSTagPickerProps {
     visible: boolean;
     onClose: () => void;
-    selectedId?: string;
-    onSelect: (tag: Tag | null) => void;
+    selectedIds?: string[];
+    onSelect: (tags: Tag[]) => void;
 }
 
 export function QSTagPicker({
     visible,
     onClose,
-    selectedId,
+    selectedIds = [],
     onSelect,
 }: QSTagPickerProps) {
     const { theme } = useTheme();
@@ -26,8 +26,14 @@ export function QSTagPicker({
     const [tags, setTags] = useState<Tag[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [creating, setCreating] = useState(false);
+    const [selected, setSelected] = useState<Set<string>>(new Set(selectedIds));
 
-    // Load tags when picker opens
+    useEffect(() => {
+        if (visible) {
+            setSelected(new Set(selectedIds));
+        }
+    }, [visible, selectedIds]);
+
     useEffect(() => {
         if (visible && user) {
             loadTags();
@@ -44,22 +50,30 @@ export function QSTagPicker({
         tag.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const handleSelect = (tag: Tag) => {
-        onSelect(tag);
-        onClose();
+    const handleToggle = (tag: Tag) => {
+        setSelected(prev => {
+            const next = new Set(prev);
+            if (next.has(tag.id)) {
+                next.delete(tag.id);
+            } else {
+                next.add(tag.id);
+            }
+            return next;
+        });
     };
 
-    const handleClear = () => {
-        onSelect(null);
+    const handleDone = () => {
+        const selectedTags = tags.filter(t => selected.has(t.id));
+        onSelect(selectedTags);
         onClose();
     };
 
     const handleQuickCreate = async () => {
         if (!user || !searchQuery.trim()) return;
+        const cleanName = searchQuery.trim().replace(/^#/, "");
+        if (SYSTEM_TAG_NAMES.includes(cleanName as any)) return;
         setCreating(true);
         try {
-            const cleanName = searchQuery.trim().replace(/^#/, ""); // strip leading # if user typed it
-            // Generate a random nice color for the new tag
             const colors = ["#6366F1", "#10B981", "#F59E0B", "#F43F5E", "#06B6D4", "#8B5CF6", "#EC4899"];
             const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
@@ -72,10 +86,8 @@ export function QSTagPicker({
 
             if (newTag) {
                 setSearchQuery("");
-                // Refresh list and select the new tag
                 setTags(prev => [newTag, ...prev].sort((a, b) => a.name.localeCompare(b.name)));
-                onSelect(newTag);
-                onClose();
+                setSelected(prev => new Set(prev).add(newTag.id));
             }
         } catch (error) {
             console.error("Error creating tag on the fly:", error);
@@ -84,7 +96,6 @@ export function QSTagPicker({
         }
     };
 
-    // Check if search query matches any tag exactly
     const exactMatchExists = tags.some(
         (tag) => tag.name.toLowerCase() === searchQuery.trim().toLowerCase()
     );
@@ -93,29 +104,15 @@ export function QSTagPicker({
         <QSBottomSheet
             visible={visible}
             onClose={onClose}
-            title="Select Tag or Event"
+            title="Select Tags"
             showSearch
             searchPlaceholder="Search or type new tag..."
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
             showDoneButton
+            onDone={handleDone}
         >
             <View style={styles.list}>
-                {/* Clear Option */}
-                {selectedId ? (
-                    <TouchableOpacity
-                        style={[styles.item, styles.clearItem]}
-                        onPress={handleClear}
-                    >
-                        <View style={[styles.iconContainer, { backgroundColor: theme.colors.error + "15" }]}>
-                            <MaterialCommunityIcons name="tag-remove" size={22} color={theme.colors.error} />
-                        </View>
-                        <Text style={[styles.itemText, { color: theme.colors.error, flex: 1 }]}>
-                            Clear Selected Tag
-                        </Text>
-                    </TouchableOpacity>
-                ) : null}
-
                 {/* Quick Create option if text typed does not match exactly */}
                 {searchQuery.trim().length > 0 && !exactMatchExists && (
                     <TouchableOpacity
@@ -140,7 +137,7 @@ export function QSTagPicker({
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.itemText, { color: theme.colors.primary }]}>
-                                Create tag "#{searchQuery.trim().replace(/^#/, "")}"
+                                {`Create tag "#${searchQuery.trim().replace(/^#/, "")}"`}
                             </Text>
                             <Text style={[styles.subText, { color: theme.colors.textSecondary }]}>
                                 Create and attach this tag instantly
@@ -167,7 +164,7 @@ export function QSTagPicker({
                     ) : null
                 ) : (
                     filteredTags.map((tag) => {
-                        const isSelected = tag.id === selectedId;
+                        const isSelected = selected.has(tag.id);
                         return (
                             <TouchableOpacity
                                 key={tag.id}
@@ -178,11 +175,11 @@ export function QSTagPicker({
                                         borderColor: theme.colors.primary + "30",
                                     },
                                 ]}
-                                onPress={() => handleSelect(tag)}
+                                onPress={() => handleToggle(tag)}
                             >
                                 <View style={[styles.iconContainer, { backgroundColor: tag.color + "20" }]}>
                                     <MaterialCommunityIcons
-                                        name={tag.is_event ? "calendar-star" : "tag"}
+                                        name={tag.is_system ? "shield-check" : tag.is_event ? "calendar-star" : "tag"}
                                         size={22}
                                         color={tag.color}
                                     />
@@ -192,7 +189,14 @@ export function QSTagPicker({
                                         <Text style={[styles.itemText, { color: theme.colors.text }]}>
                                             {tag.name}
                                         </Text>
-                                        {tag.is_event && (
+                                        {tag.is_system && (
+                                            <View style={[styles.eventBadge, { backgroundColor: tag.color + "20" }]}>
+                                                <Text style={[styles.eventBadgeText, { color: tag.color }]}>
+                                                    System
+                                                </Text>
+                                            </View>
+                                        )}
+                                        {tag.is_event && !tag.is_system && (
                                             <View style={[styles.eventBadge, { backgroundColor: theme.colors.success + "15" }]}>
                                                 <Text style={[styles.eventBadgeText, { color: theme.colors.success }]}>
                                                     {tag.event_type || "Event"}
@@ -201,16 +205,18 @@ export function QSTagPicker({
                                         )}
                                     </View>
                                     <Text style={[styles.subText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                                        {tag.is_event
-                                            ? `Budget: ${tag.budget ? `₹${tag.budget}` : "No budget"} • ${tag.description || "Event Group"}`
-                                            : "Categorization Tag"}
+                                        {tag.is_system
+                                            ? "Auto-classification tag"
+                                            : tag.is_event
+                                                ? `Budget: ${tag.budget ? `₹${tag.budget}` : "No budget"} • ${tag.description || "Event Group"}`
+                                                : "Categorization Tag"}
                                     </Text>
                                 </View>
                                 {isSelected ? (
-                                    <MaterialCommunityIcons name="check-circle" size={24} color={theme.colors.primary} />
+                                    <MaterialCommunityIcons name="checkbox-marked" size={24} color={theme.colors.primary} />
                                 ) : (
                                     <MaterialCommunityIcons
-                                        name="radiobox-blank"
+                                        name="checkbox-blank-outline"
                                         size={24}
                                         color={theme.isDark ? "#475569" : "#CBD5E1"}
                                     />

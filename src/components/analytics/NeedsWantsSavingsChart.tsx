@@ -1,12 +1,12 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Dimensions,
-  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { PieChart } from "react-native-gifted-charts";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -86,6 +86,9 @@ export const NeedsWantsSavingsChart = ({
   ].filter((item) => item.value > 0);
 
   const formatCurrency = (amount: number) => formatCurrencyCompact(amount);
+  const chartSize = Math.min(180, SCREEN_WIDTH - 80);
+  const chartRadius = chartSize * 0.45;
+  const chartInnerRadius = chartSize * 0.3;
 
   const idealSegments = [
     { label: "Needs", pct: 50, color: NWS_COLORS.needs.main },
@@ -125,13 +128,14 @@ export const NeedsWantsSavingsChart = ({
           </Text>
         </View>
         <TouchableOpacity
-          style={styles.infoButton}
           onPress={() => setShowInfo(true)}
           activeOpacity={0.7}
         >
-          <Text style={[styles.infoText, { color: theme.colors.primary }]}>
-            How?
-          </Text>
+          <MaterialCommunityIcons
+            name="information-outline"
+            size={18}
+            color={theme.colors.primary}
+          />
         </TouchableOpacity>
       </View>
 
@@ -167,12 +171,12 @@ export const NeedsWantsSavingsChart = ({
 
       {/* Pie + Legend */}
       <View style={styles.chartRow}>
-        <View style={styles.chartWrapper}>
+        <View style={[styles.chartWrapper, { width: chartSize, height: chartSize }]}>
           <Animated.View entering={FadeInUp.duration(500)}>
             <PieChart
               donut
-              radius={72}
-              innerRadius={50}
+              radius={chartRadius}
+              innerRadius={chartInnerRadius}
               innerCircleColor={theme.colors.card}
               toggleFocusOnPress
               isAnimated
@@ -190,26 +194,6 @@ export const NeedsWantsSavingsChart = ({
               )}
             />
           </Animated.View>
-        </View>
-
-        <View style={styles.legendContainer}>
-          {pieData.map((item, index) => (
-            <Pressable
-              key={index}
-              style={({ pressed }) => [styles.legendItem, { opacity: pressed ? 0.6 : 1 }]}
-              onPress={item.onPress}
-            >
-              <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-              <View style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={[styles.legendLabel, { color: theme.colors.text }]}>
-                  {item.name}
-                </Text>
-                <Text style={[styles.legendValue, { color: theme.colors.textSecondary }]}>
-                  {formatCurrency(item.value)} • {item.percentage}%
-                </Text>
-              </View>
-            </Pressable>
-          ))}
         </View>
       </View>
 
@@ -315,7 +299,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 10,
-    overflow: "hidden",
   },
   emptyCard: {
     borderRadius: 24,
@@ -349,11 +332,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   infoButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    marginLeft: 10,
+    padding: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "rgba(99,102,241,0.3)",
+  },
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   infoText: {
     fontSize: 12,
@@ -362,6 +350,7 @@ const styles = StyleSheet.create({
   chartRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 16,
   },
   chartWrapper: {

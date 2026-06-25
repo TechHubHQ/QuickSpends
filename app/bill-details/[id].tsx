@@ -236,6 +236,18 @@ const BillDetailsScreen = () => {
         title="Bill Details"
         showBack
         onBackPress={() => router.back()}
+        rightElement={
+          <Pressable
+            onPress={() => router.push({ pathname: '/add-upcoming-bill', params: { billId: bill.id } })}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.7 : 1,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+            })}
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={22} color={theme.colors.primary} />
+          </Pressable>
+        }
       />
 
       <ScrollView

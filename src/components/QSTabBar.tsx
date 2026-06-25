@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { useRouter } from "expo-router";
+import type { BottomTabBarProps } from "expo-router/js-tabs";
+import { usePathname, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Dimensions, Modal, Pressable, StyleSheet, Text, TouchableWithoutFeedback, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,11 +10,11 @@ import { useTheme } from "../theme/ThemeContext";
 
 const { width } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 70;
-const FAB_SIZE = 56;
 
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     const { theme } = useTheme();
     const router = useRouter();
+    const pathname = usePathname();
     const isDark = theme.isDark;
     const insets = useSafeAreaInsets();
     const styles = createStyles(theme.colors, isDark);
@@ -72,7 +72,9 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                             ? options.title
                             : route.name;
 
+                    const isVisionRoute = route.name === "portfolio" && pathname.includes("/portfolio/vision");
                     const isFocused = state.routes[state.index]?.key === route.key;
+                    const displayLabel = isVisionRoute ? "Vision" : label;
 
                     const onPress = () => {
                         const event = navigation.emit({
@@ -90,7 +92,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                         switch (name.toLowerCase()) {
                             case 'home': return "home";
                             case 'analytics': return "chart-bar";
-                            case 'portfolio': return "briefcase-variant-outline";
+                            case 'portfolio': return isVisionRoute ? "telescope" : "briefcase-variant-outline";
                             case 'settings': return "cog";
                             default: return "circle";
                         }
@@ -121,7 +123,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                                 styles.tabLabel,
                                 { color: isFocused ? theme.colors.primary : (isDark ? "#9FB3C8" : "#64748B") }
                             ]}>
-                                {label as string}
+                                {displayLabel as string}
                             </Text>
                         </Pressable>
                     );

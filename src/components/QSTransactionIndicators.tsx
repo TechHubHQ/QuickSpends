@@ -10,6 +10,7 @@ interface QSTransactionIndicatorsProps {
     tagName?: string | null;
     tagColor?: string | null;
     tagIsEvent?: boolean | null;
+    tags?: { name: string; color: string; is_event?: boolean }[];
 }
 
 export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = ({
@@ -20,8 +21,11 @@ export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = (
     tagName,
     tagColor,
     tagIsEvent,
+    tags,
 }) => {
-    if ((!tripId || hideTrip) && !savingsId && !loanId && !tagName) return null;
+    const displayTags = tags || (tagName ? [{ name: tagName, color: tagColor || '#6366F1', is_event: tagIsEvent || false }] : []);
+
+    if ((!tripId || hideTrip) && !savingsId && !loanId && displayTags.length === 0) return null;
 
     return (
         <View style={styles.container}>
@@ -43,18 +47,18 @@ export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = (
                     <Text style={[styles.badgeText, { color: '#FF5722' }]}>LOAN</Text>
                 </View>
             )}
-            {!!tagName && (
-                <View style={[styles.badge, { backgroundColor: (tagColor || '#6366F1') + '20' }]}>
+            {displayTags.map((tag, i) => (
+                <View key={i} style={[styles.badge, { backgroundColor: (tag.color || '#6366F1') + '20' }]}>
                     <MaterialCommunityIcons 
-                        name={tagIsEvent ? "calendar-star" : "tag"} 
+                        name={tag.is_event ? "calendar-star" : "tag"} 
                         size={10} 
-                        color={tagColor || '#6366F1'} 
+                        color={tag.color || '#6366F1'} 
                     />
-                    <Text style={[styles.badgeText, { color: tagColor || '#6366F1' }]}>
-                        {tagName.toUpperCase()}
+                    <Text style={[styles.badgeText, { color: tag.color || '#6366F1' }]}>
+                        {tag.name.toUpperCase()}
                     </Text>
                 </View>
-            )}
+            ))}
         </View>
     );
 };

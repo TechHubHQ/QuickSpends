@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
@@ -24,10 +24,17 @@ import { useTransactions } from "../hooks/useTransactions";
 import { useTrips } from "../hooks/useTrips";
 import { createStyles } from "../styles/QSAddTransaction.styles";
 import { useTheme } from "../theme/ThemeContext";
-import { NwsType, NWS_DISPLAY, classifyNws } from "../utils/nwsClassification";
+import { useTags } from "../hooks/useTags";
+import { classifyNws } from "../utils/nwsClassification";
 
 type TransactionType = 'income' | 'expense' | 'transfer';
 type RecurringType = 'one-time' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+
+const NWS_TYPE_TO_TAG_NAME: Record<string, string> = {
+  needs: 'Need',
+  wants: 'Want',
+  savings: 'Savings',
+};
 
 const LINK_PILLS = [
   { key: 'tag', icon: 'tag', label: 'Tag', color: '#8B5CF6' },
@@ -51,6 +58,7 @@ export default function QSAddTransactionScreen() {
     const { checkAllNotifications } = useNotifications();
     const { getSavingsGoals } = useSavings();
     const { getLoans } = useLoans();
+    const { getSystemTags } = useTags();
 
     const editTransaction = params.editTransaction ? JSON.parse(params.editTransaction as string) : null;
 
@@ -99,35 +107,73 @@ export default function QSAddTransactionScreen() {
     const [isSavings, setIsSavings] = useState(!!editTransaction?.savings_id);
     const [savingsAction, setSavingsAction] = useState<'contribute' | 'withdraw'>('contribute');
     const [isLoan, setIsLoan] = useState(!!editTransaction?.loan_id);
-    const [selectedTag, setSelectedTag] = useState<any>(
-        editTransaction?.tag_id ? {
+    const [selectedTags, setSelectedTags] = useState<any[]>(
+        editTransaction?.tag_id ? [{
             id: editTransaction.tag_id,
             name: editTransaction.tag_name || '',
             color: editTransaction.tag_color || '#6366F1',
             is_event: editTransaction.tag_is_event || false
-        } : null
+        }] : []
     );
     const [showTagPicker, setShowTagPicker] = useState(false);
+    const [systemTags, setSystemTags] = useState<any[]>([]);
 
-    const [nwsType, setNwsType] = useState<NwsType | null>(editTransaction?.nws_type || null);
+    const getSelectedCategory = () => categories.find(c => c.id === categoryId);
+    const getSelectedSubCategory = () => categories.find(c => c.id === subCategoryId);
+    const getSelectedAccount = () => accounts.find(a => a.id === accountId);
+    const getSelectedToAccount = () => accounts.find(a => a.id === toAccountId);
+    const getSelectedTrip = () => trips.find(t => t.id === selectedTripId);
+    const getSelectedSavingsGoal = () => savingsGoals.find(g => g.id === savingsId);
+    const getSelectedLoan = () => loans.find(l => l.id === loanId);
 
-    const autoNwsType = useMemo(() => {
-      if (editTransaction?.nws_type) return editTransaction.nws_type;
-      if (isSavings) return 'savings' as NwsType;
-      const selCat = getSelectedCategory();
-      const selSub = getSelectedSubCategory();
-      return classifyNws(selCat?.name, selSub?.name, savingsId || null);
-    }, [categoryId, subCategoryId, savingsId, isSavings, editTransaction]);
+    const getActiveLinkLabel = (key: string): string | null => {
+        switch (key) {
+            case 'tag':
+                return selectedTags.length > 0 ? `${selectedTags.length} tag${selectedTags.length > 1 ? 's' : ''}` : null;
+            case 'trip':
+                return selectedTripId ? (getSelectedTrip()?.name || 'Trip') : null;
+            case 'savings':
+                return savingsId ? (getSelectedSavingsGoal()?.name || 'Savings') : null;
+            case 'loan':
+                return loanId ? (getSelectedLoan()?.person_name || 'Loan') : null;
+            default:
+                return null;
+        }
+    };
 
-    useEffect(() => {
-      if (!nwsType) {
-        setNwsType(autoNwsType);
+    const openLinkPicker = (key: string) => {
+        switch (key) {
+            case 'tag':
+                setShowTagPicker(true);
+                break;
+            case 'trip':
+                setShowTripPicker(true);
+                break;
+            case 'savings':
+                setShowSavingsPicker(true);
+                break;
+            case 'loan':
+                setShowLoanPicker(true);
+                break;
+        }
+    };
+
+    const updateSystemTag = (nwsResult: string | null) => {
+      if (nwsResult) {
+        const tagName = NWS_TYPE_TO_TAG_NAME[nwsResult];
+        const systemTag = systemTags.find(t => t.name === tagName);
+        if (systemTag) {
+          setSelectedTags(prev => [...prev.filter(t => !t.is_system), systemTag]);
+          setActiveLinks(prev => ({ ...prev, tag: true }));
+        }
+      } else {
+        setSelectedTags(prev => prev.filter(t => !t.is_system));
       }
-    }, [autoNwsType]);
+    };
 
     // Track which link pills are active
     const [activeLinks, setActiveLinks] = useState<Record<string, boolean>>({
-        tag: !!selectedTag,
+        tag: selectedTags.length > 0,
         trip: !!editTransaction?.trip_id,
         savings: !!editTransaction?.savings_id,
         loan: !!editTransaction?.loan_id,
@@ -203,18 +249,20 @@ export default function QSAddTransactionScreen() {
 
     const fetchData = async () => {
         if (!user) return;
-        const [accs, cats, trps, goals, lnz] = await Promise.all([
+        const [accs, cats, trps, goals, lnz, systemTagsData] = await Promise.all([
             getAccountsByUser(user.id),
             getCategories(type === 'transfer' ? 'expense' : type as any),
             getTripsByUser(user.id),
             getSavingsGoals(user.id),
-            getLoans(user.id)
+            getLoans(user.id),
+            getSystemTags(user.id),
         ]);
         setAccounts(accs);
         setCategories(cats);
         setTrips(trps);
         setSavingsGoals(goals);
         setLoans(lnz);
+        setSystemTags(systemTagsData);
 
         if (accs.length > 0 && !accountId) setAccountId(accs[0].id);
 
@@ -235,14 +283,6 @@ export default function QSAddTransactionScreen() {
             }
         }
     };
-
-    const getSelectedCategory = () => categories.find(c => c.id === categoryId);
-    const getSelectedSubCategory = () => categories.find(c => c.id === subCategoryId);
-    const getSelectedAccount = () => accounts.find(a => a.id === accountId);
-    const getSelectedToAccount = () => accounts.find(a => a.id === toAccountId);
-    const getSelectedTrip = () => trips.find(t => t.id === selectedTripId);
-    const getSelectedSavingsGoal = () => savingsGoals.find(g => g.id === savingsId);
-    const getSelectedLoan = () => loans.find(l => l.id === loanId);
 
     const handleCreateCategory = async (name: string, icon: string, color: string) => {
         try {
@@ -305,8 +345,8 @@ export default function QSAddTransactionScreen() {
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
-                tag_id: selectedTag?.id || undefined,
-                nws_type: nwsType,
+                tag_id: selectedTags[0]?.id || undefined,
+                tag_ids: selectedTags.map(t => t.id),
             });
 
             if (success) {
@@ -354,8 +394,8 @@ export default function QSAddTransactionScreen() {
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
-                tag_id: selectedTag?.id || undefined,
-                nws_type: nwsType,
+                tag_id: selectedTags[0]?.id || undefined,
+                tag_ids: selectedTags.map(t => t.id),
             }, recurringOptions);
 
             if (success) {
@@ -376,7 +416,7 @@ export default function QSAddTransactionScreen() {
         if (!nextActive) {
             switch (key) {
                 case 'tag':
-                    setSelectedTag(null);
+                    setSelectedTags([]);
                     break;
                 case 'trip':
                     setIsTrip(false);
@@ -391,38 +431,6 @@ export default function QSAddTransactionScreen() {
                     setLoanId('');
                     break;
             }
-        }
-    };
-
-    const openLinkPicker = (key: string) => {
-        switch (key) {
-            case 'tag':
-                setShowTagPicker(true);
-                break;
-            case 'trip':
-                setShowTripPicker(true);
-                break;
-            case 'savings':
-                setShowSavingsPicker(true);
-                break;
-            case 'loan':
-                setShowLoanPicker(true);
-                break;
-        }
-    };
-
-    const getActiveLinkLabel = (key: string): string => {
-        switch (key) {
-            case 'tag':
-                return selectedTag ? `#${selectedTag.name}` : '';
-            case 'trip':
-                return getSelectedTrip()?.name || '';
-            case 'savings':
-                return getSelectedSavingsGoal()?.name || '';
-            case 'loan':
-                return getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : '';
-            default:
-                return '';
         }
     };
 
@@ -507,41 +515,6 @@ export default function QSAddTransactionScreen() {
                                     <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
                                 </TouchableOpacity>
                             </View>
-                        </Animated.View>
-
-                        {/* NWS Type */}
-                        <Animated.View entering={FadeInDown.delay(470).springify()} style={styles.inputGroup}>
-                            <Text style={styles.label}>Type</Text>
-                            <View style={{ flexDirection: 'row', gap: 8 }}>
-                                {(['needs', 'wants', 'savings'] as NwsType[]).map((t) => {
-                                    const info = NWS_DISPLAY[t];
-                                    const isActive = nwsType === t;
-                                    return (
-                                        <TouchableOpacity
-                                            key={t}
-                                            style={[
-                                                styles.typeButton,
-                                                {
-                                                    flex: 1,
-                                                    borderWidth: 2,
-                                                    borderColor: isActive ? info.color : theme.colors.border,
-                                                    backgroundColor: isActive ? info.lightColor : theme.colors.card,
-                                                },
-                                            ]}
-                                            onPress={() => setNwsType(t === nwsType ? null : t)}
-                                        >
-                                            <Text style={[styles.typeText, { color: isActive ? info.color : theme.colors.textSecondary, fontWeight: isActive ? '700' : '500' }]}>
-                                                {info.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                            {nwsType !== autoNwsType && nwsType !== null && (
-                                <Text style={{ fontSize: 11, color: theme.colors.textTertiary, marginTop: 4, marginLeft: 4, fontStyle: 'italic' }}>
-                                    Overridden (auto: {NWS_DISPLAY[autoNwsType]?.label?.toLowerCase() ?? 'none'})
-                                </Text>
-                            )}
                         </Animated.View>
 
                         {/* Description */}
@@ -674,20 +647,27 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Link Pills - Modern toggle buttons replacing Switch cards */}
+                        {/* Link Pills - compact inline with selected labels */}
                         <Animated.View entering={FadeInDown.delay(850).springify()} style={styles.linkPillsSection}>
                             <Text style={styles.linkPillsLabel}>Links</Text>
                             <View style={styles.linkPillsRow}>
                                 {LINK_PILLS.map((pill) => {
                                     const isActive = activeLinks[pill.key];
+                                    const label = getActiveLinkLabel(pill.key);
                                     return (
                                         <TouchableOpacity
                                             key={pill.key}
                                             style={[
                                                 styles.linkPill,
                                                 isActive && styles.linkPillActive,
+                                                label ? { paddingRight: 8 } : {},
                                             ]}
-                                            onPress={() => toggleLinkPill(pill.key)}
+                                            onPress={() => {
+                                                if (!isActive) {
+                                                    toggleLinkPill(pill.key);
+                                                }
+                                                openLinkPicker(pill.key);
+                                            }}
                                             activeOpacity={0.7}
                                         >
                                             <View
@@ -698,159 +678,81 @@ export default function QSAddTransactionScreen() {
                                             />
                                             <MaterialCommunityIcons
                                                 name={pill.icon as any}
-                                                size={16}
+                                                size={14}
                                                 color={isActive ? pill.color : theme.colors.textSecondary}
                                             />
-                                            <Text
-                                                style={[
-                                                    styles.linkPillText,
-                                                    isActive && styles.linkPillTextActive,
-                                                ]}
-                                            >
-                                                {pill.label}
-                                            </Text>
+                                            {label ? (
+                                                <Text
+                                                    style={[styles.linkPillText, isActive && styles.linkPillTextActive, { fontSize: 10 }]}
+                                                    numberOfLines={1}
+                                                >
+                                                    {label}
+                                                </Text>
+                                            ) : (
+                                                <Text style={[styles.linkPillText, isActive && styles.linkPillTextActive]}>
+                                                    {pill.label}
+                                                </Text>
+                                            )}
                                         </TouchableOpacity>
                                     );
                                 })}
                             </View>
-                        </Animated.View>
-
-                        {/* Expanded sections for active links */}
-                        {activeLinks.tag && !selectedTag && (
-                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
-                                <TouchableOpacity
-                                    style={[styles.inputWrapper, { borderColor: '#8B5CF640' }]}
-                                    onPress={() => setShowTagPicker(true)}
-                                >
-                                    <View style={[styles.iconContainer, { backgroundColor: '#8B5CF615' }]}>
-                                        <MaterialCommunityIcons name="tag" size={20} color="#8B5CF6" />
-                                    </View>
-                                    <Text style={styles.selectPlaceholder}>Select a tag or event</Text>
-                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
-                                </TouchableOpacity>
-                            </Animated.View>
-                        )}
-                        {activeLinks.tag && selectedTag && (
-                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
-                                <View style={[styles.inputWrapper, { borderColor: '#8B5CF640' }]}>
-                                    <View style={[styles.iconContainer, { backgroundColor: '#8B5CF615' }]}>
-                                        <MaterialCommunityIcons
-                                            name={selectedTag?.is_event ? "calendar-star" : "tag"}
-                                            size={20}
-                                            color={selectedTag.color}
-                                        />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowTagPicker(true)}
-                                    >
-                                        <Text style={[styles.selectText, { color: selectedTag.color }]}>
-                                            #{selectedTag.name}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setShowTagPicker(true)}>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                            {/* Selected tags inline row */}
+                            {selectedTags.length > 0 && (
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                                    {selectedTags.map((tag: any) => (
+                                        <View key={tag.id} style={{
+                                            flexDirection: 'row', alignItems: 'center', gap: 2,
+                                            paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8,
+                                            backgroundColor: tag.color + '15',
+                                        }}>
+                                            <Text style={{ fontSize: 10, fontWeight: '600', color: tag.color }}>
+                                                {tag.name}
+                                            </Text>
+                                            <TouchableOpacity onPress={() => setSelectedTags(prev => prev.filter(t => t.id !== tag.id))} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                                <MaterialCommunityIcons name="close-circle" size={12} color={tag.color + '80'} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                    <TouchableOpacity onPress={() => setShowTagPicker(true)} style={{ paddingHorizontal: 4, paddingVertical: 2 }}>
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
                                     </TouchableOpacity>
                                 </View>
-                            </Animated.View>
-                        )}
-
-                        {activeLinks.trip && !selectedTripId && (
-                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
-                                <TouchableOpacity
-                                    style={[styles.inputWrapper, { borderColor: '#FBBF2440' }]}
-                                    onPress={() => setShowTripPicker(true)}
-                                >
-                                    <View style={[styles.iconContainer, { backgroundColor: '#FBBF2415' }]}>
-                                        <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
-                                    </View>
-                                    <Text style={styles.selectPlaceholder}>Select a trip</Text>
-                                    <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
-                                </TouchableOpacity>
-                            </Animated.View>
-                        )}
-                        {activeLinks.trip && selectedTripId && (
-                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
-                                <View style={[styles.inputWrapper, { borderColor: '#FBBF2440' }]}>
-                                    <View style={[styles.iconContainer, { backgroundColor: '#FBBF2415' }]}>
-                                        <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowTripPicker(true)}
-                                    >
-                                        <Text style={styles.selectText}>
-                                            {getSelectedTrip()?.name || 'Select Trip'}
-                                        </Text>
-                                    </TouchableOpacity>
+                            )}
+                            {/* Selected trip inline */}
+                            {activeLinks.trip && selectedTripId && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '500', color: '#FBBF24' }}>
+                                        ✈ {getSelectedTrip()?.name}
+                                    </Text>
                                     <TouchableOpacity onPress={() => setShowTripPicker(true)}>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
                                     </TouchableOpacity>
                                 </View>
-                            </Animated.View>
-                        )}
-
-                        {activeLinks.savings && (
-                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
-                                <View style={[styles.inputWrapper, { borderColor: '#E91E6340', marginBottom: 8 }]}>
-                                    <View style={[styles.iconContainer, { backgroundColor: '#E91E6315' }]}>
-                                        <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowSavingsPicker(true)}
-                                    >
-                                        <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedSavingsGoal()?.name || 'Select Goal'}
-                                        </Text>
-                                    </TouchableOpacity>
+                            )}
+                            {/* Selected savings inline */}
+                            {activeLinks.savings && savingsId && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '500', color: '#E91E63' }}>
+                                        🐷 {getSelectedSavingsGoal()?.name} ({savingsAction === 'contribute' ? '+' : '-'})
+                                    </Text>
                                     <TouchableOpacity onPress={() => setShowSavingsPicker(true)}>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
                                     </TouchableOpacity>
                                 </View>
-                                <View style={{ flexDirection: 'row', gap: 12 }}>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.typeButton,
-                                            { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'contribute' ? '#10B981' : theme.colors.border }
-                                        ]}
-                                        onPress={() => setSavingsAction('contribute')}
-                                    >
-                                        <Text style={[styles.typeText, { color: savingsAction === 'contribute' ? '#10B981' : theme.colors.textSecondary }]}>Contribute</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.typeButton,
-                                            { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.border }
-                                        ]}
-                                        onPress={() => setSavingsAction('withdraw')}
-                                    >
-                                        <Text style={[styles.typeText, { color: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.textSecondary }]}>Withdraw</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </Animated.View>
-                        )}
-
-                        {activeLinks.loan && (
-                            <Animated.View entering={FadeInDown} style={styles.inputGroup}>
-                                <View style={[styles.inputWrapper, { borderColor: '#FF572240' }]}>
-                                    <View style={[styles.iconContainer, { backgroundColor: '#FF572215' }]}>
-                                        <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowLoanPicker(true)}
-                                    >
-                                        <Text style={getSelectedLoan() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : 'Select Loan'}
-                                        </Text>
-                                    </TouchableOpacity>
+                            )}
+                            {/* Selected loan inline */}
+                            {activeLinks.loan && loanId && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '500', color: '#FF5722' }}>
+                                        🤝 {getSelectedLoan()?.person_name} ({getSelectedLoan()?.type})
+                                    </Text>
                                     <TouchableOpacity onPress={() => setShowLoanPicker(true)}>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
                                     </TouchableOpacity>
                                 </View>
-                            </Animated.View>
-                        )}
+                            )}
+                        </Animated.View>
 
                         {/* Recurring Transaction Toggle */}
                         <View style={styles.inputGroup}>
@@ -1018,6 +920,7 @@ export default function QSAddTransactionScreen() {
                     setCategoryId(cat.id);
                     setSubCategoryId('');
                     setShowCategoryPicker(false);
+                    updateSystemTag(classifyNws(cat.name, null, null));
                     const hasSubCategories = categories.some(c => c.parent_id === cat.id);
                     if (hasSubCategories) {
                         setTimeout(() => setShowSubCategoryPicker(true), 300);
@@ -1038,6 +941,8 @@ export default function QSAddTransactionScreen() {
                 onSelect={(cat) => {
                     setSubCategoryId(cat.id);
                     setShowSubCategoryPicker(false);
+                    const parentCat = getSelectedCategory();
+                    updateSystemTag(classifyNws(parentCat?.name, cat.name, null));
                 }}
                 parentId={categoryId}
                 onCreateNew={() => {
@@ -1108,8 +1013,8 @@ export default function QSAddTransactionScreen() {
             <QSTagPicker
                 visible={showTagPicker}
                 onClose={() => setShowTagPicker(false)}
-                selectedId={selectedTag?.id}
-                onSelect={(tag) => setSelectedTag(tag)}
+                selectedIds={selectedTags.map(t => t.id)}
+                onSelect={(tags) => setSelectedTags(tags)}
             />
         </>
     );

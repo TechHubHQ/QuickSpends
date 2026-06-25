@@ -190,16 +190,21 @@ export default function QSTagsManagementScreen() {
           borderWidth: 1,
           borderColor: theme.colors.border,
           backgroundColor: theme.colors.card,
+          opacity: tag.is_system ? 0.85 : 1,
         }}
-        onPress={() => router.push({ pathname: `/tag-details/[id]`, params: { id: tag.id } } as any)}
-        onLongPress={() => openEdit(tag)}
+        onPress={() => {
+          if (!tag.is_system) {
+            router.push({ pathname: `/tag-details/[id]`, params: { id: tag.id } } as any)
+          }
+        }}
+        onLongPress={() => !tag.is_system && openEdit(tag)}
       >
         <View
           style={{
             width: 44,
             height: 44,
             borderRadius: 14,
-            backgroundColor: tag.color + "18",
+            backgroundColor: tag.is_system ? tag.color + "25" : tag.color + "18",
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
@@ -208,7 +213,7 @@ export default function QSTagsManagementScreen() {
           }}
         >
           <MaterialCommunityIcons
-            name={tag.is_event ? "calendar-star" : "tag"}
+            name={tag.is_system ? "shield-check" : tag.is_event ? "calendar-star" : "tag"}
             size={22}
             color={tag.color}
           />
@@ -218,11 +223,22 @@ export default function QSTagsManagementScreen() {
             <Text style={{ fontSize: 16, fontWeight: "600", color: theme.colors.text }}>
               {tag.name}
             </Text>
-            {tag.is_event && (
+            {tag.is_system && (
+              <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: tag.color + "20" }}>
+                <Text style={{ fontSize: 9, fontWeight: "700", color: tag.color, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  System
+                </Text>
+              </View>
+            )}
+            {tag.is_event && !tag.is_system && (
               <Text style={{ fontSize: 16 }}>{getEventImage(tag.event_type)}</Text>
             )}
           </View>
-          {tag.is_event ? (
+          {tag.is_system ? (
+            <Text style={{ fontSize: 12, color: theme.colors.textTertiary, marginTop: 2 }}>
+              Auto-classification tag (protected)
+            </Text>
+          ) : tag.is_event ? (
             <View style={{ marginTop: 4, gap: 2 }}>
               {tag.event_date && (
                 <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>
@@ -236,12 +252,14 @@ export default function QSTagsManagementScreen() {
             </Text>
           )}
         </View>
-        <TouchableOpacity
-          style={{ padding: 6, marginLeft: 8 }}
-          onPress={() => handleDelete(tag)}
-        >
-          <MaterialCommunityIcons name="trash-can-outline" size={18} color={theme.colors.error} />
-        </TouchableOpacity>
+        {!tag.is_system && (
+          <TouchableOpacity
+            style={{ padding: 6, marginLeft: 8 }}
+            onPress={() => handleDelete(tag)}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={18} color={theme.colors.error} />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );

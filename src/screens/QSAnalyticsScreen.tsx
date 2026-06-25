@@ -40,6 +40,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { useTags, TagWithSpending } from "../hooks/useTags";
  
 import CashFlowTrendChart from "../components/analytics/CashFlowTrendChart";
+import { CashFlowCalendar } from "../components/analytics/CashFlowCalendar";
 import { DebtHealthCard } from "../components/analytics/DebtHealthCard";
 import { MerchantInsightsCard } from "../components/analytics/MerchantInsightsCard";
 import { NeedsWantsSavingsChart } from "../components/analytics/NeedsWantsSavingsChart";
@@ -65,6 +66,7 @@ export default function QSAnalyticsScreen() {
     getSpendingVelocity,
     getUpcomingBills,
     getDebtHealth,
+    getDailyCashFlowForMonth,
   } = useAnalytics();
   const { getAllTagsWithSpending } = useTags();
 
@@ -96,6 +98,21 @@ export default function QSAnalyticsScreen() {
   const [debtHealth, setDebtHealth] = useState<DebtHealth | null>(null);
   const [tagSpending, setTagSpending] = useState<TagWithSpending[]>([]);
 
+  // Calendar state
+  const [calendarMonthData, setCalendarMonthData] = useState<CashFlowData[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  const fetchCalendarMonth = useCallback(
+    async (year: number, month: number) => {
+      if (!user?.id) return;
+      setCalendarLoading(true);
+      const data = await getDailyCashFlowForMonth(user.id, year, month);
+      setCalendarMonthData(data);
+      setCalendarLoading(false);
+    },
+    [user?.id, getDailyCashFlowForMonth],
+  );
+
   // Category transactions modal state
   const { getTransactionsByCategory, getTransactionsByMerchant } =
     useTransactions();
@@ -116,7 +133,7 @@ export default function QSAnalyticsScreen() {
   const [merchantSearchQuery, setMerchantSearchQuery] = useState("");
 
   // Flow transactions modal state
-  const { getTransactionsByFlow } = useTransactions();
+  const { getTransactionsByFlow, getTransactionsByDate } = useTransactions();
   const [showFlowModal, setShowFlowModal] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<{
     date: string;
@@ -875,6 +892,34 @@ export default function QSAnalyticsScreen() {
                 })()}
               </Animated.View>
             )}
+
+            {/* Cash Flow Calendar View */}
+            <CashFlowCalendar
+              monthData={calendarMonthData}
+              loading={calendarLoading}
+              onMonthChange={fetchCalendarMonth}
+              onDayPress={async (fullDate) => {
+                const dateStr = format(new Date(fullDate), "MMM d, yyyy");
+                if (!user?.id) return;
+                setLoadingFlowTxns(true);
+                const txns = await getTransactionsByDate(user.id, fullDate);
+                setFlowTransactions(txns);
+                const dayIncome = txns
+                  .filter((t: any) => t.type === "income")
+                  .reduce((s: number, t: any) => s + t.amount, 0);
+                const dayExpense = txns
+                  .filter((t: any) => t.type === "expense")
+                  .reduce((s: number, t: any) => s + t.amount, 0);
+                setSelectedFlow({
+                  date: fullDate,
+                  type: "income",
+                  amount: dayIncome,
+                  label: dateStr,
+                });
+                setLoadingFlowTxns(false);
+                setShowFlowModal(true);
+              }}
+            />
           </Animated.View>
         )}
 
@@ -883,14 +928,11 @@ export default function QSAnalyticsScreen() {
             {insights && (
               <Animated.View entering={FadeInUp.delay(100).springify()}>
                 {/* Needs vs Wants vs Savings */}
-                <View style={styles.sectionCard}>
-                  <Text style={styles.sectionTitle}>Breakdown</Text>
-                  <NeedsWantsSavingsChart
-                    data={needsWantsData}
-                    theme={theme}
-                    onSegmentPress={handleSegmentPress}
-                  />
-                </View>
+                <NeedsWantsSavingsChart
+                  data={needsWantsData}
+                  theme={theme}
+                  onSegmentPress={handleSegmentPress}
+                />
 
                 {/* Comparison & Suggestion Card */}
                 <View style={styles.sectionCard}>
@@ -1528,10 +1570,12 @@ export default function QSAnalyticsScreen() {
                       <View style={styles.amountContainer}>
                         <Text
                           style={{
-                            color:
-                              tx.type === "income"
-                                ? theme.colors.success
-                                : theme.colors.text,
+                              color:
+                                tx.type === "income"
+                                  ? theme.colors.success
+                                  : tx.type === "expense"
+                                    ? theme.colors.error
+                                    : theme.colors.text,
                             fontWeight: "700",
                           }}
                         >

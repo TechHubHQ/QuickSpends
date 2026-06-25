@@ -7,6 +7,7 @@ export default function PortfolioLayout() {
       <Stack.Screen name="savings" />
       <Stack.Screen name="loans" />
       <Stack.Screen name="upcoming-bills" />
+      <Stack.Screen name="vision" />
     </Stack>
   );
 }

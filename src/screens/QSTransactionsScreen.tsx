@@ -461,6 +461,7 @@ export default function QSTransactionsScreen() {
                 tripId={item.trip_id}
                 savingsId={item.savings_id}
                 loanId={item.loan_id}
+                tags={item.tags}
               />
             </View>
           </View>

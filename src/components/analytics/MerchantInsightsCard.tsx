@@ -342,7 +342,7 @@ const createStyles = (theme: Theme) =>
     progressBarContainer: {
       height: 6,
       borderRadius: 6,
-      backgroundColor: theme.colors.backgroundTertiary,
+      backgroundColor: theme.colors.border,
       marginTop: 8,
       overflow: "hidden",
     },

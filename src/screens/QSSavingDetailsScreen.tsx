@@ -23,6 +23,7 @@ import { useAuth } from "../context/AuthContext";
 import { SavingsGoal, useSavings } from "../hooks/useSavings";
 import { Transaction, useTransactions } from "../hooks/useTransactions";
 import { useTheme } from "../theme/ThemeContext";
+import { INVESTMENT_TYPE_META, InvestmentType } from "../config/investmentTypes";
 import { getSafeIconName } from "../utils/iconMapping";
 
 const { width } = Dimensions.get("window");
@@ -32,7 +33,7 @@ export default function QSSavingDetailsScreen() {
     const router = useRouter();
     const { theme } = useTheme();
     const insets = useSafeAreaInsets();
-    const { getSavingsGoal, deleteSavingsGoal, getSavingsProgress } = useSavings();
+    const { getSavingsGoal, deleteSavingsGoal, getSavingsProgress, calculateProjectedMaturity } = useSavings();
     const { getTransactionsBySaving } = useTransactions();
     const { user } = useAuth();
     const { showAlert } = useAlert();
@@ -105,21 +106,8 @@ export default function QSSavingDetailsScreen() {
         router.push({ pathname: "/add-saving", params: { savingId: id } });
     };
 
-    if (loading) {
-        return (
-            <View style={[styles.container, { backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-        );
-    }
-
-    if (!goal) return null;
-
-    const progress = getSavingsProgress(goal);
-    const color = goal.category_color || theme.colors.primary;
-
     const chartData = useMemo(() => {
-      if (transactions.length === 0) return [];
+      if (!goal || transactions.length === 0) return [];
       const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       let balance = 0;
       return sorted.map((t) => {
@@ -130,7 +118,20 @@ export default function QSSavingDetailsScreen() {
           label: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
         };
       });
-    }, [transactions]);
+    }, [transactions, goal]);
+
+    const progress = goal ? getSavingsProgress(goal) : 0;
+    const color = goal?.category_color || theme.colors.primary;
+
+    if (loading) {
+        return (
+            <View style={[styles.container, { backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+            </View>
+        );
+    }
+
+    if (!goal) return null;
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -221,6 +222,54 @@ export default function QSSavingDetailsScreen() {
                                 </Text>
                             </View>
                         </View>
+                        {(goal as any).is_investment && (goal as any).investment_type && (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons
+                                    name={(INVESTMENT_TYPE_META[(goal as any).investment_type as InvestmentType]?.icon || "chart-line") as any}
+                                    size={20}
+                                    color={INVESTMENT_TYPE_META[(goal as any).investment_type as InvestmentType]?.color || theme.colors.primary}
+                                />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        {INVESTMENT_TYPE_META[(goal as any).investment_type as InvestmentType]?.label || "Investment"}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                        {(goal as any).is_investment && (goal as any).tenure_years ? (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons name="timeline-clock" size={20} color={theme.colors.primary} />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Tenure</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        {(goal as any).tenure_years} year{(goal as any).tenure_years > 1 ? 's' : ''}
+                                    </Text>
+                                </View>
+                            </View>
+                        ) : null}
+                        {(goal as any).is_investment && (goal as any).expected_return_rate != null && (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons name="trending-up" size={20} color={theme.colors.success} />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Expected Return</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        {(goal as any).expected_return_rate}% p.a.
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                        {(goal as any).is_investment && (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons name="chart-box-outline" size={20} color={theme.colors.info} />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Projected</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        ₹{calculateProjectedMaturity(goal as any).toLocaleString("en-IN")}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
                         {goal.target_date && (
                             <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
                                 <MaterialCommunityIcons name="calendar-clock" size={20} color={theme.colors.primary} />

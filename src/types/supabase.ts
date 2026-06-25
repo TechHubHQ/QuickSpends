@@ -70,6 +70,7 @@ export interface Database {
           name: string;
           color: string;
           is_event: boolean;
+          is_system: boolean;
           event_type: 'birthday' | 'marriage' | 'anniversary' | 'festival' | 'travel' | 'other' | null;
           event_date: string | null;
           budget: number | null;
@@ -82,6 +83,7 @@ export interface Database {
           name: string;
           color?: string;
           is_event?: boolean;
+          is_system?: boolean;
           event_type?: 'birthday' | 'marriage' | 'anniversary' | 'festival' | 'travel' | 'other' | null;
           event_date?: string | null;
           budget?: number | null;
@@ -94,11 +96,26 @@ export interface Database {
           name?: string;
           color?: string;
           is_event?: boolean;
+          is_system?: boolean;
           event_type?: 'birthday' | 'marriage' | 'anniversary' | 'festival' | 'travel' | 'other' | null;
           event_date?: string | null;
           budget?: number | null;
           description?: string | null;
           created_at?: string;
+        };
+      };
+      transaction_tags: {
+        Row: {
+          transaction_id: string;
+          tag_id: string;
+        };
+        Insert: {
+          transaction_id: string;
+          tag_id: string;
+        };
+        Update: {
+          transaction_id?: string;
+          tag_id?: string;
         };
       };
       transactions: {
@@ -161,6 +178,94 @@ export interface Database {
           tag_id?: string | null;
           nws_type?: 'needs' | 'wants' | 'savings' | null;
           created_at?: string;
+        };
+      };
+      vision_scenarios: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          is_default: boolean;
+          assumptions: any;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          is_default?: boolean;
+          assumptions?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          is_default?: boolean;
+          assumptions?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      vision_plans: {
+        Row: {
+          id: string;
+          user_id: string;
+          plan_type: 'goal' | 'future_expense' | 'safety_buffer' | 'debt_payoff' | 'small_wish';
+          title: string;
+          target_amount: number;
+          current_amount: number;
+          monthly_allocation: number;
+          target_date: string | null;
+          priority: number;
+          status: 'active' | 'paused' | 'completed' | 'archived';
+          notes: string | null;
+          icon: string | null;
+          color: string | null;
+          handling_strategy: string | null;
+          linked_savings_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          plan_type?: 'goal' | 'future_expense' | 'safety_buffer' | 'debt_payoff' | 'small_wish';
+          title: string;
+          target_amount?: number;
+          current_amount?: number;
+          monthly_allocation?: number;
+          target_date?: string | null;
+          priority?: number;
+          status?: 'active' | 'paused' | 'completed' | 'archived';
+          notes?: string | null;
+          icon?: string | null;
+          color?: string | null;
+          handling_strategy?: string | null;
+          linked_savings_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          plan_type?: 'goal' | 'future_expense' | 'safety_buffer' | 'debt_payoff' | 'small_wish';
+          title?: string;
+          target_amount?: number;
+          current_amount?: number;
+          monthly_allocation?: number;
+          target_date?: string | null;
+          priority?: number;
+          status?: 'active' | 'paused' | 'completed' | 'archived';
+          notes?: string | null;
+          icon?: string | null;
+          color?: string | null;
+          handling_strategy?: string | null;
+          linked_savings_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
       };
     };

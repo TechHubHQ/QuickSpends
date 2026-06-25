@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Dimensions,
   LayoutChangeEvent,
@@ -106,6 +106,7 @@ const CashFlowTrendChart = ({ data, loading }: CashFlowTrendChartProps) => {
                 <View
                   style={[
                     styles.legendDot,
+
                     { backgroundColor: theme.colors.success },
                   ]}
                 />
@@ -180,7 +181,7 @@ const CashFlowTrendChart = ({ data, loading }: CashFlowTrendChartProps) => {
           key={`cashflow-chart-${pointerResetKey}`}
           data={incomeData}
           data2={expenseData}
-          height={160}
+          height={280}
           width={chartWidth}
           color1={theme.colors.success}
           color2={theme.colors.error}
@@ -194,7 +195,7 @@ const CashFlowTrendChart = ({ data, loading }: CashFlowTrendChartProps) => {
           focusedDataPointRadius={7}
           showDataPointOnFocus
           showStripOnFocus
-          stripHeight={150}
+          stripHeight={230}
           stripWidth={2}
           stripColor={theme.colors.primary}
           stripOpacity={0.2}
@@ -224,16 +225,22 @@ const CashFlowTrendChart = ({ data, loading }: CashFlowTrendChartProps) => {
           spacing={spacing}
           initialSpacing={initialSpacing}
           endSpacing={endSpacing}
+          disableScroll
+          maxValue={maxValue * 1.1}
+          noOfSections={5}
           isAnimated
           animationDuration={1200}
           pointerConfig={{
             pointerStripColor: theme.colors.primary,
             pointerStripWidth: 2,
             pointerStripHeight: 150,
+            pointerStripUptoDataPoint: true,
             pointerColor: theme.colors.primary,
             radius: 6,
-            pointerLabelWidth: 120,
-            pointerLabelHeight: 100,
+            pointerLabelWidth: 140,
+            pointerLabelHeight: 140,
+            shiftPointerLabelX: 0,
+            shiftPointerLabelY: 0,
             activatePointersOnLongPress: false,
             autoAdjustPointerLabelPosition: true,
             persistPointer: true,
@@ -255,12 +262,12 @@ const CashFlowTrendChart = ({ data, loading }: CashFlowTrendChartProps) => {
                 idx >= 0
                   ? (incomeData[idx]?.value ?? 0)
                   : (incomeData.find((d) => d.label === currentItem.label)
-                      ?.value ?? 0);
+                    ?.value ?? 0);
               const expenseValue =
                 idx >= 0
                   ? (expenseData[idx]?.value ?? 0)
                   : (expenseData.find((d) => d.label === currentItem.label)
-                      ?.value ?? 0);
+                    ?.value ?? 0);
 
               return (
                 <LinearGradient
@@ -332,7 +339,8 @@ const CashFlowTrendChart = ({ data, loading }: CashFlowTrendChartProps) => {
               );
             },
           }}
-          yAxisOffset={-(maxValue * 0.2)}
+          overflowTop={60}
+          overflowBottom={48}
         />
 
         {data.length > 1 && (
@@ -350,9 +358,9 @@ const CashFlowTrendChart = ({ data, loading }: CashFlowTrendChartProps) => {
                         Math.max(
                           10,
                           initialSpacing +
-                            spacing * i -
-                            Math.floor(labelWidth / 2) +
-                            (i === data.length - 1 ? 8 : 0),
+                          spacing * i -
+                          Math.floor(labelWidth / 2) +
+                          (i === data.length - 1 ? 8 : 0),
                         ),
                         chartWidth - labelWidth,
                       ),
@@ -474,12 +482,12 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   chartWrapper: {
-    minHeight: 190,
+    minHeight: 240,
     alignItems: "center",
     justifyContent: "flex-start",
     marginVertical: 10,
-    paddingTop: 4,
-    overflow: "hidden",
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   pointerLabel: {
     padding: 12,
