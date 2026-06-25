@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { format } from "date-fns";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
@@ -17,11 +17,13 @@ import {
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { LineChart } from "react-native-gifted-charts";
 import { useAlert } from "../context/AlertContext";
 import { useAuth } from "../context/AuthContext";
 import { SavingsGoal, useSavings } from "../hooks/useSavings";
 import { Transaction, useTransactions } from "../hooks/useTransactions";
 import { useTheme } from "../theme/ThemeContext";
+import { INVESTMENT_TYPE_META, InvestmentType } from "../config/investmentTypes";
 import { getSafeIconName } from "../utils/iconMapping";
 
 const { width } = Dimensions.get("window");
@@ -31,7 +33,7 @@ export default function QSSavingDetailsScreen() {
     const router = useRouter();
     const { theme } = useTheme();
     const insets = useSafeAreaInsets();
-    const { getSavingsGoal, deleteSavingsGoal, getSavingsProgress } = useSavings();
+    const { getSavingsGoal, deleteSavingsGoal, getSavingsProgress, calculateProjectedMaturity } = useSavings();
     const { getTransactionsBySaving } = useTransactions();
     const { user } = useAuth();
     const { showAlert } = useAlert();
@@ -104,6 +106,23 @@ export default function QSSavingDetailsScreen() {
         router.push({ pathname: "/add-saving", params: { savingId: id } });
     };
 
+    const chartData = useMemo(() => {
+      if (!goal || transactions.length === 0) return [];
+      const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let balance = 0;
+      return sorted.map((t) => {
+        const change = (t.type === 'income' || t.type === 'transfer') ? t.amount : -t.amount;
+        balance += change;
+        return {
+          value: Math.max(0, balance),
+          label: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        };
+      });
+    }, [transactions, goal]);
+
+    const progress = goal ? getSavingsProgress(goal) : 0;
+    const color = goal?.category_color || theme.colors.primary;
+
     if (loading) {
         return (
             <View style={[styles.container, { backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -113,9 +132,6 @@ export default function QSSavingDetailsScreen() {
     }
 
     if (!goal) return null;
-
-    const progress = getSavingsProgress(goal);
-    const color = goal.category_color || theme.colors.primary;
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -206,6 +222,54 @@ export default function QSSavingDetailsScreen() {
                                 </Text>
                             </View>
                         </View>
+                        {(goal as any).is_investment && (goal as any).investment_type && (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons
+                                    name={(INVESTMENT_TYPE_META[(goal as any).investment_type as InvestmentType]?.icon || "chart-line") as any}
+                                    size={20}
+                                    color={INVESTMENT_TYPE_META[(goal as any).investment_type as InvestmentType]?.color || theme.colors.primary}
+                                />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        {INVESTMENT_TYPE_META[(goal as any).investment_type as InvestmentType]?.label || "Investment"}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                        {(goal as any).is_investment && (goal as any).tenure_years ? (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons name="timeline-clock" size={20} color={theme.colors.primary} />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Tenure</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        {(goal as any).tenure_years} year{(goal as any).tenure_years > 1 ? 's' : ''}
+                                    </Text>
+                                </View>
+                            </View>
+                        ) : null}
+                        {(goal as any).is_investment && (goal as any).expected_return_rate != null && (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons name="trending-up" size={20} color={theme.colors.success} />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Expected Return</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        {(goal as any).expected_return_rate}% p.a.
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                        {(goal as any).is_investment && (
+                            <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
+                                <MaterialCommunityIcons name="chart-box-outline" size={20} color={theme.colors.info} />
+                                <View>
+                                    <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Projected</Text>
+                                    <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                                        ₹{calculateProjectedMaturity(goal as any).toLocaleString("en-IN")}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
                         {goal.target_date && (
                             <View style={[styles.detailItem, { backgroundColor: theme.colors.surface }]}>
                                 <MaterialCommunityIcons name="calendar-clock" size={20} color={theme.colors.primary} />
@@ -229,13 +293,49 @@ export default function QSSavingDetailsScreen() {
                     </View>
                 </Animated.View>
 
+                    {chartData.length > 1 && (
+                      <Animated.View entering={FadeInUp.delay(200).springify()} style={[styles.chartCard, { backgroundColor: theme.colors.surface, borderColor: theme.isDark ? '#334155' : '#E2E8F0' }]}>
+                        <Text style={[styles.chartTitle, { color: theme.colors.text }]}>Balance History</Text>
+                        <LineChart
+                          data={chartData}
+                          height={100}
+                          width={width - 80}
+                          color={color}
+                          thickness={2}
+                          hideDataPoints
+                          hideRules
+                          hideYAxisText
+                          xAxisThickness={0}
+                          yAxisThickness={0}
+                          xAxisLabelTextStyle={{ color: 'transparent', fontSize: 1 }}
+                          curved
+                          isAnimated
+                          animationDuration={800}
+                          areaChart
+                          startFillColor={color}
+                          startOpacity={0.2}
+                          endFillColor={color}
+                          endOpacity={0.02}
+                          initialSpacing={10}
+                          endSpacing={10}
+                        />
+                      </Animated.View>
+                    )}
+
                 <View style={styles.actionButtons}>
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: theme.colors.primary, flex: 1 }]}
+                        style={[styles.actionButton, { backgroundColor: theme.colors.success, flex: 1 }]}
                         onPress={() => router.push({ pathname: "/add-transaction", params: { initialType: 'transfer', savingsId: goal.id } })}
                     >
-                        <MaterialCommunityIcons name="plus" size={20} color={theme.colors.onPrimary} />
+                        <MaterialCommunityIcons name="bank-transfer-in" size={20} color={theme.colors.onPrimary} />
                         <Text style={[styles.actionText, { color: theme.colors.onPrimary }]}>Add Funds</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: theme.colors.error, flex: 1 }]}
+                        onPress={() => router.push({ pathname: "/add-transaction", params: { initialType: 'expense', savingsId: goal.id } })}
+                    >
+                        <MaterialCommunityIcons name="cash-minus" size={20} color={theme.colors.onPrimary} />
+                        <Text style={[styles.actionText, { color: theme.colors.onPrimary }]}>Add Expense</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -428,6 +528,19 @@ const styles = StyleSheet.create({
     detailValue: {
         fontSize: 14,
         fontWeight: '700',
+    },
+    chartCard: {
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 24,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    chartTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        marginBottom: 12,
+        alignSelf: 'flex-start',
     },
     actionButtons: {
         flexDirection: 'row',

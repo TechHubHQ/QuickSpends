@@ -1,5 +1,5 @@
 ﻿import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -15,7 +15,8 @@ import { useAuth } from '../src/context/AuthContext';
 
 const AddUpcomingBillScreen = () => {
   const { theme } = useTheme();
-  const { addBill } = useUpcomingBills();
+  const { billId } = useLocalSearchParams<{ billId: string }>();
+  const { bills, fetchBills, addBill, updateBill } = useUpcomingBills();
   const { getCategories } = useCategories();
   const { getAccountsByUser } = useAccounts();
   const { user } = useAuth();
@@ -48,6 +49,26 @@ const AddUpcomingBillScreen = () => {
   useEffect(() => {
     fetchData();
   }, [formData.bill_type]);
+
+  useEffect(() => {
+    if (!billId || bills.length === 0) return;
+    const existing = bills.find(b => b.id === billId);
+    if (!existing) return;
+    setFormData({
+      name: existing.name,
+      amount: String(existing.amount),
+      category_id: existing.category_id || '',
+      sub_category_id: existing.sub_category_id || '',
+      account_id: existing.account_id || '',
+      bill_type: existing.bill_type,
+      to_account_id: existing.to_account_id || '',
+      due_date: new Date(existing.due_date),
+      frequency: existing.frequency,
+      description: existing.description || '',
+      auto_pay: existing.auto_pay,
+      reminder_days: existing.reminder_days,
+    });
+  }, [billId, bills]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -136,7 +157,7 @@ const AddUpcomingBillScreen = () => {
 
     setLoading(true);
     try {
-      await addBill({
+      const payload = {
         name: formData.name.trim(),
         amount: parseFloat(formData.amount),
         category_id: formData.category_id || undefined,
@@ -151,12 +172,18 @@ const AddUpcomingBillScreen = () => {
         is_active: true,
         auto_pay: formData.auto_pay,
         reminder_days: formData.reminder_days,
-      });
+      };
+
+      if (billId) {
+        await updateBill(billId, payload);
+      } else {
+        await addBill(payload);
+      }
 
       Toast.show({
         type: 'success',
         text1: 'Success',
-        text2: 'Bill added successfully',
+        text2: billId ? 'Bill updated successfully' : 'Bill added successfully',
       });
       router.back();
     } catch (error) {
@@ -338,7 +365,7 @@ const AddUpcomingBillScreen = () => {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <QSHeader
-        title="Add Upcoming Bill"
+        title={billId ? "Edit Bill" : "Add Upcoming Bill"}
         showBack
         onBackPress={() => router.back()}
       />
@@ -424,7 +451,7 @@ const AddUpcomingBillScreen = () => {
 
         <View style={{ marginTop: theme.spacing.l, marginBottom: theme.spacing.xl }}>
           <QSButton
-            title="Add Bill"
+            title={billId ? "Update Bill" : "Add Bill"}
             onPress={handleSubmit}
             loading={loading}
           />

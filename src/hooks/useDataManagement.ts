@@ -13,14 +13,13 @@ export const useDataManagement = () => {
         savings?: boolean;
         loans?: boolean;
         trips?: boolean;
-        groups?: boolean;
         preferences?: boolean;
     }) => {
         setLoading(true);
         setError(null);
         try {
             // 1. Transactions - Should be first if others depend on it
-            if (selections.transactions || selections.accounts || selections.trips || selections.groups || selections.loans || selections.savings) {
+            if (selections.transactions || selections.accounts || selections.trips || selections.loans || selections.savings) {
                 const { error: tError } = await supabase
                     .from('transactions')
                     .delete()
@@ -65,24 +64,7 @@ export const useDataManagement = () => {
                 if (trError) throw trError;
             }
 
-            // 6. Groups (Careful with memberships)
-            if (selections.groups) {
-                // First clear memberships where user is part of
-                const { error: gmError } = await supabase
-                    .from('group_members')
-                    .delete()
-                    .eq('user_id', userId);
-                if (gmError) throw gmError;
-
-                // Then clear groups created by user
-                const { error: gError } = await supabase
-                    .from('groups')
-                    .delete()
-                    .eq('created_by', userId);
-                if (gError) throw gError;
-            }
-
-            // 7. Accounts
+            // 6. Accounts
             if (selections.accounts) {
                 const { error: aError } = await supabase
                     .from('accounts')
@@ -91,7 +73,7 @@ export const useDataManagement = () => {
                 if (aError) throw aError;
             }
 
-            // 8. Preferences (AsyncStorage)
+            // 7. Preferences (AsyncStorage)
             if (selections.preferences) {
                 const keys = await AsyncStorage.getAllKeys();
                 const prefKeys = keys.filter(k => k.startsWith('qs_') || k.includes('theme') || k.includes('notification'));

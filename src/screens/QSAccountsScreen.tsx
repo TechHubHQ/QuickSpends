@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -8,7 +8,6 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -24,6 +23,14 @@ import { useSavings } from "../hooks/useSavings";
 import { useTransactions } from "../hooks/useTransactions";
 import { createStyles } from "../styles/QSAccounts.styles";
 import { useTheme } from "../theme/ThemeContext";
+
+const FILTER_OPTIONS = [
+  { key: "banks", label: "Banks & Debit", icon: "bank", color: "#3B82F6" },
+  { key: "cash", label: "Cash Wallets", icon: "cash", color: "#14B8A6" },
+  { key: "credit", label: "Credit Cards", icon: "credit-card", color: "#A855F7" },
+  { key: "loans", label: "Loans", icon: "handshake", color: "#F97316" },
+  { key: "savings", label: "Savings Goals", icon: "piggy-bank", color: "#10B981" },
+] as const;
 
 export default function QSAccountsScreen() {
   const { theme } = useTheme();
@@ -45,8 +52,8 @@ export default function QSAccountsScreen() {
   });
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [showNetWorthInfo, setShowNetWorthInfo] = useState(false);
+  const [quickStats, setQuickStats] = useState({ income: 0, expense: 0 });
 
-  // Tabs: 'all' | 'banks' | 'cash' | 'cards'
   const [selectedTab, setSelectedTab] = useState<
     "all" | "banks" | "cash" | "cards"
   >("all");
@@ -69,7 +76,6 @@ export default function QSAccountsScreen() {
       const savingsData = await getSavingsGoals(user.id);
       setAccounts(accountsData);
 
-      // Calculate total net worth with filters (Assets - Liabilities)
       let assets = 0;
       let liabilities = 0;
 
@@ -88,7 +94,6 @@ export default function QSAccountsScreen() {
         }
       });
 
-      // Add Savings
       if (balanceFilters.savings) {
         savingsData.forEach((saving) => {
           if (saving.include_in_net_worth) {
@@ -97,7 +102,6 @@ export default function QSAccountsScreen() {
         });
       }
 
-      // Add Loans
       if (balanceFilters.loans) {
         loansData.forEach((loan) => {
           if (loan.status === "active") {
@@ -112,6 +116,20 @@ export default function QSAccountsScreen() {
 
       const trendData = await getBalanceTrend(user.id, netWorth);
       setBalanceTrend(trendData);
+
+      // Calculate quick stats from accounts
+      let totalIncome = 0;
+      let totalExpense = 0;
+      accountsData.forEach((acc) => {
+        if (acc.type === "cash" || acc.type === "bank" || (acc.type === "card" && acc.card_type === "debit")) {
+          if (acc.balance > 0) totalIncome += acc.balance;
+        }
+        if (acc.type === "card" && acc.card_type === "credit") {
+          const debt = Math.max(0, (acc.credit_limit || 0) - acc.balance);
+          totalExpense += debt;
+        }
+      });
+      setQuickStats({ income: totalIncome, expense: totalExpense });
     } catch (error) {
     } finally {
       setRefreshing(false);
@@ -136,7 +154,6 @@ export default function QSAccountsScreen() {
     }).format(amount);
   };
 
-  // Filter accounts based on selected tab
   const filteredAccounts = accounts.filter((acc) => {
     if (selectedTab === "all") return true;
     if (selectedTab === "banks")
@@ -157,12 +174,15 @@ export default function QSAccountsScreen() {
     return "wallet";
   };
 
-  // Modern colors for icons
   const getAccountColor = (type: string, cardType?: string) => {
-    if (type === "bank") return "#3B82F6"; // Blue
-    if (type === "cash") return "#14B8A6"; // Teal
-    if (type === "card" && cardType === "credit") return "#A855F7"; // Purple
+    if (type === "bank") return "#3B82F6";
+    if (type === "cash") return "#14B8A6";
+    if (type === "card" && cardType === "credit") return "#A855F7";
     return theme.colors.primary;
+  };
+
+  const toggleFilter = (key: string) => {
+    setBalanceFilters((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }));
   };
 
   return (
@@ -193,13 +213,12 @@ export default function QSAccountsScreen() {
           style={styles.netWorthCard}
         >
           <LinearGradient
-            colors={["#1e3a8a", "#3b82f6"]} // Dark Blue to Blue
+            colors={["#1e3a8a", "#3b82f6"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
 
-          {/* Decorative Blur Circles using absolute positioning */}
           <View
             style={[
               styles.nwDecoration,
@@ -260,7 +279,7 @@ export default function QSAccountsScreen() {
                   styles.trendBadge,
                   balanceTrend.percentage === 0 && {
                     backgroundColor: "rgba(148, 163, 184, 0.2)",
-                  }, // Grey bg if 0%
+                  },
                 ]}
               >
                 <MaterialCommunityIcons
@@ -284,7 +303,7 @@ export default function QSAccountsScreen() {
                   style={[
                     styles.trendText,
                     balanceTrend.percentage === 0 && { color: "#94A3B8" },
-                    balanceTrend.trend === "down" && { color: "#FCA5A5" }, // Explicit Red for down
+                    balanceTrend.trend === "down" && { color: "#FCA5A5" },
                   ]}
                 >
                   {balanceTrend.percentage === 0
@@ -319,7 +338,32 @@ export default function QSAccountsScreen() {
           </View>
         </Animated.View>
 
-        {/* Filter Bottom Sheet */}
+        {/* Quick Stats Row */}
+        <Animated.View
+          entering={FadeInDown.delay(150).springify()}
+          style={styles.quickStatsRow}
+        >
+          <View style={styles.quickStatCard}>
+            <View style={[styles.quickStatIcon, { backgroundColor: "#10B98115" }]}>
+              <MaterialCommunityIcons name="arrow-down" size={18} color="#10B981" />
+            </View>
+            <Text style={styles.quickStatLabel}>Total Assets</Text>
+            <Text style={[styles.quickStatAmount, { color: "#10B981" }]}>
+              {formatCurrency(quickStats.income)}
+            </Text>
+          </View>
+          <View style={styles.quickStatCard}>
+            <View style={[styles.quickStatIcon, { backgroundColor: "#EF444415" }]}>
+              <MaterialCommunityIcons name="arrow-up" size={18} color="#EF4444" />
+            </View>
+            <Text style={styles.quickStatLabel}>Total Debt</Text>
+            <Text style={[styles.quickStatAmount, { color: "#EF4444" }]}>
+              {formatCurrency(quickStats.expense)}
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* Filter Bottom Sheet - Modern Chip Toggles */}
         <QSBottomSheet
           visible={filterVisible}
           onClose={() => setFilterVisible(false)}
@@ -327,257 +371,45 @@ export default function QSAccountsScreen() {
           showDoneButton
           onDone={() => setFilterVisible(false)}
         >
-          <View style={{ padding: 20, gap: 20 }}>
-            <Text
-              style={{ color: theme.colors.textSecondary, marginBottom: 10 }}
-            >
-              Select which accounts to include in your Total Balance
-              calculation.
+          <View style={styles.filterSection}>
+            <Text style={styles.filterTitle}>
+              Include in Net Worth calculation
             </Text>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(59, 130, 246, 0.1)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="bank"
-                    size={24}
-                    color="#3B82F6"
-                  />
-                </View>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: theme.colors.text,
-                  }}
-                >
-                  Banks & Debit
-                </Text>
-              </View>
-              <Switch
-                value={balanceFilters.banks}
-                onValueChange={(val) =>
-                  setBalanceFilters((prev) => ({ ...prev, banks: val }))
-                }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(20, 184, 166, 0.1)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="cash"
-                    size={24}
-                    color="#14B8A6"
-                  />
-                </View>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: theme.colors.text,
-                  }}
-                >
-                  Cash Wallets
-                </Text>
-              </View>
-              <Switch
-                value={balanceFilters.cash}
-                onValueChange={(val) =>
-                  setBalanceFilters((prev) => ({ ...prev, cash: val }))
-                }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(168, 85, 247, 0.1)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="credit-card"
-                    size={24}
-                    color="#A855F7"
-                  />
-                </View>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: theme.colors.text,
-                  }}
-                >
-                  Credit Cards
-                </Text>
-              </View>
-              <Switch
-                value={balanceFilters.credit}
-                onValueChange={(val) =>
-                  setBalanceFilters((prev) => ({ ...prev, credit: val }))
-                }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(249, 115, 22, 0.1)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="handshake"
-                    size={24}
-                    color="#F97316"
-                  />
-                </View>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: theme.colors.text,
-                  }}
-                >
-                  Loans (Lent/Borrowed)
-                </Text>
-              </View>
-              <Switch
-                value={balanceFilters.loans}
-                onValueChange={(val) =>
-                  setBalanceFilters((prev) => ({ ...prev, loans: val }))
-                }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(16, 185, 129, 0.1)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="piggy-bank"
-                    size={24}
-                    color="#10B981"
-                  />
-                </View>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: theme.colors.text,
-                  }}
-                >
-                  Savings Goals
-                </Text>
-              </View>
-              <Switch
-                value={balanceFilters.savings}
-                onValueChange={(val) =>
-                  setBalanceFilters((prev) => ({ ...prev, savings: val }))
-                }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
-                thumbColor="#FFFFFF"
-              />
+            <View style={styles.filterChipRow}>
+              {FILTER_OPTIONS.map((opt) => {
+                const isActive = balanceFilters[opt.key as keyof typeof balanceFilters];
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      styles.filterChip,
+                      isActive && styles.filterChipActive,
+                    ]}
+                    onPress={() => toggleFilter(opt.key)}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.filterChipBullet,
+                        { backgroundColor: isActive ? opt.color : "#94A3B8" },
+                      ]}
+                    />
+                    <MaterialCommunityIcons
+                      name={opt.icon as any}
+                      size={16}
+                      color={isActive ? opt.color : theme.colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        isActive && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </QSBottomSheet>
@@ -690,8 +522,8 @@ export default function QSAccountsScreen() {
                       style={[
                         styles.accountIconContainer,
                         {
-                          backgroundColor: `${accentColor}15`, // 10% opacity
-                          borderColor: `${accentColor}30`, // 20% opacity
+                          backgroundColor: `${accentColor}15`,
+                          borderColor: `${accentColor}30`,
                         },
                       ]}
                     >

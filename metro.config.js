@@ -7,6 +7,7 @@ const config = getDefaultConfig(__dirname);
 // Enable fast refresh and watch mode
 config.watchFolders = [__dirname];
 config.resolver.sourceExts.push('cjs');
+config.watchOptions = { ignored: /\.git/ };
 
 // Ensure hot reloading is enabled
 config.server = {

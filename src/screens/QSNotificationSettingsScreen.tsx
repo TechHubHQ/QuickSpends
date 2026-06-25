@@ -98,13 +98,6 @@ const QSNotificationSettingsScreen = () => {
                             '#EF4444' // Red
                         )}
                         {renderToggle(
-                            'Split Payments',
-                            'Reminders for pending split settlements',
-                            'splitReminders',
-                            'account-cash-outline',
-                            '#8B5CF6' // Purple
-                        )}
-                        {renderToggle(
                             'Monthly Summary',
                             'Receive a summary of your spending each month',
                             'monthlySummary',

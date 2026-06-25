@@ -257,6 +257,20 @@ const QSSettingsScreen = () => {
 
                     <TouchableOpacity
                         style={styles.menuItem}
+                        onPress={() => {
+                            // @ts-ignore
+                            router.push('/tags-management');
+                        }}
+                    >
+                        <View style={styles.menuIcon}>
+                            <MaterialCommunityIcons name="tag-multiple-outline" size={24} color={theme.colors.success} />
+                        </View>
+                        <Text style={styles.menuText}>Manage Tags & Events</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.menuItem}
                         onPress={() => router.push('/recurring-transactions')}
                     >
                         <View style={styles.menuIcon}>

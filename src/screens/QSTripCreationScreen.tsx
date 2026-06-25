@@ -19,10 +19,8 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertButton, QSAlertModal } from "../components/QSAlertModal";
 import { QSDatePicker } from "../components/QSDatePicker";
-import { QSGroupPicker } from "../components/QSGroupPicker";
 import { QSHeader } from "../components/QSHeader";
 import { useAuth } from "../context/AuthContext";
-import { useGroups } from "../hooks/useGroups";
 import { useTrips } from "../hooks/useTrips";
 import { fetchAndCacheImage } from "../lib/imageService";
 import { useTheme } from "../theme/ThemeContext";
@@ -39,24 +37,18 @@ export default function QSTripCreationScreen() {
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const { addTrip, editTrip, getTripById } = useTrips();
-    const { getGroupsByUser } = useGroups();
 
     const [name, setName] = useState("");
     const [budget, setBudget] = useState("");
     const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
-    const [tripType, setTripType] = useState<"solo" | "group">("solo");
-    const [selectedGroup, setSelectedGroup] = useState<any>(null);
-    const [groups, setGroups] = useState<any[]>([]);
     const [tripMode, setTripMode] = useState<"single" | "multi">("single");
     const [locations, setLocations] = useState<string[]>([""]);
     const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
 
     const [showStartDatePicker, setShowStartDatePicker] = useState(false);
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-    const [showGroupPicker, setShowGroupPicker] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [initializing, setInitializing] = useState(!!tripId);
 
     const [alertConfig, setAlertConfig] = useState<{
         visible: boolean;
@@ -77,12 +69,6 @@ export default function QSTripCreationScreen() {
     };
 
     useEffect(() => {
-        if (user) {
-            loadGroups();
-        }
-    }, [user]);
-
-    useEffect(() => {
         if (tripId) {
             loadTripDetails();
         }
@@ -96,43 +82,11 @@ export default function QSTripCreationScreen() {
             setBudget(trip.budget ? trip.budget.toString() : "");
             setStartDate(new Date(trip.startDate));
             setEndDate(new Date(trip.endDate));
-            setTripType(trip.type);
             setTripMode(trip.tripMode || "single");
             setLocations(trip.locations && trip.locations.length > 0 ? trip.locations : [""]);
             setExistingImageUrl(trip.image);
-
-            if (trip.type === 'group' && trip.groupId) {
-                // We need to set the selected group. 
-                // Since groups are loaded async, we might need to wait or just set the ID temporarily if we had the full group object.
-                // Ideally getTripById should return group details or we find it in the groups list.
-                // For now, let's assume groups are loaded or will be loaded.
-                // We can try to find it in the loaded groups list later, or just fetch it if needed.
-            }
         }
-        setInitializing(false);
     };
-
-    // Effect to set selected group once groups are loaded and if we are editing
-    useEffect(() => {
-        if (tripId && groups.length > 0 && !selectedGroup) {
-            // Retrigger fetch to match group? 
-            // Or better, when loading trip, store the groupID and then find it here.
-            getTripById(tripId).then(t => {
-                if (t && t.groupId) {
-                    const g = groups.find(g => g.id === t.groupId);
-                    if (g) setSelectedGroup(g);
-                }
-            });
-        }
-    }, [groups, tripId]);
-
-
-    const loadGroups = async () => {
-        if (!user) return;
-        const userGroups = await getGroupsByUser(user.id);
-        setGroups(userGroups);
-    };
-
 
     const addLocationField = () => {
         setLocations([...locations, ""]);
@@ -161,10 +115,6 @@ export default function QSTripCreationScreen() {
     const handleSave = async () => {
         if (!name) {
             showAlert("Error", "Please enter a trip name");
-            return;
-        }
-        if (tripType === "group" && !selectedGroup) {
-            showAlert("Error", "Please select a group for this trip");
             return;
         }
         if (!user) {
@@ -207,10 +157,6 @@ export default function QSTripCreationScreen() {
                     endDate: getLocalDateString(endDate),
                     locations: validLocations,
                     tripMode: tripMode,
-                    // tripType/Group usually shouldn't change easily for existing logic complexity, but let's allow basic updates
-                    // Note: changing from solo to group or vice versa might have implications on transactions. 
-                    // extra: logic to handle type change if needed. useTrips editTrip handles generic updates.
-                    // types are stored as columns.
                 });
 
                 if (result.success) {
@@ -224,7 +170,6 @@ export default function QSTripCreationScreen() {
                 const result = await addTrip({
                     name,
                     user_id: user.id,
-                    group_id: tripType === "group" ? selectedGroup.id : undefined,
                     budget_amount: budget ? parseFloat(budget) : 0,
                     start_date: getLocalDateString(startDate),
                     end_date: getLocalDateString(endDate),
@@ -308,67 +253,8 @@ export default function QSTripCreationScreen() {
                                 </View>
                             </Animated.View>
 
-                            {/* Trip Type Toggle - Disable if Editing (Complexity: changing group vs solo mid-trip is hard) */}
-                            {/* Actually, let's allow it if user really wants, but warn? Or just disable to keep simple. */}
-                            {/* Let's disable Type switching in Edit mode for now to avoid consistency issues */}
-                            <Animated.View entering={FadeInDown.delay(200).springify()} style={{ marginTop: 32 }}>
-                                <View style={{ opacity: tripId ? 0.6 : 1 }}>
-                                    <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                        Trip Type {tripId && "(Cannot be changed)"}
-                                    </Text>
-                                    <View style={[styles.toggleContainer, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.toggleOption,
-                                                tripType === "solo" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                            ]}
-                                            onPress={() => !tripId && setTripType("solo")}
-                                            disabled={!!tripId}
-                                        >
-                                            <MaterialCommunityIcons name="account" size={18} color={tripType === "solo" ? "#FFF" : theme.colors.textSecondary} />
-                                            <Text style={[styles.toggleText, { color: tripType === "solo" ? "#FFF" : theme.colors.textSecondary }]}>Solo</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.toggleOption,
-                                                tripType === "group" && { backgroundColor: theme.colors.primary, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
-                                            ]}
-                                            onPress={() => !tripId && setTripType("group")}
-                                            disabled={!!tripId}
-                                        >
-                                            <MaterialCommunityIcons name="account-group" size={18} color={tripType === "group" ? "#FFF" : theme.colors.textSecondary} />
-                                            <Text style={[styles.toggleText, { color: tripType === "group" ? "#FFF" : theme.colors.textSecondary }]}>Group</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            </Animated.View>
-
-                            {/* Group Selection (Conditional) */}
-                            {tripType === "group" && (
-                                <Animated.View entering={FadeInDown.springify()} style={{ marginTop: 24 }}>
-                                    <View style={{ opacity: tripId ? 0.6 : 1 }}>
-                                        <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                                            Select Group {tripId && "(Cannot be changed)"}
-                                        </Text>
-                                        <TouchableOpacity
-                                            style={[styles.selectorButton, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF", borderColor: theme.colors.border }]}
-                                            onPress={() => !tripId && setShowGroupPicker(true)}
-                                            disabled={!!tripId}
-                                        >
-                                            <View style={styles.selectorContent}>
-                                                <MaterialCommunityIcons name="account-group-outline" size={24} color={theme.colors.primary} />
-                                                <Text style={[styles.selectorText, { color: selectedGroup ? theme.colors.text : theme.colors.textSecondary }]}>
-                                                    {selectedGroup ? selectedGroup.name : "Choose a group"}
-                                                </Text>
-                                            </View>
-                                            {!tripId && <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.textSecondary} />}
-                                        </TouchableOpacity>
-                                    </View>
-                                </Animated.View>
-                            )}
-
                             {/* Date Range */}
-                            <Animated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 32 }}>
+                            <Animated.View entering={FadeInDown.delay(200).springify()} style={{ marginTop: 32 }}>
                                 <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
                                     When is it happening?
                                 </Text>
@@ -489,12 +375,12 @@ export default function QSTripCreationScreen() {
                     style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" }]}
                 >
                     <TouchableOpacity
-                        style={[
-                            styles.saveButton,
-                            { backgroundColor: theme.colors.primary },
-                            (!name || (tripType === "group" && !selectedGroup)) && { opacity: 0.5 }
+                            style={[
+                                styles.saveButton,
+                                { backgroundColor: theme.colors.primary },
+                            !name && { opacity: 0.5 }
                         ]}
-                        disabled={!name || (tripType === "group" && !selectedGroup) || loading || !user}
+                        disabled={!name || loading || !user}
                         onPress={handleSave}
                     >
                         <Text style={styles.saveButtonText}>
@@ -519,15 +405,6 @@ export default function QSTripCreationScreen() {
                     onClose={() => setShowEndDatePicker(false)}
                     selectedDate={endDate}
                     onSelect={(date) => setEndDate(date)}
-                />
-
-                {/* Group Picker */}
-                <QSGroupPicker
-                    visible={showGroupPicker}
-                    onClose={() => setShowGroupPicker(false)}
-                    groups={groups}
-                    selectedId={selectedGroup?.id}
-                    onSelect={(group) => setSelectedGroup(group)}
                 />
 
                 <QSAlertModal

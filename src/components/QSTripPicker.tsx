@@ -10,7 +10,6 @@ interface Trip {
     startDate: string;
     endDate: string;
     status: 'active' | 'completed';
-    groupId?: string;
 }
 
 interface QSTripPickerProps {

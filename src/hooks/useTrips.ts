@@ -12,10 +12,8 @@ export interface Trip {
     image: string;
     currency: string;
     status: 'upcoming' | 'active' | 'completed';
-    type: 'solo' | 'group';
     locations?: string[];
     tripMode?: 'single' | 'multi';
-    groupId?: string;
 }
 
 export const useTrips = () => {
@@ -74,10 +72,8 @@ export const useTrips = () => {
                     image: trip.image_url || 'https://loremflickr.com/800/600/travel,landscape',
                     currency: trip.base_currency || 'INR',
                     status,
-                    type: trip.group_id ? 'group' : 'solo',
                     locations: trip.locations ? JSON.parse(trip.locations) : [],
                     tripMode: trip.trip_mode as 'single' | 'multi',
-                    groupId: trip.group_id
                 };
             }));
 
@@ -94,7 +90,6 @@ export const useTrips = () => {
     const addTrip = useCallback(async (trip: {
         name: string;
         user_id: string;
-        group_id?: string;
         budget_amount?: number;
         start_date: string;
         end_date: string;
@@ -106,7 +101,7 @@ export const useTrips = () => {
         setLoading(true);
         setError(null);
         try {
-            const { data: newTrip, error } = await supabase
+            const { error } = await supabase
                 .from('trips')
                 .insert({
                     ...trip,
@@ -116,28 +111,6 @@ export const useTrips = () => {
                 .single();
 
             if (error) throw error;
-
-            // Notify group members if it's a group trip
-            if (trip.group_id && newTrip) {
-                const { data: group } = await supabase.from('groups').select('name').eq('id', trip.group_id).single();
-                const { data: creator } = await supabase.from('profiles').select('username').eq('id', trip.user_id).single();
-                const { data: members } = await supabase.from('group_members').select('user_id').eq('group_id', trip.group_id);
-
-                if (members && members.length > 0) {
-                    const membersToNotify = members.filter(m => m.user_id !== trip.user_id);
-                    const notificationPromises = membersToNotify.map(m =>
-                        supabase.from('notifications').insert({
-                            user_id: m.user_id,
-                            type: 'info',
-                            title: 'New Group Trip',
-                            message: `${creator?.username || 'A member'} added a new trip "${trip.name}" to "${group?.name || 'your group'}".`,
-                            data: { tripId: newTrip.id, groupId: trip.group_id },
-                            is_read: false
-                        })
-                    );
-                    await Promise.all(notificationPromises);
-                }
-            }
 
             return { success: true };
         } catch (err: any) {
@@ -192,10 +165,8 @@ export const useTrips = () => {
                 image: trip.image_url || 'https://loremflickr.com/800/600/travel,landscape',
                 currency: trip.base_currency || 'INR',
                 status,
-                type: trip.group_id ? 'group' : 'solo',
                 locations: trip.locations ? JSON.parse(trip.locations) : [],
                 tripMode: trip.trip_mode as 'single' | 'multi',
-                groupId: trip.group_id
             } as Trip;
         } catch (err: any) {
             setError(err.message);

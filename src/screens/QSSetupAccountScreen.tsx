@@ -402,7 +402,7 @@ export default function QSSetupAccountScreen() {
                                             color={theme.primary}
                                         />
                                         <View style={{ marginLeft: 12 }}>
-                                            <Text style={{ color: theme.text, fontWeight: '500' }}>Share Parent's Limit</Text>
+                                            <Text style={{ color: theme.text, fontWeight: '500' }}>{`Share Parent's Limit`}</Text>
                                             <Text style={{ color: theme.text, opacity: 0.6, fontSize: 12 }}>
                                                 {isSharedLimit 
                                                     ? "Use full available limit from parent card" 

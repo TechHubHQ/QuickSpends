@@ -42,9 +42,9 @@ export default function QSLandingScreen() {
   const features = [
     {
       id: "1",
-      icon: "account-multiple-plus",
-      title: "Split Instantly",
-      description: "No more awkward math after dinner.",
+      icon: "wallet-outline",
+      title: "Track Clearly",
+      description: "Log spending before details slip away.",
       color: "#0EA5E9", // primary
       bgColor: "rgba(14, 165, 233, 0.2)",
     },
@@ -88,10 +88,10 @@ export default function QSLandingScreen() {
             <View style={styles.textSection}>
               <Text style={styles.mainHeading}>
                 Master Your <Text style={styles.highlightText}>Money</Text>{" "}
-                Together
+                Daily
               </Text>
               <Text style={styles.description}>
-                Track personal expenses and split group bills in seconds. No
+                Track personal expenses, budgets, savings, and loans in seconds. No
                 friction, just QuickSpends.
               </Text>
             </View>

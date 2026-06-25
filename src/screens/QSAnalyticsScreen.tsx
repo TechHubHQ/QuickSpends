@@ -37,8 +37,10 @@ import {
   useAnalytics,
 } from "../hooks/useAnalytics";
 import { useTransactions } from "../hooks/useTransactions";
-
+import { useTags, TagWithSpending } from "../hooks/useTags";
+ 
 import CashFlowTrendChart from "../components/analytics/CashFlowTrendChart";
+import { CashFlowCalendar } from "../components/analytics/CashFlowCalendar";
 import { DebtHealthCard } from "../components/analytics/DebtHealthCard";
 import { MerchantInsightsCard } from "../components/analytics/MerchantInsightsCard";
 import { NeedsWantsSavingsChart } from "../components/analytics/NeedsWantsSavingsChart";
@@ -64,7 +66,9 @@ export default function QSAnalyticsScreen() {
     getSpendingVelocity,
     getUpcomingBills,
     getDebtHealth,
+    getDailyCashFlowForMonth,
   } = useAnalytics();
+  const { getAllTagsWithSpending } = useTags();
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -92,6 +96,22 @@ export default function QSAnalyticsScreen() {
     useState<SpendingVelocity | null>(null);
   const [upcomingBills, setUpcomingBills] = useState<UpcomingBill[]>([]);
   const [debtHealth, setDebtHealth] = useState<DebtHealth | null>(null);
+  const [tagSpending, setTagSpending] = useState<TagWithSpending[]>([]);
+
+  // Calendar state
+  const [calendarMonthData, setCalendarMonthData] = useState<CashFlowData[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  const fetchCalendarMonth = useCallback(
+    async (year: number, month: number) => {
+      if (!user?.id) return;
+      setCalendarLoading(true);
+      const data = await getDailyCashFlowForMonth(user.id, year, month);
+      setCalendarMonthData(data);
+      setCalendarLoading(false);
+    },
+    [user?.id, getDailyCashFlowForMonth],
+  );
 
   // Category transactions modal state
   const { getTransactionsByCategory, getTransactionsByMerchant } =
@@ -113,7 +133,7 @@ export default function QSAnalyticsScreen() {
   const [merchantSearchQuery, setMerchantSearchQuery] = useState("");
 
   // Flow transactions modal state
-  const { getTransactionsByFlow } = useTransactions();
+  const { getTransactionsByFlow, getTransactionsByDate } = useTransactions();
   const [showFlowModal, setShowFlowModal] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<{
     date: string;
@@ -241,6 +261,10 @@ export default function QSAnalyticsScreen() {
       setSpendingVelocity(velocity);
       setUpcomingBills(bills);
       setDebtHealth(debt);
+
+      // Fetch tag spending
+      const tagData = await getAllTagsWithSpending(user.id);
+      setTagSpending(tagData);
     } catch (error) {
       console.error("Error fetching analytics data:", error);
     } finally {
@@ -547,7 +571,7 @@ export default function QSAnalyticsScreen() {
 
             {/* Cash Flow Summary */}
             {cashFlow.length > 0 && (
-              <View style={styles.sectionCard}>
+              <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Summary</Text>
 
                 {(() => {
@@ -866,24 +890,49 @@ export default function QSAnalyticsScreen() {
                     </View>
                   );
                 })()}
-              </View>
+              </Animated.View>
             )}
+
+            {/* Cash Flow Calendar View */}
+            <CashFlowCalendar
+              monthData={calendarMonthData}
+              loading={calendarLoading}
+              onMonthChange={fetchCalendarMonth}
+              onDayPress={async (fullDate) => {
+                const dateStr = format(new Date(fullDate), "MMM d, yyyy");
+                if (!user?.id) return;
+                setLoadingFlowTxns(true);
+                const txns = await getTransactionsByDate(user.id, fullDate);
+                setFlowTransactions(txns);
+                const dayIncome = txns
+                  .filter((t: any) => t.type === "income")
+                  .reduce((s: number, t: any) => s + t.amount, 0);
+                const dayExpense = txns
+                  .filter((t: any) => t.type === "expense")
+                  .reduce((s: number, t: any) => s + t.amount, 0);
+                setSelectedFlow({
+                  date: fullDate,
+                  type: "income",
+                  amount: dayIncome,
+                  label: dateStr,
+                });
+                setLoadingFlowTxns(false);
+                setShowFlowModal(true);
+              }}
+            />
           </Animated.View>
         )}
 
         {activeTab === "budgets" && (
-          <View>
+          <Animated.View entering={FadeInUp.springify()}>
             {insights && (
-              <Animated.View entering={FadeInUp.springify()}>
+              <Animated.View entering={FadeInUp.delay(100).springify()}>
                 {/* Needs vs Wants vs Savings */}
-                <View style={styles.sectionCard}>
-                  <Text style={styles.sectionTitle}>Breakdown</Text>
-                  <NeedsWantsSavingsChart
-                    data={needsWantsData}
-                    theme={theme}
-                    onSegmentPress={handleSegmentPress}
-                  />
-                </View>
+                <NeedsWantsSavingsChart
+                  data={needsWantsData}
+                  theme={theme}
+                  onSegmentPress={handleSegmentPress}
+                />
 
                 {/* Comparison & Suggestion Card */}
                 <View style={styles.sectionCard}>
@@ -979,7 +1028,8 @@ export default function QSAnalyticsScreen() {
                     marginHorizontal: theme.spacing.l,
                   }}
                 >
-                  <View
+                  <Animated.View
+                    entering={FadeInUp.delay(200).springify()}
                     style={[
                       styles.sectionCard,
                       { flex: 1, marginBottom: 0, marginHorizontal: 0 },
@@ -1003,8 +1053,9 @@ export default function QSAnalyticsScreen() {
                     >
                       {formatCurrency(Math.round(insights.dailyAverage))}
                     </Text>
-                  </View>
-                  <View
+                  </Animated.View>
+                  <Animated.View
+                    entering={FadeInUp.delay(300).springify()}
                     style={[
                       styles.sectionCard,
                       { flex: 1, marginBottom: 0, marginHorizontal: 0 },
@@ -1028,7 +1079,7 @@ export default function QSAnalyticsScreen() {
                     >
                       {formatCurrency(Math.round(insights.projectedTotal))}
                     </Text>
-                  </View>
+                  </Animated.View>
                 </View>
 
                 {/* Big Spender Card */}
@@ -1232,7 +1283,71 @@ export default function QSAnalyticsScreen() {
                 formatCurrency={formatCurrency}
               />
             </Animated.View>
-          </View>
+
+            {/* Spends by Tag & Event */}
+            {tagSpending.length > 0 && (
+              <Animated.View entering={FadeInUp.delay(500).springify()}>
+                <View style={[styles.sectionCard, { backgroundColor: theme.colors.card }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Spend by Tag & Event</Text>
+                    <TouchableOpacity onPress={() => {
+                      // @ts-ignore
+                      router.push('/tags-management');
+                    }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.primary }}>Manage</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ gap: 4 }}>
+                    {tagSpending
+                      .sort((a, b) => b.spent - a.spent)
+                      .slice(0, 5)
+                      .map((tag) => (
+                        <TouchableOpacity
+                          key={tag.id}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 }}
+                          onPress={() => {
+                            // @ts-ignore
+                            router.push({ pathname: `/tag-details/[id]`, params: { id: tag.id } });
+                          }}
+                        >
+                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: tag.color }} />
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '500', color: theme.colors.text }} numberOfLines={1}>
+                                {tag.name}
+                              </Text>
+                              {tag.is_event && (
+                                <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3, backgroundColor: theme.colors.success + '20' }}>
+                                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: theme.colors.success, textTransform: 'uppercase' }}>
+                                    {tag.event_type || 'EVENT'}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: theme.colors.text }}>
+                            {formatCurrency(tag.spent)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                  </View>
+                  {tagSpending.length > 5 && (
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', justifyContent: 'center', paddingTop: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: theme.colors.border }}
+                      onPress={() => {
+                        // @ts-ignore
+                        router.push('/tags-management');
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.primary }}>
+                        View All ({tagSpending.length} tags)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </Animated.View>
+            )}
+          </Animated.View>
         )}
 
         {/* Category Transactions Modal */}
@@ -1455,10 +1570,12 @@ export default function QSAnalyticsScreen() {
                       <View style={styles.amountContainer}>
                         <Text
                           style={{
-                            color:
-                              tx.type === "income"
-                                ? theme.colors.success
-                                : theme.colors.text,
+                              color:
+                                tx.type === "income"
+                                  ? theme.colors.success
+                                  : tx.type === "expense"
+                                    ? theme.colors.error
+                                    : theme.colors.text,
                             fontWeight: "700",
                           }}
                         >

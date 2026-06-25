@@ -114,9 +114,9 @@ export default function QSRegistrationScreen() {
           {/* Title Section */}
           <View style={styles.formSection}>
             <View style={styles.titleSection}>
-              <Text style={styles.mainTitle}>Let's get started</Text>
+              <Text style={styles.mainTitle}>{`Let's get started`}</Text>
               <Text style={styles.subTitle}>
-                Track expenses and split bills in seconds.
+                Track expenses, budgets, and goals in seconds.
               </Text>
             </View>
 

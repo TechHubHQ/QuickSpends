@@ -6,7 +6,6 @@ import { ActivityIndicator, Animated, Easing, RefreshControl, ScrollView, StyleS
 import { Swipeable } from 'react-native-gesture-handler';
 import { QSHeader } from '../components/QSHeader';
 import { useAuth } from '../context/AuthContext';
-import { useGroups } from '../hooks/useGroups';
 import { Notification, useNotifications } from '../hooks/useNotifications';
 import { useTheme } from '../theme/ThemeContext';
 import { Theme } from '../theme/theme';
@@ -70,8 +69,6 @@ type NotificationRowProps = {
     onMarkRead: (id: string, isRead: boolean) => Promise<void> | void;
     onDeleteRemote: (id: string) => Promise<void> | void;
     onRemoveLocal: (id: string) => void;
-    onRejectInvite: (notification: Notification) => Promise<void>;
-    onAcceptInvite: (notification: Notification) => Promise<void>;
 };
 
 const NotificationRow = ({
@@ -85,8 +82,6 @@ const NotificationRow = ({
     onMarkRead,
     onDeleteRemote,
     onRemoveLocal,
-    onRejectInvite,
-    onAcceptInvite
 }: NotificationRowProps) => {
     const [layout, setLayout] = useState<{ width: number; height: number } | null>(null);
     const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
@@ -313,25 +308,6 @@ const NotificationRow = ({
                     )}
                 </View>
             </TouchableOpacity>
-
-            {/* Action Buttons for Invites */}
-            {item.type === 'invite' && !item.isRead && (
-                <View style={styles.actionButtonsContainer}>
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.rejectButton]}
-                        onPress={interactive ? () => onRejectInvite(item) : undefined}
-                    >
-                        <Text style={styles.rejectButtonText}>Reject</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.acceptButton]}
-                        onPress={interactive ? () => onAcceptInvite(item) : undefined}
-                    >
-                        <Text style={styles.acceptButtonText}>Accept</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
         </View>
     );
 
@@ -525,7 +501,6 @@ const QSNotificationsScreen = () => {
     const styles = createStyles(theme);
     const { user } = useAuth();
     const router = useRouter();
-    const { acceptGroupInvite, rejectGroupInvite } = useGroups();
     const {
         getNotifications,
         markAsRead,
@@ -658,21 +633,6 @@ const QSNotificationsScreen = () => {
         }
     };
 
-    const handleRejectInvite = async (notification: Notification) => {
-        if (notification.data?.groupId) {
-            await rejectGroupInvite(notification.data.groupId);
-            await handleMarkAsRead(notification.id, false);
-        }
-    };
-
-    const handleAcceptInvite = async (notification: Notification) => {
-        if (notification.data?.groupId) {
-            await acceptGroupInvite(notification.data.groupId);
-            await handleMarkAsRead(notification.id, false);
-            router.push({ pathname: '/group/[id]', params: { id: notification.data.groupId } } as any);
-        }
-    };
-
     return (
         <View style={styles.container}>
             <QSHeader
@@ -741,8 +701,6 @@ const QSNotificationsScreen = () => {
                                         onMarkRead={handleMarkAsRead}
                                         onDeleteRemote={handleDeleteNotificationRemote}
                                         onRemoveLocal={removeNotificationFromState}
-                                        onRejectInvite={handleRejectInvite}
-                                        onAcceptInvite={handleAcceptInvite}
                                     />
                                 );
                             })}

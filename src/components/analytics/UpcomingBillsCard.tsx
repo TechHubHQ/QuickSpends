@@ -26,7 +26,29 @@ export const UpcomingBillsCard: React.FC<UpcomingBillsCardProps> = ({
 }) => {
     const styles = createStyles(theme);
 
-    if (loading || data.length === 0) {
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <MaterialCommunityIcons name="calendar-clock" size={20} color={theme.colors.primary} />
+                    <Text style={styles.title}>Upcoming Bills</Text>
+                </View>
+                <View style={styles.emptyState}>
+                    <LinearGradient
+                        colors={[theme.colors.success + "20", theme.colors.primary + "20"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.emptyIconContainer}
+                    >
+                        <MaterialCommunityIcons name="calendar-clock" size={32} color={theme.colors.primary} />
+                    </LinearGradient>
+                    <Text style={styles.emptyTitle}>Loading...</Text>
+                </View>
+            </View>
+        );
+    }
+
+    if (data.length === 0) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -42,12 +64,8 @@ export const UpcomingBillsCard: React.FC<UpcomingBillsCardProps> = ({
                     >
                         <MaterialCommunityIcons name="check-circle-outline" size={32} color={theme.colors.success} />
                     </LinearGradient>
-                    <Text style={styles.emptyTitle}>
-                        {loading ? "Loading..." : "No upcoming bills"}
-                    </Text>
-                    <Text style={styles.emptySubtitle}>
-                        {loading ? "" : "You're all caught up!"}
-                    </Text>
+                    <Text style={styles.emptyTitle}>No upcoming bills</Text>
+                    <Text style={styles.emptySubtitle}>You're all caught up!</Text>
                 </View>
             </View>
         );

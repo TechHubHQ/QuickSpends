@@ -642,6 +642,75 @@ export const useAnalytics = () => {
     [],
   );
 
+  const getDailyCashFlowForMonth = useCallback(
+    async (userId: string, year: number, month: number) => {
+      try {
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month + 1, 0);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+
+        const { data: transactions, error } = await supabase
+          .from("transactions")
+          .select(
+            "amount, type, date, name, category:categories!transactions_category_id_fkey(name, parent:parent_id(name))",
+          )
+          .eq("user_id", userId)
+          .gte("date", start.toISOString())
+          .lte("date", end.toISOString());
+
+        if (error) throw error;
+
+        const days = eachDayOfInterval({ start, end });
+        const history: CashFlowData[] = [];
+
+        for (const day of days) {
+          const dayTxns = (transactions || []).filter((t: any) =>
+            isSameDay(new Date(t.date), day),
+          );
+
+          let income = 0;
+          let expense = 0;
+
+          dayTxns.forEach((t: any) => {
+            const cat = t.category as any;
+            const catName = cat?.name?.toLowerCase() || "";
+            const parentName = cat?.parent?.name?.toLowerCase() || "";
+            const txName = t.name?.toLowerCase() || "";
+
+            const isReconciliation =
+              txName.includes("balance correction") ||
+              txName.includes("opening balance") ||
+              catName.includes("adjustment") ||
+              catName.includes("reconciliation") ||
+              catName.includes("opening balance") ||
+              parentName.includes("adjustment") ||
+              parentName.includes("reconciliation") ||
+              parentName.includes("opening balance");
+
+            if (isReconciliation) return;
+
+            if (t.type === "income") income += t.amount;
+            if (t.type === "expense") expense += t.amount;
+          });
+
+          history.push({
+            date: format(day, "dd"),
+            fullDate: day.toISOString(),
+            income,
+            expense,
+          });
+        }
+
+        return history;
+      } catch (err: any) {
+        setError(err.message);
+        return [];
+      }
+    },
+    [],
+  );
+
   const getBudgetPerformance = useCallback(async (userId: string) => {
     setLoading(true);
     try {
@@ -734,50 +803,6 @@ export const useAnalytics = () => {
     }
   }, []);
 
-  const getGroupsAnalytics = useCallback(async (userId: string) => {
-    setLoading(true);
-    try {
-      const { data: groups, error } = await supabase
-        .from("group_members")
-        .select(
-          `
-                    group:groups (id, name)
-                `,
-        )
-        .eq("user_id", userId);
-
-      if (error) throw error;
-
-      return await Promise.all(
-        (groups || []).map(async (g: any) => {
-          const group = g.group;
-          const { data: spending } = await supabase
-            .from("transactions")
-            .select("amount")
-            .eq("group_id", group.id)
-            .eq("type", "expense");
-
-          const totalSpent = (spending || []).reduce(
-            (sum, s) => sum + s.amount,
-            0,
-          );
-
-          return {
-            id: group.id,
-            name: group.name,
-            color: "#6366F1",
-            total_spent: totalSpent,
-          };
-        }),
-      );
-    } catch (err: any) {
-      setError(err.message);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const getNeedsWantsSavings = useCallback(
     async (userId: string, options?: DateRangeOptions) => {
       setLoading(true);
@@ -789,7 +814,7 @@ export const useAnalytics = () => {
           .from("transactions")
           .select(
             `
-            id, amount, type, date, savings_id, name,
+            id, amount, type, date, savings_id, name, nws_type,
             category:categories!transactions_category_id_fkey(name, icon, color, parent:parent_id(name))
           `,
           )
@@ -832,8 +857,11 @@ export const useAnalytics = () => {
             category_color: cat?.color,
           };
 
+          // Use nws_type if set, otherwise fall back to old logic
+          const nwsType = t.nws_type;
+
           // 1. Savings
-          if (t.type === "transfer" && t.savings_id) {
+          if (nwsType === 'savings' || (t.type === "transfer" && t.savings_id)) {
             savings += t.amount;
             savingsTransactions.push(txnForList);
             return;
@@ -841,7 +869,7 @@ export const useAnalytics = () => {
 
           // 2. Expenses -> Needs vs Wants
           if (t.type === "expense") {
-            if (isNeed(catName, parentName)) {
+            if (nwsType === 'needs' || (!nwsType && isNeed(catName, parentName))) {
               needs += t.amount;
               needsTransactions.push(txnForList);
             } else {
@@ -1190,105 +1218,33 @@ export const useAnalytics = () => {
   const getUpcomingBills = useCallback(async (userId: string) => {
     setLoading(true);
     try {
-      // Select recurring configs that are expense type using the new 'type' column
       const { data, error } = await supabase
-        .from("recurring_configs")
-        .select(
-          "id,name,amount,frequency,start_date,type,category:categories(name,icon,color)",
-        )
+        .from("upcoming_bills")
+        .select("*, category:categories!upcoming_bills_category_id_fkey(name, icon, color)")
         .eq("user_id", userId)
-        .eq("type", "expense");
+        .order("is_active", { ascending: false })
+        .order("due_date", { ascending: true });
 
       if (error) {
-        console.error("getUpcomingBills - supabase error:", error, data);
-
-        // If the REST endpoint returns a bad request, try a fallback without nested select
-        if ((error as any)?.status === 400) {
-          try {
-            const fallback = await supabase
-              .from("recurring_configs")
-              .select("id,name,amount,frequency,start_date,category_id")
-              .eq("user_id", userId);
-
-            if ((fallback as any).error) {
-              console.error(
-                "getUpcomingBills - fallback query also failed:",
-                (fallback as any).error,
-              );
-              throw error; // rethrow original
-            }
-
-            // If we have category_ids, fetch categories and map them to the configs
-            const configs = (fallback.data || []) as any[];
-            const catIds = Array.from(
-              new Set(configs.map((c) => c.category_id).filter(Boolean)),
-            );
-            if (catIds.length > 0) {
-              const { data: cats, error: catErr } = await supabase
-                .from("categories")
-                .select("id,name,icon,color,type")
-                .in("id", catIds);
-
-              if (catErr)
-                console.error(
-                  "getUpcomingBills - categories fetch error:",
-                  catErr,
-                );
-
-              const catMap = new Map((cats || []).map((c: any) => [c.id, c]));
-              configs.forEach(
-                (c) => (c.category = catMap.get(c.category_id) || null),
-              );
-            } else {
-              configs.forEach((c) => (c.category = null));
-            }
-
-            return configs as any;
-          } catch (fallbackErr) {
-            console.error("getUpcomingBills - fallback error:", fallbackErr);
-            throw error;
-          }
-        }
-
+        console.error("getUpcomingBills - error:", error);
         throw error;
       }
 
-      // Filter only expense recurring configs using category.type
-      const expenseConfigs = (data || []).filter(
-        (b: any) => b.category && b.category.type === "expense",
-      );
-
-      const today = new Date();
-      const upcoming = (expenseConfigs || [])
-        .map((b: any) => {
-          const start = new Date(b.start_date);
-          let dueDate = new Date(start);
-          while (dueDate < today) {
-            if (b.frequency === "monthly")
-              dueDate.setMonth(dueDate.getMonth() + 1);
-            else if (b.frequency === "weekly")
-              dueDate.setDate(dueDate.getDate() + 7);
-            else if (b.frequency === "yearly")
-              dueDate.setFullYear(dueDate.getFullYear() + 1);
-            else dueDate.setDate(dueDate.getDate() + 1);
-          }
-          return {
-            id: b.id,
-            name: b.name,
-            amount: b.amount,
-            dueDate: dueDate.toISOString(),
-            category: b.category,
-            frequency: b.frequency,
-          };
-        })
-        .sort(
-          (a, b) =>
-            new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
-        )
-        .slice(0, 3);
-
-      return upcoming as UpcomingBill[];
+      const now = new Date();
+      return ((data || []) as any[])
+        .filter((b) => b.is_active && new Date(b.due_date) >= now)
+        .map((b) => ({
+          id: b.id,
+          name: b.name,
+          amount: b.amount,
+          dueDate: b.due_date,
+          category: b.category || { name: "Bill", icon: "receipt", color: "#6B7280" },
+          frequency: b.frequency,
+        }))
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .slice(0, 3) as UpcomingBill[];
     } catch (err: any) {
+      console.error("getUpcomingBills - error:", err);
       setError(err.message);
       return [];
     } finally {
@@ -1340,20 +1296,78 @@ export const useAnalytics = () => {
     }
   }, []);
 
+  const getTrendProjection = useCallback(async (userId: string, months: number = 3): Promise<TrendProjection> => {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - months);
+
+      const { data: transactions } = await supabase
+        .from("transactions")
+        .select(`
+          amount, type, date,
+          category:categories!transactions_category_id_fkey (name, icon, color)
+        `)
+        .eq("user_id", userId)
+        .eq("type", "expense")
+        .gte("date", startDate.toISOString())
+        .lte("date", endDate.toISOString());
+
+      if (!transactions || transactions.length === 0) {
+        return { categories: [], projectedTotal: 0, monthlyAverage: 0 };
+      }
+
+      const categoryTotals: Record<string, { name: string; icon?: string; color?: string; total: number; count: number }> = {};
+      let grandTotal = 0;
+
+      for (const txn of transactions) {
+        const t = txn as any;
+        const catName = t.category?.name || "Uncategorized";
+        if (!categoryTotals[catName]) {
+          categoryTotals[catName] = { name: catName, icon: t.category?.icon, color: t.category?.color, total: 0, count: 0 };
+        }
+        categoryTotals[catName].total += t.amount;
+        categoryTotals[catName].count += 1;
+        grandTotal += t.amount;
+      }
+
+      const categories = Object.values(categoryTotals)
+        .map((c) => ({
+          name: c.name,
+          icon: c.icon,
+          color: c.color,
+          monthlyAverage: c.total / months,
+          transactionCount: c.count,
+          percentage: grandTotal > 0 ? (c.total / grandTotal) * 100 : 0,
+        }))
+        .sort((a, b) => b.monthlyAverage - a.monthlyAverage);
+
+      return {
+        categories,
+        projectedTotal: grandTotal / months,
+        monthlyAverage: grandTotal / months,
+      };
+    } catch (err: any) {
+      setError(err.message);
+      return { categories: [], projectedTotal: 0, monthlyAverage: 0 };
+    }
+  }, []);
+
   return useMemo(
     () => ({
       getNetWorth,
       getSpendingByCategory,
       getCashFlow,
+      getDailyCashFlowForMonth,
       getBudgetPerformance,
       getTripsAnalytics,
-      getGroupsAnalytics,
       getSpendingInsights,
       getNeedsWantsSavings,
       getMerchantSpending,
       getSpendingVelocity,
       getUpcomingBills,
       getDebtHealth,
+      getTrendProjection,
       loading,
       error,
     }),
@@ -1361,15 +1375,16 @@ export const useAnalytics = () => {
       getNetWorth,
       getSpendingByCategory,
       getCashFlow,
+      getDailyCashFlowForMonth,
       getBudgetPerformance,
       getTripsAnalytics,
-      getGroupsAnalytics,
       getSpendingInsights,
       getNeedsWantsSavings,
       getMerchantSpending,
       getSpendingVelocity,
       getUpcomingBills,
       getDebtHealth,
+      getTrendProjection,
       loading,
       error,
     ],
@@ -1393,4 +1408,17 @@ export interface SpendingInsights {
   } | null;
   trendMessage: string;
   suggestion: string;
+}
+
+export interface TrendProjection {
+  categories: {
+    name: string;
+    icon?: string;
+    color?: string;
+    monthlyAverage: number;
+    transactionCount: number;
+    percentage: number;
+  }[];
+  projectedTotal: number;
+  monthlyAverage: number;
 }

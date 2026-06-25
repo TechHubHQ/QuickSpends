@@ -139,7 +139,7 @@ export const notificationRules: NotificationRule[] = [
     check: async ({ supabase, userId, createNotification }) => {
       const { data: trips } = await supabase
         .from("trips")
-        .select(`*, group:groups(*)`)
+        .select("*")
         .eq("user_id", userId)
         .eq("alert_sent", false)
         .not("budget_amount", "is", null);
@@ -157,79 +157,17 @@ export const notificationRules: NotificationRule[] = [
         );
 
         if (spent >= trip.budget_amount * 0.9) {
-          // Check if group trip
-          if (trip.group) {
-            const { data: groupMembers } = await supabase
-              .from("group_members")
-              .select("user_id")
-              .eq("group_id", trip.group.id);
-
-            if (groupMembers && groupMembers.length > 0) {
-              const notificationPromises = groupMembers.map(async (member) => {
-                await supabase.from("notifications").insert({
-                  user_id: member.user_id,
-                  type: "alert",
-                  title: "Trip Budget Alert",
-                  message: `You've used 90% of the budget for "${trip.name}" (₹${spent}/${trip.budget_amount}).`,
-                  data: { tripId: trip.id },
-                  is_read: false,
-                });
-              });
-              await Promise.all(notificationPromises);
-            }
-          } else {
-            // Solo trip
-            await createNotification(
-              "Trip Budget Alert",
-              `You've used 90% of your budget for "${trip.name}" (₹${spent}/${trip.budget_amount}).`,
-              "alert",
-              { tripId: trip.id },
-            );
-          }
+          await createNotification(
+            "Trip Budget Alert",
+            `You've used 90% of your budget for "${trip.name}" (₹${spent}/${trip.budget_amount}).`,
+            "alert",
+            { tripId: trip.id },
+          );
 
           await supabase
             .from("trips")
             .update({ alert_sent: true })
             .eq("id", trip.id);
-        }
-      }
-    },
-  },
-  {
-    id: "split-reminders",
-    name: "Pending Split Reminders",
-    description: "Notify about pending splits older than 3 days",
-    preferenceKey: "splitReminders",
-    check: async ({ supabase, userId, createNotification }) => {
-      const { data: pendingSplits } = await supabase
-        .from("splits")
-        .select(
-          `
-                    *,
-                    transaction:transactions (description, date)
-                `,
-        )
-        .eq("user_id", userId)
-        .eq("status", "pending")
-        .eq("alert_sent", false);
-
-      const now = new Date();
-      for (const split of pendingSplits || []) {
-        const transDate = new Date((split.transaction as any).date);
-        const diffTime = now.getTime() - transDate.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays >= 3) {
-          await createNotification(
-            "Pending Payment",
-            `You have a pending split of ₹${split.amount} for "${(split.transaction as any).description || "Expense"}"`,
-            "info",
-            { splitId: split.id },
-          );
-          await supabase
-            .from("splits")
-            .update({ alert_sent: true })
-            .eq("id", split.id);
         }
       }
     },

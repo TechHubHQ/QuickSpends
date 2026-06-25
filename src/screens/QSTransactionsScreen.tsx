@@ -458,11 +458,10 @@ export default function QSTransactionsScreen() {
                 })}
               </Text>
               <QSTransactionIndicators
-                isSplit={item.is_split}
                 tripId={item.trip_id}
-                groupId={item.group_id}
                 savingsId={item.savings_id}
                 loanId={item.loan_id}
+                tags={item.tags}
               />
             </View>
           </View>

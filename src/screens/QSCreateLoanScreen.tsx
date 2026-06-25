@@ -41,6 +41,7 @@ export default function QSAddLoanScreen() {
     const [emiAmount, setEmiAmount] = useState("");
     const [tenure, setTenure] = useState("");
     const [dueDate, setDueDate] = useState("");
+    const [alreadyPaid, setAlreadyPaid] = useState("");
     const [lenderType, setLenderType] = useState<'person' | 'bank'>('person');
     const [isCcConversion, setIsCcConversion] = useState(false);
     const [ccTransactions, setCcTransactions] = useState<any[]>([]); // Using any for now, will type properly
@@ -259,7 +260,7 @@ export default function QSAddLoanScreen() {
             const newLoanId = await addLoan({
                 user_id: user.id,
                 ...loanData
-            }, schedule);
+            }, schedule, alreadyPaid ? parseFloat(alreadyPaid) : 0);
 
             if (newLoanId) {
                 if (isCcConversion && selectedAccount) {
@@ -530,6 +531,23 @@ export default function QSAddLoanScreen() {
                                     />
                                 </View>
                             </Animated.View>
+
+                            {!loanId && (
+                                <Animated.View entering={FadeInDown.delay(320).springify()} style={styles.inputGroup}>
+                                    <Text style={styles.label}>Already Paid (Optional)</Text>
+                                    <View style={styles.inputWrapper}>
+                                        <Text style={styles.currency}>₹</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="0.00"
+                                            placeholderTextColor={theme.isDark ? '#64748B' : '#94A3B8'}
+                                            keyboardType="decimal-pad"
+                                            value={alreadyPaid}
+                                            onChangeText={setAlreadyPaid}
+                                        />
+                                    </View>
+                                </Animated.View>
+                            )}
                         </>
                     )}
 

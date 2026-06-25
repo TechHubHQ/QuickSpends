@@ -15,7 +15,7 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     typeContainer: {
         flexDirection: 'row',
         backgroundColor: theme.colors.backgroundSecondary,
-        borderRadius: theme.borderRadius.xl, // Pill shape
+        borderRadius: theme.borderRadius.xl,
         padding: 4,
         marginBottom: theme.spacing.xl,
         borderWidth: 1,
@@ -114,7 +114,7 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         color: theme.colors.text,
         padding: 0,
         textAlign: 'left',
-        textAlignVertical: 'top', // Changed for multiline
+        textAlignVertical: 'top',
     },
     multilineInput: {
         minHeight: 100,
@@ -167,7 +167,7 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     },
     recurringContainer: {
         backgroundColor: theme.colors.backgroundSecondary,
-        borderRadius: theme.borderRadius.xl, // Match typeContainer
+        borderRadius: theme.borderRadius.xl,
         padding: 4,
         flexDirection: 'row',
         borderWidth: 1,
@@ -175,12 +175,12 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     },
     recurringButton: {
         flex: 1,
-        paddingVertical: 12, // Match typeButton
+        paddingVertical: 12,
         alignItems: 'center',
-        borderRadius: theme.borderRadius.l, // Match typeButton
+        borderRadius: theme.borderRadius.l,
     },
     activeRecurringButton: {
-        backgroundColor: theme.colors.primary, // Match activeTypeButton
+        backgroundColor: theme.colors.primary,
         ...theme.shadows.small,
     },
     inactiveRecurringButton: {
@@ -192,43 +192,54 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         color: theme.colors.textSecondary,
     },
     activeRecurringText: {
-        color: '#FFFFFF', // Match activeTypeText
+        color: '#FFFFFF',
         fontWeight: '700',
     },
 
-    // Toggle Cards
-    toggleGrid: {
-        flexDirection: 'row',
-        gap: theme.spacing.m,
+    // Modern Link Pills (replacing Switch toggle cards)
+    linkPillsSection: {
         marginBottom: theme.spacing.l,
     },
-    toggleCard: {
-        flex: 1,
-        backgroundColor: theme.colors.card,
-        borderRadius: theme.borderRadius.l,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        ...theme.shadows.small,
+    linkPillsLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: theme.colors.textSecondary,
+        marginBottom: 10,
+        marginLeft: 4,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
-    toggleCardHeader: {
+    linkPillsRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    linkPill: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 12,
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.card,
     },
-    toggleIconContainer: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: theme.colors.backgroundSecondary,
-        alignItems: 'center',
-        justifyContent: 'center',
+    linkPillActive: {
+        borderColor: theme.colors.primary,
+        backgroundColor: theme.colors.primary + '12',
     },
-    toggleLabel: {
-        fontSize: 14,
+    linkPillDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    linkPillText: {
+        fontSize: 13,
         fontWeight: '600',
-        color: theme.colors.text,
+        color: theme.colors.textSecondary,
+    },
+    linkPillTextActive: {
+        color: theme.colors.primary,
     },
 
     // Save Button
@@ -239,17 +250,10 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         right: 0,
         padding: theme.spacing.l,
         paddingBottom: theme.spacing.xl + 10,
-        backgroundColor: theme.colors.background, // Match container
+        backgroundColor: theme.colors.background,
         borderTopWidth: 1,
         borderTopColor: theme.colors.border,
     },
     saveButton: {
-        // QSButton handles its own styles, but we can override margin if needed
-    },
-    saveButtonText: {
-        // QSButton handles this
-    },
-    saveButtonDisabled: {
-        // QSButton handles this
     },
 });

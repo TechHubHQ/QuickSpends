@@ -9,15 +9,14 @@ import { QSButton } from "../components/QSButton";
 import { QSCategoryPicker } from "../components/QSCategoryPicker";
 import { QSCreateCategorySheet } from "../components/QSCreateCategorySheet";
 import { QSDatePicker } from "../components/QSDatePicker";
-import { QSGroupPicker } from "../components/QSGroupPicker";
 import { QSHeader } from "../components/QSHeader";
 import { QSLoanPicker } from "../components/QSLoanPicker";
 import { QSSavingsPicker } from "../components/QSSavingsPicker";
 import { QSTripPicker } from "../components/QSTripPicker";
+import { QSTagPicker } from "../components/QSTagPicker";
 import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../hooks/useAccounts";
 import { useCategories } from "../hooks/useCategories";
-import { useGroups } from "../hooks/useGroups";
 import { useLoans } from "../hooks/useLoans";
 import { useNotifications } from "../hooks/useNotifications";
 import { useSavings } from "../hooks/useSavings";
@@ -25,9 +24,24 @@ import { useTransactions } from "../hooks/useTransactions";
 import { useTrips } from "../hooks/useTrips";
 import { createStyles } from "../styles/QSAddTransaction.styles";
 import { useTheme } from "../theme/ThemeContext";
+import { useTags } from "../hooks/useTags";
+import { classifyNws } from "../utils/nwsClassification";
 
 type TransactionType = 'income' | 'expense' | 'transfer';
 type RecurringType = 'one-time' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+
+const NWS_TYPE_TO_TAG_NAME: Record<string, string> = {
+  needs: 'Need',
+  wants: 'Want',
+  savings: 'Savings',
+};
+
+const LINK_PILLS = [
+  { key: 'tag', icon: 'tag', label: 'Tag', color: '#8B5CF6' },
+  { key: 'trip', icon: 'airplane', label: 'Trip', color: '#FBBF24' },
+  { key: 'savings', icon: 'piggy-bank', label: 'Savings', color: '#E91E63' },
+  { key: 'loan', icon: 'handshake', label: 'Loan', color: '#FF5722' },
+] as const;
 
 export default function QSAddTransactionScreen() {
     const { theme } = useTheme();
@@ -38,15 +52,14 @@ export default function QSAddTransactionScreen() {
 
     const { getAccountsByUser } = useAccounts();
     const { getCategories } = useCategories();
-    const { getGroupsByUser } = useGroups();
     const { getTripsByUser } = useTrips();
-    const { addCategory } = useCategories(); // Added hook
+    const { addCategory } = useCategories();
     const { addTransaction, updateTransaction, loading: saving } = useTransactions();
     const { checkAllNotifications } = useNotifications();
     const { getSavingsGoals } = useSavings();
     const { getLoans } = useLoans();
+    const { getSystemTags } = useTags();
 
-    // Parse edit transaction if available
     const editTransaction = params.editTransaction ? JSON.parse(params.editTransaction as string) : null;
 
     const [type, setType] = useState<TransactionType>(editTransaction?.type || (params.initialType as TransactionType) || 'expense');
@@ -56,7 +69,6 @@ export default function QSAddTransactionScreen() {
     const [description, setDescription] = useState(editTransaction?.description || '');
     const [date, setDate] = useState(editTransaction ? new Date(editTransaction.date) : new Date());
     const [recurringType, setRecurringType] = useState<RecurringType>('one-time');
-    // Custom recurring state
     const [customInterval, setCustomInterval] = useState('1');
     const [customFrequency, setCustomFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
     const [endCondition, setEndCondition] = useState<'never' | 'after_occurrences' | 'on_date'>('never');
@@ -67,21 +79,18 @@ export default function QSAddTransactionScreen() {
     const [accountId, setAccountId] = useState(editTransaction?.account_id || '');
     const [toAccountId, setToAccountId] = useState(editTransaction?.to_account_id || '');
     const [categoryId, setCategoryId] = useState(editTransaction?.category_id || '');
-    const [subCategoryId, setSubCategoryId] = useState(''); // New State
-    const [isGroup, setIsGroup] = useState(!!editTransaction?.group_id);
+    const [subCategoryId, setSubCategoryId] = useState('');
     const [isTrip, setIsTrip] = useState(!!editTransaction?.trip_id);
-    const [selectedGroupId, setSelectedGroupId] = useState(editTransaction?.group_id || '');
     const [selectedTripId, setSelectedTripId] = useState(editTransaction?.trip_id || '');
 
     // Bottom sheet visibility states
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-    const [showSubCategoryPicker, setShowSubCategoryPicker] = useState(false); // New State
-    const [showCreateCategory, setShowCreateCategory] = useState(false); // New State
-    const [creatingParentId, setCreatingParentId] = useState<string | undefined>(undefined); // New State
+    const [showSubCategoryPicker, setShowSubCategoryPicker] = useState(false);
+    const [showCreateCategory, setShowCreateCategory] = useState(false);
+    const [creatingParentId, setCreatingParentId] = useState<string | undefined>(undefined);
 
     const [showAccountPicker, setShowAccountPicker] = useState(false);
     const [showToAccountPicker, setShowToAccountPicker] = useState(false);
-    const [showGroupPicker, setShowGroupPicker] = useState(false);
     const [showTripPicker, setShowTripPicker] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showSavingsPicker, setShowSavingsPicker] = useState(false);
@@ -89,8 +98,6 @@ export default function QSAddTransactionScreen() {
 
     const [accounts, setAccounts] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
-    // We will derive sub-categories from 'categories' based on 'categoryId' selection
-    const [groups, setGroups] = useState<any[]>([]);
     const [trips, setTrips] = useState<any[]>([]);
     const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
     const [loans, setLoans] = useState<any[]>([]);
@@ -98,24 +105,90 @@ export default function QSAddTransactionScreen() {
     const [savingsId, setSavingsId] = useState(editTransaction?.savings_id || '');
     const [loanId, setLoanId] = useState(editTransaction?.loan_id || '');
     const [isSavings, setIsSavings] = useState(!!editTransaction?.savings_id);
-    const [savingsAction, setSavingsAction] = useState<'contribute' | 'withdraw'>('contribute'); // New State
+    const [savingsAction, setSavingsAction] = useState<'contribute' | 'withdraw'>('contribute');
     const [isLoan, setIsLoan] = useState(!!editTransaction?.loan_id);
+    const [selectedTags, setSelectedTags] = useState<any[]>(
+        editTransaction?.tag_id ? [{
+            id: editTransaction.tag_id,
+            name: editTransaction.tag_name || '',
+            color: editTransaction.tag_color || '#6366F1',
+            is_event: editTransaction.tag_is_event || false
+        }] : []
+    );
+    const [showTagPicker, setShowTagPicker] = useState(false);
+    const [systemTags, setSystemTags] = useState<any[]>([]);
 
-    // Pre-fill data if editing - cleanup redundant useEffect
+    const getSelectedCategory = () => categories.find(c => c.id === categoryId);
+    const getSelectedSubCategory = () => categories.find(c => c.id === subCategoryId);
+    const getSelectedAccount = () => accounts.find(a => a.id === accountId);
+    const getSelectedToAccount = () => accounts.find(a => a.id === toAccountId);
+    const getSelectedTrip = () => trips.find(t => t.id === selectedTripId);
+    const getSelectedSavingsGoal = () => savingsGoals.find(g => g.id === savingsId);
+    const getSelectedLoan = () => loans.find(l => l.id === loanId);
+
+    const getActiveLinkLabel = (key: string): string | null => {
+        switch (key) {
+            case 'tag':
+                return selectedTags.length > 0 ? `${selectedTags.length} tag${selectedTags.length > 1 ? 's' : ''}` : null;
+            case 'trip':
+                return selectedTripId ? (getSelectedTrip()?.name || 'Trip') : null;
+            case 'savings':
+                return savingsId ? (getSelectedSavingsGoal()?.name || 'Savings') : null;
+            case 'loan':
+                return loanId ? (getSelectedLoan()?.person_name || 'Loan') : null;
+            default:
+                return null;
+        }
+    };
+
+    const openLinkPicker = (key: string) => {
+        switch (key) {
+            case 'tag':
+                setShowTagPicker(true);
+                break;
+            case 'trip':
+                setShowTripPicker(true);
+                break;
+            case 'savings':
+                setShowSavingsPicker(true);
+                break;
+            case 'loan':
+                setShowLoanPicker(true);
+                break;
+        }
+    };
+
+    const updateSystemTag = (nwsResult: string | null) => {
+      if (nwsResult) {
+        const tagName = NWS_TYPE_TO_TAG_NAME[nwsResult];
+        const systemTag = systemTags.find(t => t.name === tagName);
+        if (systemTag) {
+          setSelectedTags(prev => [...prev.filter(t => !t.is_system), systemTag]);
+          setActiveLinks(prev => ({ ...prev, tag: true }));
+        }
+      } else {
+        setSelectedTags(prev => prev.filter(t => !t.is_system));
+      }
+    };
+
+    // Track which link pills are active
+    const [activeLinks, setActiveLinks] = useState<Record<string, boolean>>({
+        tag: selectedTags.length > 0,
+        trip: !!editTransaction?.trip_id,
+        savings: !!editTransaction?.savings_id,
+        loan: !!editTransaction?.loan_id,
+    });
+
     useEffect(() => {
         if (editTransaction) {
-            // If already initialized, we might still need to handle complex cases like subcategories
-            // but we can do that in fetchData after categories are loaded.
         }
     }, [params.editTransaction]);
 
-
-    // Handle initial savingsId param
     useEffect(() => {
         if (params.savingsId) {
             setIsSavings(true);
             setSavingsId(params.savingsId as string);
-            // Default to transfer if adding funds to savings (Contribute)
+            setActiveLinks(prev => ({ ...prev, savings: true }));
             if (params.initialType === 'transfer') {
                 setType('transfer');
                 setSavingsAction('contribute');
@@ -126,7 +199,6 @@ export default function QSAddTransactionScreen() {
         }
     }, [params.savingsId, params.initialType]);
 
-    // Update Type based on Savings Action
     useEffect(() => {
         if (isSavings) {
             if (savingsAction === 'contribute') {
@@ -137,35 +209,23 @@ export default function QSAddTransactionScreen() {
         }
     }, [isSavings, savingsAction]);
 
-    // Handle initial params for trip/group
     useEffect(() => {
         if (params.tripId) {
             setIsTrip(true);
+            setActiveLinks(prev => ({ ...prev, trip: true }));
             const tripId = params.tripId as string;
             setSelectedTripId(tripId);
-
-            // Auto-link group if trip is found in loaded trips and has a group
-            const trip = trips.find(t => t.id === tripId);
-            if (trip?.groupId) {
-                setIsGroup(true);
-                setSelectedGroupId(trip.groupId);
-            }
         }
-        if (params.groupId) {
-            setIsGroup(true);
-            setSelectedGroupId(params.groupId as string);
-        }
-    }, [params.tripId, params.groupId, trips]);
+    }, [params.tripId]);
 
-    // Handle initial loanId from params
     useEffect(() => {
         if (params.loanId) {
             setIsLoan(true);
+            setActiveLinks(prev => ({ ...prev, loan: true }));
             setLoanId(params.loanId as string);
         }
     }, [params.loanId]);
 
-    // Handle loan auto-categorization when a loan is linked
     useEffect(() => {
         if (isLoan && loanId && categories.length > 0 && !categoryId) {
             const loanCategory = categories.find((c: any) => c.name === 'Loans & Debt' && !c.parent_id);
@@ -181,20 +241,6 @@ export default function QSAddTransactionScreen() {
         }
     }, [isLoan, loanId, categories, type, categoryId]);
 
-    // Auto-link Trip when a Group is selected (Fix for group-trip discrepancy)
-    useEffect(() => {
-        if (isGroup && selectedGroupId && groups.length > 0) {
-            const group = groups.find((g: any) => g.id === selectedGroupId);
-            if (group?.trip_id) {
-                // If group is linked to a trip, auto-select that trip
-                if (!isTrip || selectedTripId !== group.trip_id) {
-                    setIsTrip(true);
-                    setSelectedTripId(group.trip_id);
-                }
-            }
-        }
-    }, [isGroup, selectedGroupId, groups, isTrip, selectedTripId]);
-
     useEffect(() => {
         if (user) {
             fetchData();
@@ -203,25 +249,24 @@ export default function QSAddTransactionScreen() {
 
     const fetchData = async () => {
         if (!user) return;
-        const [accs, cats, grps, trps, goals, lnz] = await Promise.all([
+        const [accs, cats, trps, goals, lnz, systemTagsData] = await Promise.all([
             getAccountsByUser(user.id),
             getCategories(type === 'transfer' ? 'expense' : type as any),
-            getGroupsByUser(user.id),
             getTripsByUser(user.id),
             getSavingsGoals(user.id),
-            getLoans(user.id)
+            getLoans(user.id),
+            getSystemTags(user.id),
         ]);
         setAccounts(accs);
         setCategories(cats);
-        setGroups(grps);
         setTrips(trps);
         setSavingsGoals(goals);
         setLoans(lnz);
+        setSystemTags(systemTagsData);
 
         if (accs.length > 0 && !accountId) setAccountId(accs[0].id);
 
         if (editTransaction && editTransaction.category_id) {
-            // Find if existing category has a parent (meaning it's a subcategory)
             const existingCat = cats.find(c => c.id === editTransaction.category_id);
             if (existingCat?.parent_id) {
                 setCategoryId(existingCat.parent_id);
@@ -231,7 +276,6 @@ export default function QSAddTransactionScreen() {
                 setSubCategoryId('');
             }
         } else {
-            // Reset category when type changes or if invalid
             const isValidIdx = cats.findIndex(c => c.id === categoryId);
             if (isValidIdx === -1) {
                 setCategoryId('');
@@ -239,15 +283,6 @@ export default function QSAddTransactionScreen() {
             }
         }
     };
-
-    const getSelectedCategory = () => categories.find(c => c.id === categoryId);
-    const getSelectedSubCategory = () => categories.find(c => c.id === subCategoryId);
-    const getSelectedAccount = () => accounts.find(a => a.id === accountId);
-    const getSelectedToAccount = () => accounts.find(a => a.id === toAccountId);
-    const getSelectedGroup = () => groups.find(g => g.id === selectedGroupId);
-    const getSelectedTrip = () => trips.find(t => t.id === selectedTripId);
-    const getSelectedSavingsGoal = () => savingsGoals.find(g => g.id === savingsId);
-    const getSelectedLoan = () => loans.find(l => l.id === loanId);
 
     const handleCreateCategory = async (name: string, icon: string, color: string) => {
         try {
@@ -265,8 +300,6 @@ export default function QSAddTransactionScreen() {
     const handleSave = async () => {
         if (!user) return;
 
-        // Validate mandatory fields
-        // Name is only required for income/expense, not for transfer
         if ((type !== 'transfer' && !name) || !amount || !accountId) {
             Toast.show({
                 type: 'error',
@@ -277,9 +310,7 @@ export default function QSAddTransactionScreen() {
         }
 
         if (type === 'transfer' && !toAccountId) {
-            // Allow if it's a savings contribution
             if (isSavings && savingsAction === 'contribute') {
-                // This is valid
             } else {
                 Toast.show({
                     type: 'error',
@@ -291,7 +322,6 @@ export default function QSAddTransactionScreen() {
         }
 
         if (type === 'transfer' && accountId === toAccountId) {
-            // Allow same account transfer ONLY if it's for a savings goal (earmarking funds) - though currently we hide ToAccount for Savings
             if (!isSavings) {
                 Toast.show({
                     type: 'error',
@@ -311,11 +341,12 @@ export default function QSAddTransactionScreen() {
                 amount: parseFloat(amount),
                 type,
                 date: date.toISOString(),
-                group_id: isGroup ? selectedGroupId : undefined,
                 trip_id: isTrip ? selectedTripId : undefined,
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
+                tag_id: selectedTags[0]?.id || undefined,
+                tag_ids: selectedTags.map(t => t.id),
             });
 
             if (success) {
@@ -325,7 +356,7 @@ export default function QSAddTransactionScreen() {
                     text2: 'Transaction updated successfully'
                 });
                 checkAllNotifications(user.id);
-                router.back(); // Smooth navigation back, transactions screen will auto-refresh
+                router.back();
             }
         } else {
             const savingsGoalName = getSelectedSavingsGoal()?.name;
@@ -344,7 +375,6 @@ export default function QSAddTransactionScreen() {
                         endDate: endCondition === 'on_date' ? endDate.toISOString() : undefined
                     };
                 } else {
-                    // Default fallback if somehow 'one-time' is selected but isRecurring is true
                     recurringOptions = {
                         frequency: recurringType === 'one-time' ? 'monthly' : recurringType
                     };
@@ -360,11 +390,12 @@ export default function QSAddTransactionScreen() {
                 amount: parseFloat(amount),
                 type,
                 date: date.toISOString(),
-                group_id: isGroup ? selectedGroupId : undefined,
                 trip_id: isTrip ? selectedTripId : undefined,
                 to_account_id: type === 'transfer' ? toAccountId : undefined,
                 savings_id: isSavings ? savingsId : undefined,
                 loan_id: isLoan ? loanId : undefined,
+                tag_id: selectedTags[0]?.id || undefined,
+                tag_ids: selectedTags.map(t => t.id),
             }, recurringOptions);
 
             if (success) {
@@ -378,19 +409,34 @@ export default function QSAddTransactionScreen() {
         }
     };
 
-    const toggleGroup = (value: boolean) => {
-        setIsGroup(value);
-    };
+    const toggleLinkPill = (key: string) => {
+        const nextActive = !activeLinks[key];
+        setActiveLinks(prev => ({ ...prev, [key]: nextActive }));
 
-    const toggleTrip = (value: boolean) => {
-        setIsTrip(value);
+        if (!nextActive) {
+            switch (key) {
+                case 'tag':
+                    setSelectedTags([]);
+                    break;
+                case 'trip':
+                    setIsTrip(false);
+                    setSelectedTripId('');
+                    break;
+                case 'savings':
+                    setIsSavings(false);
+                    setSavingsId('');
+                    break;
+                case 'loan':
+                    setIsLoan(false);
+                    setLoanId('');
+                    break;
+            }
+        }
     };
 
     return (
         <>
             <View style={styles.container}>
-
-
                 <ScrollView
                     showsVerticalScrollIndicator={false}
                 >
@@ -431,7 +477,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Transaction Name - Now available for all types */}
+                        {/* Transaction Name */}
                         <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Transaction Name {type === 'transfer' && '(Optional)'}</Text>
                             <View style={styles.inputWrapper}>
@@ -448,7 +494,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Category - Now available for all types */}
+                        {/* Category */}
                         <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Category {type === 'transfer' && '(Optional)'}</Text>
                             <View style={styles.inputWrapper}>
@@ -471,14 +517,13 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Description - Now available for all types */}
-                        <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputGroup}>
+                        {/* Description */}
+                        <Animated.View entering={FadeInDown.delay(520).springify()} style={styles.inputGroup}>
                             <Text style={styles.label}>Description</Text>
                             <View style={styles.toolbar}>
                                 <TouchableOpacity
                                     style={styles.toolbarButton}
                                     onPress={() => {
-                                        const lines = description.split('\n');
                                         const newDescription = description ? (description.endsWith('\n') ? description + '• ' : description + '\n• ') : '• ';
                                         setDescription(newDescription);
                                     }}
@@ -522,7 +567,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Account Selection Logic */}
+                        {/* Account Selection */}
                         {type !== 'transfer' ? (
                             <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
                                 <Text style={styles.label}>Account</Text>
@@ -543,7 +588,6 @@ export default function QSAddTransactionScreen() {
                             </Animated.View>
                         ) : (
                             <>
-                                {/* From Account */}
                                 <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.inputGroup}>
                                     <Text style={styles.label}>{isSavings && savingsAction === 'contribute' ? 'From Account' : 'From Account'}</Text>
                                     <View style={styles.inputWrapper}>
@@ -562,7 +606,6 @@ export default function QSAddTransactionScreen() {
                                     </View>
                                 </Animated.View>
 
-                                {/* To Account - Hide if it's a savings contribution */}
                                 {(!isSavings || savingsAction !== 'contribute') && (
                                     <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.inputGroup}>
                                         <Text style={styles.label}>To Account</Text>
@@ -604,181 +647,112 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </Animated.View>
 
-                        {/* Group and Trip Toggles */}
-                        <Animated.View entering={FadeInDown.delay(900).springify()} style={styles.toggleGrid}>
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
-                                    </View>
-                                    <Switch
-                                        value={isGroup}
-                                        onValueChange={toggleGroup}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#EC4899' }}
-                                        thumbColor={isGroup ? '#FFFFFF' : '#F3F4F6'}
-                                    />
-                                </View>
-                                <Text style={styles.toggleLabel}>Group Txn</Text>
-                            </View>
-
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="airplane" size={20} color="#FBBF24" />
-                                    </View>
-                                    <Switch
-                                        value={isTrip}
-                                        onValueChange={toggleTrip}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FBBF24' }}
-                                        thumbColor={isTrip ? '#FFFFFF' : '#F3F4F6'}
-                                    />
-                                </View>
-                                <Text style={styles.toggleLabel}>Trip Txn</Text>
-                            </View>
-                        </Animated.View>
-
-                        {/* Savings and Loan Toggles */}
-                        <Animated.View entering={FadeInDown.delay(1000).springify()} style={styles.toggleGrid}>
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
-                                    </View>
-                                    <Switch
-                                        value={isSavings}
-                                        onValueChange={setIsSavings}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#E91E63' }}
-                                        thumbColor={isSavings ? '#FFFFFF' : '#F3F4F6'}
-                                    />
-                                </View>
-                                <Text style={styles.toggleLabel}>Savings Link</Text>
-                            </View>
-
-                            <View style={styles.toggleCard}>
-                                <View style={styles.toggleCardHeader}>
-                                    <View style={styles.toggleIconContainer}>
-                                        <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
-                                    </View>
-                                    <Switch
-                                        value={isLoan}
-                                        onValueChange={setIsLoan}
-                                        trackColor={{ false: theme.isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB', true: '#FF5722' }}
-                                        thumbColor={isLoan ? '#FFFFFF' : '#F3F4F6'}
-                                    />
-                                </View>
-                                <Text style={styles.toggleLabel}>Loan Link</Text>
-                            </View>
-                        </Animated.View>
-
-                        {/* Savings Selection (if enabled) */}
-                        {isSavings && (
-                            <View>
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Savings Action</Text>
-                                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        {/* Link Pills - compact inline with selected labels */}
+                        <Animated.View entering={FadeInDown.delay(850).springify()} style={styles.linkPillsSection}>
+                            <Text style={styles.linkPillsLabel}>Links</Text>
+                            <View style={styles.linkPillsRow}>
+                                {LINK_PILLS.map((pill) => {
+                                    const isActive = activeLinks[pill.key];
+                                    const label = getActiveLinkLabel(pill.key);
+                                    return (
                                         <TouchableOpacity
+                                            key={pill.key}
                                             style={[
-                                                styles.typeButton,
-                                                { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'contribute' ? '#10B981' : theme.colors.border }
+                                                styles.linkPill,
+                                                isActive && styles.linkPillActive,
+                                                label ? { paddingRight: 8 } : {},
                                             ]}
-                                            onPress={() => setSavingsAction('contribute')}
+                                            onPress={() => {
+                                                if (!isActive) {
+                                                    toggleLinkPill(pill.key);
+                                                }
+                                                openLinkPicker(pill.key);
+                                            }}
+                                            activeOpacity={0.7}
                                         >
-                                            <Text style={[styles.typeText, { color: savingsAction === 'contribute' ? '#10B981' : theme.colors.textSecondary }]}>Contribute</Text>
+                                            <View
+                                                style={[
+                                                    styles.linkPillDot,
+                                                    { backgroundColor: isActive ? pill.color : theme.colors.textTertiary },
+                                                ]}
+                                            />
+                                            <MaterialCommunityIcons
+                                                name={pill.icon as any}
+                                                size={14}
+                                                color={isActive ? pill.color : theme.colors.textSecondary}
+                                            />
+                                            {label ? (
+                                                <Text
+                                                    style={[styles.linkPillText, isActive && styles.linkPillTextActive, { fontSize: 10 }]}
+                                                    numberOfLines={1}
+                                                >
+                                                    {label}
+                                                </Text>
+                                            ) : (
+                                                <Text style={[styles.linkPillText, isActive && styles.linkPillTextActive]}>
+                                                    {pill.label}
+                                                </Text>
+                                            )}
                                         </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.typeButton,
-                                                { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.border }
-                                            ]}
-                                            onPress={() => setSavingsAction('withdraw')}
-                                        >
-                                            <Text style={[styles.typeText, { color: savingsAction === 'withdraw' ? '#EF4444' : theme.colors.textSecondary }]}>Withdraw/Spend</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Select Savings Goal</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <View style={styles.iconContainer}>
-                                            <MaterialCommunityIcons name="piggy-bank" size={20} color="#E91E63" />
-                                        </View>
-                                        <TouchableOpacity
-                                            style={styles.selectButton}
-                                            onPress={() => setShowSavingsPicker(true)}
-                                        >
-                                            <Text style={getSelectedSavingsGoal() ? styles.selectText : styles.selectPlaceholder}>
-                                                {getSelectedSavingsGoal()?.name || 'Select Goal'}
+                                    );
+                                })}
+                            </View>
+                            {/* Selected tags inline row */}
+                            {selectedTags.length > 0 && (
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                                    {selectedTags.map((tag: any) => (
+                                        <View key={tag.id} style={{
+                                            flexDirection: 'row', alignItems: 'center', gap: 2,
+                                            paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8,
+                                            backgroundColor: tag.color + '15',
+                                        }}>
+                                            <Text style={{ fontSize: 10, fontWeight: '600', color: tag.color }}>
+                                                {tag.name}
                                             </Text>
-                                            <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            </View>
-                        )}
-
-                        {/* Loan Selection (if enabled) */}
-                        {isLoan && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Select Loan</Text>
-                                <View style={styles.inputWrapper}>
-                                    <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="handshake" size={20} color="#FF5722" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowLoanPicker(true)}
-                                    >
-                                        <Text style={getSelectedLoan() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedLoan()?.person_name ? `${getSelectedLoan()?.person_name} (${getSelectedLoan()?.type})` : 'Select Loan'}
-                                        </Text>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                                            <TouchableOpacity onPress={() => setSelectedTags(prev => prev.filter(t => t.id !== tag.id))} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                                <MaterialCommunityIcons name="close-circle" size={12} color={tag.color + '80'} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                    <TouchableOpacity onPress={() => setShowTagPicker(true)} style={{ paddingHorizontal: 4, paddingVertical: 2 }}>
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
                                     </TouchableOpacity>
                                 </View>
-                            </View>
-                        )}
-
-                        {/* Group Selection (if enabled) */}
-                        {isGroup && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Select Group</Text>
-                                <View style={styles.inputWrapper}>
-                                    <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="account-group" size={20} color="#EC4899" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowGroupPicker(true)}
-                                    >
-                                        <Text style={getSelectedGroup() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedGroup()?.name || 'Select Group'}
-                                        </Text>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                            )}
+                            {/* Selected trip inline */}
+                            {activeLinks.trip && selectedTripId && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '500', color: '#FBBF24' }}>
+                                        ✈ {getSelectedTrip()?.name}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setShowTripPicker(true)}>
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
                                     </TouchableOpacity>
                                 </View>
-                            </View>
-                        )}
-
-                        {/* Trip Selection (if enabled) */}
-                        {isTrip && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Select Trip</Text>
-                                <View style={styles.inputWrapper}>
-                                    <View style={styles.iconContainer}>
-                                        <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#FBBF24" />
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.selectButton}
-                                        onPress={() => setShowTripPicker(true)}
-                                    >
-                                        <Text style={getSelectedTrip() ? styles.selectText : styles.selectPlaceholder}>
-                                            {getSelectedTrip()?.name || 'Select Trip'}
-                                        </Text>
-                                        <MaterialCommunityIcons name="chevron-down" size={24} color={theme.isDark ? '#64748B' : '#94A3B8'} />
+                            )}
+                            {/* Selected savings inline */}
+                            {activeLinks.savings && savingsId && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '500', color: '#E91E63' }}>
+                                        🐷 {getSelectedSavingsGoal()?.name} ({savingsAction === 'contribute' ? '+' : '-'})
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setShowSavingsPicker(true)}>
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
                                     </TouchableOpacity>
                                 </View>
-                            </View>
-                        )}
+                            )}
+                            {/* Selected loan inline */}
+                            {activeLinks.loan && loanId && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '500', color: '#FF5722' }}>
+                                        🤝 {getSelectedLoan()?.person_name} ({getSelectedLoan()?.type})
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setShowLoanPicker(true)}>
+                                        <MaterialCommunityIcons name="pencil" size={12} color={theme.colors.textTertiary} />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </Animated.View>
 
                         {/* Recurring Transaction Toggle */}
                         <View style={styles.inputGroup}>
@@ -793,7 +767,7 @@ export default function QSAddTransactionScreen() {
                             </View>
                         </View>
 
-                        {/* Recurring Frequency (only if recurring is enabled) */}
+                        {/* Recurring Frequency */}
                         {isRecurring && (
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Frequency</Text>
@@ -820,7 +794,6 @@ export default function QSAddTransactionScreen() {
 
                                 {recurringType === 'custom' && (
                                     <Animated.View entering={FadeInDown} style={{ marginTop: 16, gap: 16 }}>
-                                        {/* Custom Interval */}
                                         <View>
                                             <Text style={[styles.label, { fontSize: 13, marginBottom: 8 }]}>Repeat every</Text>
                                             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
@@ -847,7 +820,6 @@ export default function QSAddTransactionScreen() {
                                             </View>
                                         </View>
 
-                                        {/* End Condition */}
                                         <View>
                                             <Text style={[styles.label, { fontSize: 13, marginBottom: 8 }]}>Ends</Text>
                                             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
@@ -916,7 +888,7 @@ export default function QSAddTransactionScreen() {
                     </View>
                 </ScrollView>
 
-                {/* Save Button (Fixed at Bottom) */}
+                {/* Save Button */}
                 <View style={styles.saveButtonContainer}>
                     <QSButton
                         title={editTransaction ? "Update Transaction" : "Save Transaction"}
@@ -946,15 +918,15 @@ export default function QSAddTransactionScreen() {
                 selectedId={categoryId}
                 onSelect={(cat) => {
                     setCategoryId(cat.id);
-                    setSubCategoryId(''); // Reset sub on parent change
+                    setSubCategoryId('');
                     setShowCategoryPicker(false);
-                    // Automatically show sub-category picker only if sub-categories exist
+                    updateSystemTag(classifyNws(cat.name, null, null));
                     const hasSubCategories = categories.some(c => c.parent_id === cat.id);
                     if (hasSubCategories) {
                         setTimeout(() => setShowSubCategoryPicker(true), 300);
                     }
                 }}
-                parentId={null} // Top level
+                parentId={null}
                 onCreateNew={() => {
                     setCreatingParentId(undefined);
                     setShowCreateCategory(true);
@@ -969,8 +941,10 @@ export default function QSAddTransactionScreen() {
                 onSelect={(cat) => {
                     setSubCategoryId(cat.id);
                     setShowSubCategoryPicker(false);
+                    const parentCat = getSelectedCategory();
+                    updateSystemTag(classifyNws(parentCat?.name, cat.name, null));
                 }}
-                parentId={categoryId} // Filter by parent
+                parentId={categoryId}
                 onCreateNew={() => {
                     setCreatingParentId(categoryId);
                     setShowCreateCategory(true);
@@ -982,7 +956,7 @@ export default function QSAddTransactionScreen() {
                 onClose={() => setShowCreateCategory(false)}
                 onSave={handleCreateCategory}
                 parentId={creatingParentId}
-                type={type === 'transfer' ? 'expense' : type} // Default fallback
+                type={type === 'transfer' ? 'expense' : type}
             />
 
             <QSAccountPicker
@@ -1003,14 +977,6 @@ export default function QSAddTransactionScreen() {
                 excludeId={!isSavings ? accountId : undefined}
             />
 
-            <QSGroupPicker
-                visible={showGroupPicker}
-                onClose={() => setShowGroupPicker(false)}
-                groups={groups}
-                selectedId={selectedGroupId}
-                onSelect={(grp) => setSelectedGroupId(grp.id)}
-            />
-
             <QSTripPicker
                 visible={showTripPicker}
                 onClose={() => setShowTripPicker(false)}
@@ -1018,10 +984,6 @@ export default function QSAddTransactionScreen() {
                 selectedId={selectedTripId}
                 onSelect={(trip) => {
                     setSelectedTripId(trip.id);
-                    if (trip.groupId) {
-                        setIsGroup(true);
-                        setSelectedGroupId(trip.groupId);
-                    }
                 }}
             />
 
@@ -1046,6 +1008,13 @@ export default function QSAddTransactionScreen() {
                 loans={loans}
                 selectedId={loanId}
                 onSelect={(loan) => setLoanId(loan.id)}
+            />
+
+            <QSTagPicker
+                visible={showTagPicker}
+                onClose={() => setShowTagPicker(false)}
+                selectedIds={selectedTags.map(t => t.id)}
+                onSelect={(tags) => setSelectedTags(tags)}
             />
         </>
     );

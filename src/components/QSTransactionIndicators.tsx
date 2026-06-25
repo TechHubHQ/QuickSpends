@@ -1,49 +1,38 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { useTheme } from "../theme/ThemeContext";
 
 interface QSTransactionIndicatorsProps {
-    isSplit?: boolean | number;
     tripId?: string | number | null;
-    groupId?: string | number | null;
     savingsId?: string | number | null;
     loanId?: string | number | null;
     hideTrip?: boolean;
-    hideGroup?: boolean;
+    tagName?: string | null;
+    tagColor?: string | null;
+    tagIsEvent?: boolean | null;
+    tags?: { name: string; color: string; is_event?: boolean }[];
 }
 
 export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = ({
-    isSplit,
     tripId,
-    groupId,
     savingsId,
     loanId,
     hideTrip = false,
-    hideGroup = false,
+    tagName,
+    tagColor,
+    tagIsEvent,
+    tags,
 }) => {
-    const { theme } = useTheme();
+    const displayTags = tags || (tagName ? [{ name: tagName, color: tagColor || '#6366F1', is_event: tagIsEvent || false }] : []);
 
-    if (!isSplit && (!tripId || hideTrip) && (!groupId || hideGroup) && !savingsId && !loanId) return null;
+    if ((!tripId || hideTrip) && !savingsId && !loanId && displayTags.length === 0) return null;
 
     return (
         <View style={styles.container}>
-            {!!isSplit && (
-                <View style={[styles.badge, { backgroundColor: theme.colors.primary + '20' }]}>
-                    <MaterialIcons name="call-split" size={10} color={theme.colors.primary} />
-                    <Text style={[styles.badgeText, { color: theme.colors.primary }]}>SPLIT</Text>
-                </View>
-            )}
             {!!tripId && !hideTrip && (
                 <View style={[styles.badge, { backgroundColor: '#FBBF2420' }]}>
                     <MaterialIcons name="flight" size={10} color="#FBBF24" />
                     <Text style={[styles.badgeText, { color: '#FBBF24' }]}>TRIP</Text>
-                </View>
-            )}
-            {!!groupId && !hideGroup && (
-                <View style={[styles.badge, { backgroundColor: '#EC489920' }]}>
-                    <MaterialCommunityIcons name="account-group" size={10} color="#EC4899" />
-                    <Text style={[styles.badgeText, { color: '#EC4899' }]}>GROUP</Text>
                 </View>
             )}
             {!!savingsId && (
@@ -58,6 +47,18 @@ export const QSTransactionIndicators: React.FC<QSTransactionIndicatorsProps> = (
                     <Text style={[styles.badgeText, { color: '#FF5722' }]}>LOAN</Text>
                 </View>
             )}
+            {displayTags.map((tag, i) => (
+                <View key={i} style={[styles.badge, { backgroundColor: (tag.color || '#6366F1') + '20' }]}>
+                    <MaterialCommunityIcons 
+                        name={tag.is_event ? "calendar-star" : "tag"} 
+                        size={10} 
+                        color={tag.color || '#6366F1'} 
+                    />
+                    <Text style={[styles.badgeText, { color: tag.color || '#6366F1' }]}>
+                        {tag.name.toUpperCase()}
+                    </Text>
+                </View>
+            ))}
         </View>
     );
 };

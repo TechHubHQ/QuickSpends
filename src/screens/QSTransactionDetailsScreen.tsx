@@ -15,7 +15,8 @@ import { QSHeader } from "../components/QSHeader";
 import { useAlert } from "../context/AlertContext";
 import { useTransactions } from "../hooks/useTransactions";
 import { useTheme } from "../theme/ThemeContext";
-import { getSafeIconName } from "../utils/iconMapping"; // Assuming this exists based on QSHomeScreen
+import { getSafeIconName } from "../utils/iconMapping";
+import { NWS_DISPLAY, NwsType } from "../utils/nwsClassification";
 
 export default function QSTransactionDetailsScreen() {
   const { theme } = useTheme();
@@ -409,12 +410,49 @@ export default function QSTransactionDetailsScreen() {
               {data.type}
             </Text>
           </View>
+
+          {data.nws_type && (
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.rowLabel, { color: theme.colors.textSecondary }]}>
+                NWS
+              </Text>
+              <View
+                style={[
+                  styles.categoryBadge,
+                  {
+                    backgroundColor: NWS_DISPLAY[data.nws_type as NwsType].lightColor,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 999,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.categoryDot,
+                    { backgroundColor: NWS_DISPLAY[data.nws_type as NwsType].color },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.rowValue,
+                    {
+                      color: NWS_DISPLAY[data.nws_type as NwsType].color,
+                      fontSize: 12,
+                    },
+                  ]}
+                >
+                  {NWS_DISPLAY[data.nws_type as NwsType].label}
+                </Text>
+              </View>
+            </View>
+          )}
         </Animated.View>
 
-        {/* Tags Card - Only show if we have trip info, group info or recurring info */}
+        {/* Tags Card - Only show if we have trip, tag, savings, or recurring info */}
         {!!(
           data.trip_id ||
-          data.group_id ||
+          data.tag_id ||
           data.recurring_id ||
           data.savings_id
         ) && (
@@ -442,7 +480,7 @@ export default function QSTransactionDetailsScreen() {
                   {
                     borderBottomColor: theme.colors.border,
                     borderBottomWidth:
-                      data.group_id || data.savings_id || data.recurring_id
+                      data.tag_id || data.savings_id || data.recurring_id
                         ? 1
                         : 0,
                   },
@@ -489,40 +527,42 @@ export default function QSTransactionDetailsScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Group Tag */}
-            {!!data.group_id && (
+            {/* Tag/Event Tag */}
+            {!!data.tag_id && (
               <TouchableOpacity
                 style={[
                   styles.tagRow,
                   {
                     borderBottomColor: theme.colors.border,
                     borderBottomWidth:
-                      data.savings_id || data.recurring_id ? 1 : 0,
+                      data.savings_id || data.recurring_id
+                        ? 1
+                        : 0,
                   },
                 ]}
+                // @ts-ignore
+                onPress={() => router.push({ pathname: `/tag-details/[id]`, params: { id: data.tag_id } })}
               >
                 <View style={styles.tagLeft}>
                   <View
                     style={[
                       styles.iconBox,
                       {
-                        backgroundColor: isDark
-                          ? "rgba(59, 130, 246, 0.2)"
-                          : "rgba(59, 130, 246, 0.1)",
+                        backgroundColor: (data.tag_color || "#6366F1") + "20",
                       },
                     ]}
                   >
                     <MaterialCommunityIcons
-                      name="account-group"
+                      name={data.tag_is_event ? "calendar-star" : "tag"}
                       size={16}
-                      color="#3B82F6"
+                      color={data.tag_color || "#6366F1"}
                     />
                   </View>
                   <View>
                     <Text
                       style={[styles.tagName, { color: theme.colors.text }]}
                     >
-                      {data.group_name || "Group"}
+                      {data.tag_name || "Tag"}
                     </Text>
                     <Text
                       style={[
@@ -530,7 +570,7 @@ export default function QSTransactionDetailsScreen() {
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      Group
+                      {data.tag_is_event ? "Event" : "Tag"}
                     </Text>
                   </View>
                 </View>

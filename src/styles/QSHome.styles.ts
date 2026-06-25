@@ -413,4 +413,94 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
         backgroundColor: theme.colors.primary,
         borderRadius: 2,
     },
+    eventsScroll: {
+        paddingLeft: theme.spacing.l,
+    },
+    eventCard: {
+        width: 180,
+        padding: theme.spacing.m,
+        borderRadius: theme.borderRadius.l,
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        marginRight: 12,
+        gap: theme.spacing.s,
+        ...theme.shadows.small,
+    },
+    eventCardTop: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    eventIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    eventTypeBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    eventTypeBadgeText: {
+        fontSize: 10,
+        fontWeight: "700",
+        textTransform: "capitalize",
+    },
+    eventCardName: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: theme.colors.text,
+    },
+    eventCardDateRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    eventCardDate: {
+        fontSize: 12,
+        color: theme.colors.textSecondary,
+        fontWeight: "500",
+    },
+    eventBudgetSection: {
+        gap: 4,
+    },
+    eventBudgetBar: {
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: theme.colors.backgroundSecondary,
+        overflow: "hidden",
+    },
+    eventBudgetBarFill: {
+        height: "100%",
+        borderRadius: 3,
+    },
+    eventBudgetRow: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    eventBudgetSpent: {
+        fontSize: 11,
+        fontWeight: "600",
+        color: theme.colors.text,
+    },
+    eventBudgetTotal: {
+        fontSize: 11,
+        color: theme.colors.textTertiary,
+    },
+    eventDaysBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        alignSelf: "flex-start",
+    },
+    eventDaysText: {
+        fontSize: 11,
+        fontWeight: "600",
+    },
 });

@@ -1,5 +1,13 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { InvestmentType, INVESTMENT_TYPE_META } from '../config/investmentTypes';
+
+function generateId(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
 
 export interface SavingsGoal {
     id: string;
@@ -14,7 +22,25 @@ export interface SavingsGoal {
     category_color?: string;
     target_date?: string;
     include_in_net_worth?: boolean;
+    // Future Vision fields
+    goal_type?: string;
+    priority?: number;
+    monthly_allocation?: number;
+    cost_inflation_rate?: number;
+    expected_return_rate?: number;
+    is_vision_goal?: boolean;
+    icon?: string;
+    color?: string;
+    notes?: string;
+    // Investment fields
+    is_investment?: boolean;
+    investment_type?: string;
+    tenure_years?: number;
+    projected_maturity?: number;
 }
+
+/** Columns that exist in the `savings` database table (no joined/computed fields). */
+export type SavingsGoalInsert = Omit<SavingsGoal, 'id' | 'current_amount' | 'created_at' | 'category_name' | 'category_icon' | 'category_color' | 'projected_maturity'>;
 
 export const useSavings = () => {
     const [loading, setLoading] = useState(false);
@@ -51,22 +77,22 @@ export const useSavings = () => {
         }
     }, []);
 
-    const addSavingsGoal = useCallback(async (goal: Omit<SavingsGoal, 'id' | 'current_amount' | 'created_at'>) => {
+    const addSavingsGoal = useCallback(async (goal: SavingsGoalInsert, initialAmount?: number) => {
         setLoading(true);
         setError(null);
         try {
-            const { data, error } = await supabase
+            const id = generateId();
+            const { error } = await supabase
                 .from('savings')
                 .insert({
                     ...goal,
+                    id,
                     user_id: (await supabase.auth.getUser()).data.user?.id,
-                    current_amount: 0
-                })
-                .select()
-                .single();
+                    current_amount: initialAmount ?? 0,
+                });
 
             if (error) throw error;
-            return data.id;
+            return id;
         } catch (err: any) {
             setError(err.message);
             return null;
@@ -157,6 +183,23 @@ export const useSavings = () => {
         }
     }, []);
 
+    const calculateProjectedMaturity = useCallback((goal: SavingsGoal): number => {
+        if (!goal.is_investment || !goal.investment_type) return goal.target_amount;
+        const meta = INVESTMENT_TYPE_META[goal.investment_type as InvestmentType];
+        if (!meta) return goal.target_amount;
+        const tenure = goal.tenure_years || 0;
+        if (tenure <= 0) return goal.target_amount;
+        const rate = goal.expected_return_rate ?? meta.defaultReturn;
+        return meta.calc({
+            monthlySip: goal.monthly_allocation,
+            lumpsum: undefined,
+            annualContribution: goal.monthly_allocation ? goal.monthly_allocation * 12 : undefined,
+            currentAmount: goal.current_amount,
+            tenureYears: tenure,
+            returnRate: rate,
+        });
+    }, []);
+
     return {
         getSavingsGoals,
         getSavingsGoal,
@@ -164,6 +207,7 @@ export const useSavings = () => {
         updateSavingsGoal,
         deleteSavingsGoal,
         getSavingsProgress,
+        calculateProjectedMaturity,
         loading,
         error
     };

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { useRouter } from "expo-router";
+import type { BottomTabBarProps } from "expo-router/js-tabs";
+import { usePathname, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Dimensions, Modal, Pressable, StyleSheet, Text, TouchableWithoutFeedback, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,11 +10,11 @@ import { useTheme } from "../theme/ThemeContext";
 
 const { width } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 70;
-const FAB_SIZE = 56;
 
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     const { theme } = useTheme();
     const router = useRouter();
+    const pathname = usePathname();
     const isDark = theme.isDark;
     const insets = useSafeAreaInsets();
     const styles = createStyles(theme.colors, isDark);
@@ -46,6 +46,8 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
 
     const toggleMenu = () => setIsMenuVisible(!isMenuVisible);
 
+    const visibleRoutes = state.routes.filter(r => r.name !== 'accounts');
+
     return (
         <View style={[styles.container, { height: FULL_HEIGHT }]}>
             {/* Solid Background */}
@@ -62,7 +64,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
 
             {/* Tab Items */}
             <View style={styles.tabsContainer}>
-                {state.routes.map((route, index) => {
+                {visibleRoutes.map((route, index) => {
                     const { options } = descriptors[route.key];
                     const label = options.tabBarLabel !== undefined
                         ? options.tabBarLabel
@@ -70,7 +72,9 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                             ? options.title
                             : route.name;
 
-                    const isFocused = state.index === index;
+                    const isVisionRoute = route.name === "portfolio" && pathname.includes("/portfolio/vision");
+                    const isFocused = state.routes[state.index]?.key === route.key;
+                    const displayLabel = isVisionRoute ? "Vision" : label;
 
                     const onPress = () => {
                         const event = navigation.emit({
@@ -84,19 +88,20 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                         }
                     };
 
-                    const getIcon = (name: string, focused: boolean) => {
+                    const getIcon = (name: string) => {
                         switch (name.toLowerCase()) {
                             case 'home': return "home";
-
                             case 'analytics': return "chart-bar";
-                            case 'accounts': return "credit-card";
+                            case 'portfolio': return isVisionRoute ? "telescope" : "briefcase-variant-outline";
                             case 'settings': return "cog";
                             default: return "circle";
                         }
                     };
 
-                    // We still keep the side spacing for the floating FAB
-                    const isRightSide = index >= 2;
+                    const tabCount = visibleRoutes.length;
+                    const fabOffset = 36;
+                    const isLeftFabSide = index < Math.floor(tabCount / 2) && index === Math.floor(tabCount / 2) - 1;
+                    const isRightFabSide = index >= Math.ceil(tabCount / 2) && index === Math.ceil(tabCount / 2);
 
                     return (
                         <Pressable
@@ -104,12 +109,13 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                             onPress={onPress}
                             style={({ pressed }) => [
                                 styles.tabItem,
-                                isRightSide ? { marginLeft: index === 2 ? 40 : 0 } : { marginRight: index === 1 ? 40 : 0 },
+                                isLeftFabSide ? { marginRight: fabOffset } : {},
+                                isRightFabSide ? { marginLeft: fabOffset } : {},
                                 pressed && { opacity: 0.7 }
                             ]}
                         >
                             <MaterialCommunityIcons
-                                name={getIcon(route.name, isFocused) as any}
+                                name={getIcon(route.name) as any}
                                 size={24}
                                 color={isFocused ? theme.colors.primary : (isDark ? "#9FB3C8" : "#64748B")}
                             />
@@ -117,7 +123,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                                 styles.tabLabel,
                                 { color: isFocused ? theme.colors.primary : (isDark ? "#9FB3C8" : "#64748B") }
                             ]}>
-                                {label as string}
+                                {displayLabel as string}
                             </Text>
                         </Pressable>
                     );
